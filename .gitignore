@@ -1,0 +1,27 @@
+# Dependencies and build output
+**/node_modules/
+**/dist/
+**/build/
+**/__pycache__/
+**/*.py[cod]
+**/venv/
+**/.venv/
+
+# Environment and secrets
+**/.env
+**/.env.*
+!**/.env.example
+
+# Runtime files and logs
+**/*.log
+debug.log
+**/.coverage
+**/coverage/
+
+# Uploaded/runtime data
+backend/uploads/
+
+# Local IDE files
+.vscode/
+.idea/
+.DS_Store

@@ -1,0 +1,7 @@
+export enum KycStatus {
+  NON_VERIFIE = 'NON_VERIFIE',
+  EN_COURS = 'EN_COURS',
+  VERIFIE = 'VERIFIE',
+  REJECTED = 'REJECTED',
+  APPROVED = 'APPROVED',
+}
