@@ -19,6 +19,9 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'wallet_status_enum') THEN
     DROP TYPE wallet_status_enum CASCADE;
   END IF;
+  IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_status_enum') THEN
+    DROP TYPE user_status_enum CASCADE;
+  END IF;
 END $$;
 
 -- Create enums
@@ -27,6 +30,7 @@ CREATE TYPE kyc_status_enum AS ENUM ('NON_VERIFIE', 'EN_COURS', 'VERIFIE', 'REJE
 CREATE TYPE kyb_status_enum AS ENUM ('NON_VERIFIE', 'EN_COURS', 'VERIFIE', 'REJECTED', 'APPROVED');
 CREATE TYPE document_type_enum AS ENUM ('CIN', 'PASSPORT', 'KBIS', 'NIF', 'RIB', 'ADDRESS_PROOF', 'PHOTO_ID');
 CREATE TYPE wallet_status_enum AS ENUM ('ACTIVE', 'SUSPENDED', 'CLOSED');
+CREATE TYPE user_status_enum AS ENUM ('ACTIVE', 'SUSPENDED', 'DELETED', 'PENDING_VERIFICATION');
 
 -- Drop the old tables if they exist and recreate them
 -- WARNING: This will delete all existing data
@@ -50,6 +54,12 @@ CREATE TABLE users (
   role role_enum NOT NULL DEFAULT 'USER',
   kyc_status kyc_status_enum NOT NULL DEFAULT 'NON_VERIFIE',
   kyb_status kyb_status_enum NOT NULL DEFAULT 'NON_VERIFIE',
+  account_status user_status_enum NOT NULL DEFAULT 'ACTIVE',
+  suspension_reason TEXT,
+  suspended_at TIMESTAMP,
+  deleted_at TIMESTAMP,
+  reactivation_deadline TIMESTAMP,
+  revalidated_at TIMESTAMP,
   is_email_verified BOOLEAN NOT NULL DEFAULT FALSE,
   is_two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   two_factor_secret VARCHAR(255),
@@ -83,6 +93,8 @@ CREATE TABLE wallets (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
   wallet_number VARCHAR(255) UNIQUE NOT NULL,
+  card_number VARCHAR(19) UNIQUE NOT NULL,
+  card_holder_name VARCHAR(255) NOT NULL,
   balance DECIMAL(15,2) NOT NULL DEFAULT 0,
   daily_limit DECIMAL(15,2) NOT NULL DEFAULT 0,
   monthly_limit DECIMAL(15,2) NOT NULL DEFAULT 0,
@@ -138,6 +150,35 @@ CREATE TABLE refresh_tokens (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TYPE payment_channel_enum AS ENUM ('MVOLA', 'ORANGE_MONEY', 'AIRTEL_MONEY', 'CARD', 'QR', 'BANK_TRANSFER');
+CREATE TYPE transaction_status_enum AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED');
+
+CREATE TABLE transactions (
+  id SERIAL PRIMARY KEY,
+  sender_wallet_id INTEGER NOT NULL REFERENCES wallets(id),
+  recipient_wallet_id INTEGER NOT NULL REFERENCES wallets(id),
+  amount DECIMAL(15,2) NOT NULL,
+  currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
+  channel payment_channel_enum NOT NULL,
+  status transaction_status_enum NOT NULL DEFAULT 'PENDING',
+  external_reference VARCHAR(120),
+  failure_reason TEXT,
+  metadata JSONB,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE ledgers (
+  id SERIAL PRIMARY KEY,
+  transaction_id INTEGER NOT NULL REFERENCES transactions(id),
+  wallet_id INTEGER NOT NULL REFERENCES wallets(id),
+  amount DECIMAL(15,2) NOT NULL,
+  currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
+  direction VARCHAR(10) NOT NULL,
+  entry_reference VARCHAR(120) NOT NULL UNIQUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE notifications (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -151,6 +192,7 @@ CREATE TABLE notifications (
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_kyc_status ON users(kyc_status);
+CREATE INDEX idx_users_account_status ON users(account_status);
 CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
 CREATE INDEX idx_profiles_user_id ON profiles(user_id);
 CREATE INDEX idx_wallets_user_id ON wallets(user_id);

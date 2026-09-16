@@ -2,6 +2,10 @@ import { Controller, Post, Get, Patch, Delete, UseGuards, Param, Body, Req, UseI
 import { Request } from 'express'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { AuthGuard } from '@nestjs/passport'
+import { RolesGuard } from '../../../common/guards/roles.guard.js'
+import { Roles } from '../../../common/decorators/roles.decorator.js'
+import { Role } from '../../auth/enums/role.enum.js'
+import { AccountManagementService } from '../../../users/services/account-management.service.js'
 import { KycService } from '../services/kyc.service.js'
 import { CreateKycDocumentDto, ReviewKycDocumentDto } from '../../auth/dto/kyc.dto.js'
 
@@ -12,7 +16,15 @@ interface RequestWithUser extends Request {
 @Controller('kyc')
 @UseGuards(AuthGuard('jwt'))
 export class KycController {
-  constructor(private kycService: KycService) {}
+  constructor(
+    private kycService: KycService,
+    private accountManagementService: AccountManagementService,
+  ) {}
+
+  @Post('revalidate')
+  revalidate(@Req() req: RequestWithUser) {
+    return this.accountManagementService.revalidateAccount(parseInt(req.user.sub, 10))
+  }
 
   @Post()
   @UseInterceptors(FileInterceptor('file'))
@@ -51,6 +63,8 @@ export class KycController {
   }
 
   @Patch(':id/review')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN)
   review(@Param('id') id: string, @Body() dto: ReviewKycDocumentDto, @Req() req: RequestWithUser) {
     const reviewerId = parseInt(req.user.sub, 10)
     return this.kycService.review(parseInt(id, 10), reviewerId, dto)

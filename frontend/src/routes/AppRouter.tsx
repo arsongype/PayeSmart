@@ -15,6 +15,7 @@ const AdminUserDetailPage = lazy(() => import('../pages/admin/AdminUserDetailPag
 const ProfilePage = lazy(() => import('../pages/profile/ProfilePage'))
 const WalletPage = lazy(() => import('../pages/profile/WalletPage'))
 const KycPage = lazy(() => import('../pages/profile/KycPage'))
+const PaymentsPage = lazy(() => import('../pages/payments/PaymentsPage'))
 
 const loader = (
   <div className="min-h-screen flex items-center justify-center bg-dark-900">
@@ -92,9 +93,7 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <Suspense fallback={loader}>
-          <div className="min-h-screen bg-dark-900 flex items-center justify-center text-dark-400">
-            Page Paiements - Sprint 2
-          </div>
+          <PaymentsPage />
         </Suspense>
       </ProtectedRoute>
     ),

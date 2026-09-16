@@ -6,6 +6,7 @@ import { PasswordInput } from '../common/PasswordInput'
 import type { RegisterFormData } from '../../utils/validators'
 import { registerSchema } from '../../utils/validators'
 import { useAuth } from '../../contexts/AuthContext'
+import axios from 'axios'
 
 interface RegisterFormProps {
   onSuccess?: () => void
@@ -78,7 +79,9 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
       }, 1200)
     } catch (err) {
       console.error('Register API error:', err)
-      if (err && typeof err === 'object' && 'response' in err) {
+      if (axios.isAxiosError(err) && !err.response) {
+        setError('Impossible de joindre le serveur. Démarrez le backend sur le port 3000 puis réessayez.')
+      } else if (err && typeof err === 'object' && 'response' in err) {
         const axiosError = err as { response?: { data?: { message?: string } } }
         setError(axiosError.response?.data?.message || "Échec de l'inscription")
       } else if (err instanceof Error) {

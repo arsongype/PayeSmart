@@ -67,11 +67,17 @@ export class KycService {
     const analyses = documents
       .map((document) => document.metadata?.analysis)
       .filter((analysis): analysis is Record<string, any> => Boolean(analysis))
-    const fraudIndicators = analyses.reduce((count, analysis) => count + (analysis.fraudIndicators ?? analysis.fraud_indicators ?? []).length, 0)
+    const fraudIndicators = analyses.reduce((count, analysis) => {
+      const indicators = analysis.fraudIndicators ?? analysis.fraud_indicators
+      return count + (Array.isArray(indicators) ? indicators.length : 0)
+    }, 0)
     const approvedKyc = kycDocuments.some((document) => document.status === KycStatus.APPROVED)
     const approvedKyb = kybDocuments.some((document) => document.status === 'APPROVED')
     let score = 50 + (approvedKyc ? 20 : 0) + (approvedKyb ? 15 : 0)
-    score += analyses.reduce((total, analysis) => total + Number(analysis.trustScoreImpact ?? analysis.trust_score_impact ?? 0), 0)
+    score += analyses.reduce((total, analysis) => {
+      const impact = Number(analysis.trustScoreImpact ?? analysis.trust_score_impact ?? 0)
+      return total + (Number.isFinite(impact) ? impact : 0)
+    }, 0)
     score -= fraudIndicators * 10
     score = Math.max(0, Math.min(100, score))
     return {

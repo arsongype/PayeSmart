@@ -11,6 +11,8 @@ import { Profile } from './entities/profile.entity.js'
 import { Wallet } from './entities/wallet.entity.js'
 import { KycDocument } from './entities/kyc-document.entity.js'
 import { KybDocument } from './entities/kyb-document.entity.js'
+import { Transaction } from './entities/transaction.entity.js'
+import { Ledger } from './entities/ledger.entity.js'
 import { JwtStrategy } from './strategies/jwt.strategy.js'
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js'
 
@@ -18,7 +20,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard.js'
   imports: [
     ConfigModule,
     PassportModule,
-    TypeOrmModule.forFeature([User, RefreshToken, Profile, Wallet, KycDocument, KybDocument]),
+    TypeOrmModule.forFeature([User, RefreshToken, Profile, Wallet, KycDocument, KybDocument, Transaction, Ledger]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

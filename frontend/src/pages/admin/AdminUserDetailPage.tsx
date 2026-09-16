@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Shield, User as UserIcon, Wallet, FileText, CheckCircle2, XCircle } from 'lucide-react'
+import { ArrowLeft, Shield, User as UserIcon, Wallet, FileText, CheckCircle2, XCircle, Ban, Trash2, RotateCcw } from 'lucide-react'
 import { adminService } from '../../services/admin.service'
 import { kycService } from '../../services/kyc.service'
 import { kybService } from '../../services/kyb.service'
@@ -88,6 +88,32 @@ export default function AdminUserDetailPage() {
     }
   }
 
+  const updateAccount = async (action: 'suspend' | 'delete' | 'reactivate' | 'cancelDeletion' | 'permanentDelete') => {
+    if (!selectedUser) return
+    try {
+      if (action === 'suspend') {
+        const reason = window.prompt('Motif du blocage :')
+        if (!reason) return
+        await adminService.suspendUser(selectedUser.id, reason)
+      } else if (action === 'delete') {
+        if (!window.confirm('Supprimer ce compte ? Une réactivation sera possible pendant 30 jours.')) return
+        await adminService.deleteUser(selectedUser.id)
+      } else if (action === 'reactivate') {
+        await adminService.reactivateUser(selectedUser.id)
+      } else if (action === 'cancelDeletion') {
+        await adminService.cancelDeletion(selectedUser.id)
+      } else {
+        if (!window.confirm('Supprimer définitivement ce compte ?')) return
+        await adminService.permanentlyDeleteUser(selectedUser.id)
+        navigate('/admin/users')
+        return
+      }
+      await loadUserDetail()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de la gestion du compte')
+    }
+  }
+
   if (loading) return <FullPageLoader />
 
   if (!selectedUser) {
@@ -114,6 +140,47 @@ export default function AdminUserDetailPage() {
               <h1 className="text-2xl font-bold text-dark-50">{selectedUser.firstName} {selectedUser.lastName}</h1>
               <p className="text-sm text-dark-400">{selectedUser.email}</p>
             </div>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <span className={`text-xs px-2.5 py-1 rounded-full border ${
+              selectedUser.accountStatus === 'ACTIVE' ? 'border-green-500/30 bg-green-500/10 text-green-400' :
+              selectedUser.accountStatus === 'SUSPENDED' ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400' :
+              'border-red-500/30 bg-red-500/10 text-red-400'
+            }`}>
+              Compte : {selectedUser.accountStatus}
+            </span>
+            {selectedUser.reactivationDeadline && (
+              <span className="text-xs text-dark-400">
+                Réactivation jusqu'au {new Date(selectedUser.reactivationDeadline).toLocaleDateString('fr-FR')}
+              </span>
+            )}
+            {selectedUser.accountStatus === 'ACTIVE' && (
+              <>
+                <Button size="sm" variant="outline" onClick={() => updateAccount('suspend')}>
+                  <Ban className="h-3 w-3 mr-1" /> Bloquer
+                </Button>
+                <Button size="sm" variant="danger" onClick={() => updateAccount('delete')}>
+                  <Trash2 className="h-3 w-3 mr-1" /> Supprimer
+                </Button>
+              </>
+            )}
+            {selectedUser.accountStatus === 'SUSPENDED' && (
+              <Button size="sm" variant="primary" onClick={() => updateAccount('reactivate')}>
+                <RotateCcw className="h-3 w-3 mr-1" /> Réactiver
+              </Button>
+            )}
+            {selectedUser.accountStatus === 'DELETED' && (
+              <>
+                <Button size="sm" variant="primary" onClick={() => updateAccount('cancelDeletion')}>
+                  <RotateCcw className="h-3 w-3 mr-1" /> Annuler la suppression
+                </Button>
+                {selectedUser.reactivationDeadline && new Date(selectedUser.reactivationDeadline) < new Date() && (
+                  <Button size="sm" variant="danger" onClick={() => updateAccount('permanentDelete')}>
+                    <Trash2 className="h-3 w-3 mr-1" /> Supprimer définitivement
+                  </Button>
+                )}
+              </>
+            )}
           </div>
         </div>
 

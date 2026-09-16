@@ -35,4 +35,29 @@ export const adminService = {
     const { data } = await apiClient.post(`/kyc/trust-score/${userId}/recalculate`)
     return data
   },
+
+  async suspendUser(userId: number, reason: string) {
+    const { data } = await apiClient.patch(`/admin/users/${userId}/suspend`, { reason })
+    return data
+  },
+
+  async deleteUser(userId: number) {
+    const { data } = await apiClient.delete(`/admin/users/${userId}`)
+    return data
+  },
+
+  async permanentlyDeleteUser(userId: number) {
+    const { data } = await apiClient.delete(`/admin/users/${userId}/permanent`)
+    return data
+  },
+
+  async reactivateUser(userId: number) {
+    const { data } = await apiClient.patch(`/admin/users/${userId}/reactivate`)
+    return data
+  },
+
+  async cancelDeletion(userId: number) {
+    const { data } = await apiClient.patch(`/admin/users/${userId}/cancel-deletion`)
+    return data
+  },
 }

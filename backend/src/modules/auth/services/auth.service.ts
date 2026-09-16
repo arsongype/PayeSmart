@@ -9,6 +9,8 @@ import { RegisterDto, LoginDto } from '../dto/auth.dto.js';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '../enums/role.enum.js';
 import { KycStatus } from '../enums/kyc-status.enum.js';
+import { Wallet } from '../entities/wallet.entity.js';
+import { WalletStatus } from '../enums/wallet-status.enum.js';
 
 @Injectable()
 export class AuthService {
@@ -17,6 +19,8 @@ export class AuthService {
     private userRepository: Repository<User>,
     @InjectRepository(RefreshToken)
     private refreshTokenRepository: Repository<RefreshToken>,
+    @InjectRepository(Wallet)
+    private walletRepository: Repository<Wallet>,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -45,8 +49,8 @@ export class AuthService {
         passwordHash,
       })
 
-      await this.userRepository.save(user)
-      return this.generateTokens(user)
+      const savedUser = await this.userRepository.save(user)
+      return this.generateTokens(savedUser)
     } catch (error) {
       console.error('Register error', error)
       throw error
@@ -88,6 +92,7 @@ export class AuthService {
       throw new UnauthorizedException('Utilisateur non trouvé')
     }
 
+    const wallet = await this.ensureWallet(user.id)
     return {
       id: user.id,
       email: user.email,
@@ -99,6 +104,10 @@ export class AuthService {
       role: user.role,
       kycStatus: user.kycStatus,
       kybStatus: user.kybStatus,
+      accountStatus: user.accountStatus,
+      suspensionReason: user.suspensionReason,
+      reactivationDeadline: user.reactivationDeadline,
+      wallet,
     }
   }
 
@@ -112,6 +121,9 @@ export class AuthService {
       role: user.role,
       kycStatus: user.kycStatus,
       kybStatus: user.kybStatus,
+      accountStatus: user.accountStatus,
+      suspensionReason: user.suspensionReason,
+      reactivationDeadline: user.reactivationDeadline,
       isEmailVerified: user.isEmailVerified,
       createdAt: user.createdAt,
     }))
@@ -150,6 +162,7 @@ export class AuthService {
   }
 
   private async generateTokens(user: User) {
+    const wallet = await this.ensureWallet(user.id)
     const payload = { sub: user.id, email: user.email, role: user.role };
     
     const accessToken = this.jwtService.sign(payload, {
@@ -181,7 +194,45 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        kycStatus: user.kycStatus,
+        kybStatus: user.kybStatus,
+        accountStatus: user.accountStatus,
+        suspensionReason: user.suspensionReason,
+        reactivationDeadline: user.reactivationDeadline,
+        wallet,
       },
     };
+  }
+
+  private async ensureWallet(userId: number): Promise<Wallet> {
+    const existing = await this.walletRepository.findOne({ where: { userId } })
+    if (existing) return existing
+
+    const user = await this.userRepository.findOne({ where: { id: userId } })
+    if (!user) throw new UnauthorizedException('Utilisateur non trouvé')
+
+    return this.walletRepository.save(
+      this.walletRepository.create({
+        userId,
+        walletNumber: this.generateWalletNumber(userId),
+        cardNumber: this.generateCardNumber(userId),
+        cardHolderName: [user.firstName, user.lastName].filter(Boolean).join(' ').toUpperCase() || user.email.toUpperCase(),
+        status: WalletStatus.ACTIVE,
+        currency: 'EUR',
+        balance: 0,
+        dailyLimit: 0,
+        monthlyLimit: 0,
+      }),
+    )
+  }
+
+  private generateWalletNumber(userId: number): string {
+    const randomPart = Math.floor(100000 + Math.random() * 900000)
+    return `${String(userId).padStart(8, '0')}${randomPart}`
+  }
+
+  private generateCardNumber(userId: number): string {
+    const suffix = String(userId).padStart(8, '0') + String(Math.floor(10000000 + Math.random() * 90000000))
+    return `5399 ${suffix.slice(0, 4)} ${suffix.slice(4, 8)} ${suffix.slice(8, 12)}`
   }
 }

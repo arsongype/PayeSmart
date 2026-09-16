@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 import os
+import socket
+import tempfile
 import uuid
 from dotenv import load_dotenv
 
@@ -25,7 +27,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_KEY = os.getenv("AI_API_KEY", "dev-secret-key")
+API_KEY = os.getenv("AI_API_KEY", "dev-secret-key-change-in-production")
 ocr_service = OCRService()
 trust_score_service = TrustScoreService()
 
@@ -65,7 +67,12 @@ async def verify_api_key(x_api_key: str = Header(...)):
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "ai-service", "version": "1.0.0"}
+    return {
+        "status": "healthy",
+        "service": "ai-service",
+        "version": "1.0.0",
+        "ocr_available": ocr_service.is_available(),
+    }
 
 @app.post("/api/v1/kyc/analyze", response_model=DocumentAnalysisResponse, dependencies=[Depends(verify_api_key)])
 async def analyze_kyc_document(request: KYCAnalysisRequest):
@@ -88,7 +95,7 @@ async def analyze_kyc_file(
     file: UploadFile = File(...)
 ):
     try:
-        temp_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
+        temp_path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}_{file.filename}")
         with open(temp_path, "wb") as buffer:
             content = await file.read()
             buffer.write(content)
@@ -99,10 +106,12 @@ async def analyze_kyc_file(
         )
         trust_impact = trust_score_service.calculate_kyc_impact(analysis)
         analysis["trust_score_impact"] = trust_impact
-        os.remove(temp_path)
         return DocumentAnalysisResponse(**analysis)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'temp_path' in locals() and os.path.exists(temp_path):
+            os.remove(temp_path)
 
 @app.post("/api/v1/kyb/analyze", response_model=DocumentAnalysisResponse, dependencies=[Depends(verify_api_key)])
 async def analyze_kyb_document(request: KYBAnalysisRequest):
@@ -129,7 +138,7 @@ async def analyze_kyb_file(
     file: UploadFile = File(...)
 ):
     try:
-        temp_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
+        temp_path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}_{file.filename}")
         with open(temp_path, "wb") as buffer:
             content = await file.read()
             buffer.write(content)
@@ -142,10 +151,12 @@ async def analyze_kyb_file(
         )
         trust_impact = trust_score_service.calculate_kyb_impact(analysis)
         analysis["trust_score_impact"] = trust_impact
-        os.remove(temp_path)
         return DocumentAnalysisResponse(**analysis)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'temp_path' in locals() and os.path.exists(temp_path):
+            os.remove(temp_path)
 
 @app.get("/api/v1/trust-score/{user_id}", response_model=TrustScoreResponse, dependencies=[Depends(verify_api_key)])
 async def get_trust_score(user_id: int):
@@ -166,4 +177,9 @@ async def recalculate_trust_score(user_id: int):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8001))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        port_in_use = probe.connect_ex(("127.0.0.1", port)) == 0
+    if port_in_use:
+        print(f"Le service IA est déjà démarré sur http://localhost:{port}")
+    else:
+        uvicorn.run(app, host="0.0.0.0", port=port)

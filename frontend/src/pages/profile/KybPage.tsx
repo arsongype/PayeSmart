@@ -25,7 +25,7 @@ export default function KybPage({ embedded = false }: KybPageProps) {
   const [recalculating, setRecalculating] = useState(false)
 
   const loadDocuments = useCallback(() => {
-    if (user) {
+    if (user?.id) {
       kybService.getDocuments(user.id).then(setDocuments).catch((err) => {
         setError(err instanceof Error ? err.message : 'Impossible de charger les documents')
       }).finally(() => setLoading(false))
@@ -37,12 +37,12 @@ export default function KybPage({ embedded = false }: KybPageProps) {
   }, [loadDocuments])
 
   useEffect(() => {
-    if (!user) return
+    if (!user?.id) return
     apiClient.get(`/kyc/trust-score/${user.id}`).then(({ data }) => setTrustScore(data)).catch(() => undefined)
   }, [user])
 
   const recalculateTrustScore = async () => {
-    if (!user) return
+    if (!user?.id) return
     setRecalculating(true)
     try {
       const { data } = await apiClient.post(`/kyc/trust-score/${user.id}/recalculate`)

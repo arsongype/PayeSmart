@@ -24,6 +24,7 @@ class KYBAnalysisResult:
 
 class OCRService:
     def __init__(self) -> None:
+        self._available = False
         try:
             import pytesseract
             executable = shutil.which("tesseract")
@@ -36,8 +37,12 @@ class OCRService:
                     break
             if executable:
                 pytesseract.pytesseract.tesseract_cmd = executable
+                self._available = True
         except ImportError:
             pass
+
+    def is_available(self) -> bool:
+        return self._available
 
     def _is_valid_siren(self, value: str) -> bool:
         digits = re.sub(r"\D", "", value)

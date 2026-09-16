@@ -6,15 +6,16 @@ import {
   UpdateDateColumn,
   OneToMany,
   OneToOne,
-} from 'typeorm';
-import type { RefreshToken } from './refresh-token.entity.js';
-import type { Profile } from './profile.entity.js';
-import type { Wallet } from './wallet.entity.js';
-import type { KycDocument } from './kyc-document.entity.js';
-import type { KybDocument } from './kyb-document.entity.js';
-import { Role } from '../enums/role.enum.js';
-import { KycStatus } from '../enums/kyc-status.enum.js';
-import { KybStatus } from '../enums/kyb-status.enum.js';
+} from 'typeorm'
+import type { RefreshToken } from './refresh-token.entity.js'
+import type { Profile } from './profile.entity.js'
+import type { Wallet } from './wallet.entity.js'
+import type { KycDocument } from './kyc-document.entity.js'
+import type { KybDocument } from './kyb-document.entity.js'
+import { Role } from '../enums/role.enum.js'
+import { KycStatus } from '../enums/kyc-status.enum.js'
+import { KybStatus } from '../enums/kyb-status.enum.js'
+import { UserStatus } from '../enums/user-status.enum.js'
 
 @Entity('users')
 export class User {
@@ -64,6 +65,29 @@ export class User {
     name: 'kyb_status',
   })
   kybStatus: KybStatus;
+
+  @Column({
+    type: 'enum',
+    enum: UserStatus,
+    default: UserStatus.ACTIVE,
+    name: 'account_status',
+  })
+  accountStatus: UserStatus;
+
+  @Column({ type: 'text', nullable: true, name: 'suspension_reason' })
+  suspensionReason: string | null;
+
+  @Column({ type: 'timestamp', nullable: true, name: 'suspended_at' })
+  suspendedAt: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true, name: 'deleted_at' })
+  deletedAt: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true, name: 'reactivation_deadline' })
+  reactivationDeadline: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true, name: 'revalidated_at' })
+  revalidatedAt: Date | null;
 
   @Column({ default: false, name: 'is_email_verified' })
   isEmailVerified: boolean;

@@ -16,6 +16,10 @@ Ou avec reload automatique :
 
 Le service démarre sur `http://localhost:8001`
 
+Pour activer l'analyse OCR des images et PDF sous Windows, installez aussi
+[Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki), puis redémarrez le service.
+Le endpoint `/health` expose `ocr_available: true` lorsque le moteur est détecté.
+
 ## Endpoints
 
 ### Health Check

@@ -6,6 +6,11 @@ export interface User {
   role: 'USER' | 'MERCHANT' | 'ADMIN';
   kycStatus: 'NON_VERIFIE' | 'EN_COURS' | 'VERIFIE' | 'REJECTED' | 'APPROVED';
   kybStatus: 'NON_VERIFIE' | 'EN_COURS' | 'VERIFIE' | 'REJECTED' | 'APPROVED';
+  accountStatus: 'ACTIVE' | 'SUSPENDED' | 'DELETED' | 'PENDING_VERIFICATION';
+  suspensionReason?: string | null;
+  suspendedAt?: string | null;
+  deletedAt?: string | null;
+  reactivationDeadline?: string | null;
   cin?: string;
   phone?: string;
   dateOfBirth?: string;
@@ -41,6 +46,8 @@ export interface Wallet {
   id: number;
   userId: number;
   walletNumber: string;
+  cardNumber?: string;
+  cardHolderName?: string;
   balance: number;
   dailyLimit: number;
   monthlyLimit: number;

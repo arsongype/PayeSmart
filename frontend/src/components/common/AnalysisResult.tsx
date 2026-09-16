@@ -32,14 +32,18 @@ export function AnalysisResult({ analysis, onRecalculate, recalculating = false 
     return <p className="text-sm text-dark-500">Analyse non disponible pour ce document.</p>
   }
 
-  const confidence = analysis.confidenceScore ?? analysis.confidence_score ?? 0
+  const confidenceValue = analysis.confidenceScore ?? analysis.confidence_score ?? 0
   const extractedData = analysis.extractedData ?? analysis.extracted_data ?? {}
-  const fraudIndicators = analysis.fraudIndicators ?? analysis.fraud_indicators ?? []
-  const trustImpact = analysis.trustScoreImpact ?? analysis.trust_score_impact ?? 0
-  const riskScore = analysis.riskScore ?? analysis.risk_score
+  const fraudIndicators = Array.isArray(analysis.fraudIndicators ?? analysis.fraud_indicators)
+    ? (analysis.fraudIndicators ?? analysis.fraud_indicators ?? [])
+    : []
+  const trustImpactValue = analysis.trustScoreImpact ?? analysis.trust_score_impact ?? 0
+  const riskScoreValue = analysis.riskScore ?? analysis.risk_score
   const riskLevel = analysis.riskLevel ?? analysis.risk_level
   const isValid = analysis.is_valid ?? false
-  const confidencePercent = Math.round(confidence * 100)
+  const confidencePercent = Number.isFinite(confidenceValue) ? Math.round(confidenceValue * 100) : 0
+  const trustImpact = Number.isFinite(trustImpactValue) ? trustImpactValue : 0
+  const riskScore = typeof riskScoreValue === 'number' && Number.isFinite(riskScoreValue) ? riskScoreValue : undefined
 
   return (
     <div className="mt-4 border-t border-dark-700 pt-4">

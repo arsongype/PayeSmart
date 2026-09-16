@@ -1,0 +1,8 @@
+export enum PaymentChannel {
+  MVOLA = 'MVOLA',
+  ORANGE_MONEY = 'ORANGE_MONEY',
+  AIRTEL_MONEY = 'AIRTEL_MONEY',
+  CARD = 'CARD',
+  QR = 'QR',
+  BANK_TRANSFER = 'BANK_TRANSFER',
+}

@@ -2,6 +2,9 @@ import { Controller, Post, Get, Patch, Delete, UseGuards, Param, Body, Req, UseI
 import { Request } from 'express'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { AuthGuard } from '@nestjs/passport'
+import { RolesGuard } from '../../../common/guards/roles.guard.js'
+import { Roles } from '../../../common/decorators/roles.decorator.js'
+import { Role } from '../../auth/enums/role.enum.js'
 import { KybService } from '../services/kyb.service.js'
 import { CreateKybDocumentDto, ReviewKybDocumentDto } from '../../auth/dto/kyb.dto.js'
 import { storage, fileFilter } from '../../../storage/storage.config.js'
@@ -34,6 +37,8 @@ export class KybController {
   }
 
   @Patch(':id/review')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN)
   review(@Param('id') id: string, @Body() dto: ReviewKybDocumentDto, @Req() req: RequestWithUser) {
     const reviewerId = parseInt(req.user.sub, 10)
     return this.kybService.review(parseInt(id, 10), reviewerId, dto)

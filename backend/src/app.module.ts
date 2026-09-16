@@ -7,6 +7,7 @@ import { NotificationsModule } from './notifications/notifications.module.js'
 import { DatabaseModule } from './database/database.module.js'
 import { ProfilesModule } from './modules/profiles/profiles.module.js'
 import { StorageModule } from './storage/storage.module.js'
+import { PaymentsModule } from './modules/payments/payments.module.js'
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js'
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js'
 import path from 'path'
@@ -36,6 +37,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
         aiService: {
           url: process.env.AI_SERVICE_URL ?? 'http://localhost:8001',
           apiKey: process.env.AI_API_KEY ?? 'dev-secret-key-change-in-production',
+        },
+        redis: {
+          url: process.env.REDIS_URL,
         },
         cors: {
           origin: process.env.CORS_ORIGIN?.split(',').map((origin) => origin.trim()) ?? [
@@ -68,6 +72,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
     DatabaseModule,
     ProfilesModule,
     StorageModule,
+    PaymentsModule,
   ],
   controllers: [],
   providers: [HttpExceptionFilter, LoggingInterceptor],

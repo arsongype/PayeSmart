@@ -25,6 +25,12 @@ export class Wallet {
   @Column({ unique: true, name: 'wallet_number' })
   walletNumber: string
 
+  @Column({ unique: true, name: 'card_number', length: 19 })
+  cardNumber: string
+
+  @Column({ name: 'card_holder_name' })
+  cardHolderName: string
+
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0, name: 'balance' })
   balance: number
 

@@ -21,7 +21,7 @@ export default function KycPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadDocuments = useCallback(() => {
-    if (user) {
+    if (user?.id) {
       kycService.getDocuments(user.id).then(setDocuments).catch((err) => {
         setError(err instanceof Error ? err.message : 'Impossible de charger les documents')
       }).finally(() => setLoading(false))
@@ -33,12 +33,12 @@ export default function KycPage() {
   }, [loadDocuments])
 
   useEffect(() => {
-    if (!user) return
+    if (!user?.id) return
     apiClient.get(`/kyc/trust-score/${user.id}`).then(({ data }) => setTrustScore(data)).catch(() => undefined)
   }, [user])
 
   const recalculateTrustScore = async () => {
-    if (!user) return
+    if (!user?.id) return
     setRecalculating(true)
     try {
       const { data } = await apiClient.post(`/kyc/trust-score/${user.id}/recalculate`)
@@ -58,6 +58,16 @@ export default function KycPage() {
       setTrustScore(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Impossible de supprimer la demande')
+    }
+  }
+
+  const handleRevalidate = async () => {
+    try {
+      const { data } = await apiClient.post('/kyc/revalidate')
+      localStorage.setItem('user', JSON.stringify(data))
+      window.location.reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Impossible de réactiver le compte')
     }
   }
 
@@ -131,6 +141,16 @@ export default function KycPage() {
         {error && (
           <div className="mb-6 rounded-lg bg-red-500/10 border border-red-500/50 p-4 text-sm text-red-400">
             {error}
+          </div>
+        )}
+
+        {user?.accountStatus === 'DELETED' && user.reactivationDeadline && new Date(user.reactivationDeadline) > new Date() && (
+          <div className="mb-6 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-4 text-sm text-yellow-300">
+            <p className="font-medium">Votre compte est en attente de suppression définitive.</p>
+            <p className="mt-1">Réactivez-le avant le {new Date(user.reactivationDeadline).toLocaleDateString('fr-FR')} pour recommencer votre vérification.</p>
+            <Button type="button" size="sm" variant="primary" className="mt-3" onClick={handleRevalidate}>
+              Réactiver et recommencer la vérification
+            </Button>
           </div>
         )}
 
