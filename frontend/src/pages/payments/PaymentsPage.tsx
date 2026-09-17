@@ -36,6 +36,8 @@ export default function PaymentsPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [lastTransaction, setLastTransaction] = useState<PaymentTransaction | null>(null)
+  const [twoFactorCode, setTwoFactorCode] = useState('')
+  const [confirmingTwoFactor, setConfirmingTwoFactor] = useState(false)
 
   const load = async () => {
     try {
@@ -120,6 +122,23 @@ export default function PaymentsPage() {
     }
   }
 
+  const confirmTwoFactor = async () => {
+    if (!lastTransaction || !/^\d{6}$/.test(twoFactorCode)) return
+    try {
+      setConfirmingTwoFactor(true)
+      setError(null)
+      const updated = await paymentService.confirmTwoFactor(lastTransaction.id, twoFactorCode)
+      setLastTransaction(updated)
+      setTwoFactorCode('')
+      setSuccess(updated.status === 'COMPLETED' ? 'Paiement confirmé après vérification 2FA.' : `Paiement ${statusLabel[updated.status]}.`)
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Code 2FA invalide ou expiré')
+    } finally {
+      setConfirmingTwoFactor(false)
+    }
+  }
+
   const downloadReceipt = () => {
     if (!lastTransaction) return
     const receipt = [
@@ -160,6 +179,25 @@ export default function PaymentsPage() {
             </div>
             {lastTransaction.metadata?.qrData && <p className="mt-2 font-mono text-xs">QR : {lastTransaction.metadata.qrData}</p>}
             {lastTransaction.metadata?.temporaryIban && <p className="mt-2 font-mono text-xs">IBAN temporaire : {lastTransaction.metadata.temporaryIban}</p>}
+            {lastTransaction.status === 'PENDING' && lastTransaction.failureReason === 'Vérification 2FA requise avant exécution.' && (
+              <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-primary-500/20 pt-4">
+                <div className="min-w-48 flex-1">
+                  <label className="mb-1 block text-xs text-primary-100" htmlFor="two-factor-code">Code reçu dans vos notifications</label>
+                  <input
+                    id="two-factor-code"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={twoFactorCode}
+                    onChange={(event) => setTwoFactorCode(event.target.value.replace(/\D/g, ''))}
+                    placeholder="000000"
+                    className="w-full rounded-lg border border-primary-200/30 bg-dark-900/60 px-3 py-2 font-mono text-dark-50 outline-none focus:border-primary-300"
+                  />
+                </div>
+                <Button type="button" size="sm" onClick={() => void confirmTwoFactor()} disabled={twoFactorCode.length !== 6 || confirmingTwoFactor} isLoading={confirmingTwoFactor}>
+                  Confirmer le paiement
+                </Button>
+              </div>
+            )}
           </div>
         )}
 

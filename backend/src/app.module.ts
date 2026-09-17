@@ -8,6 +8,17 @@ import { DatabaseModule } from './database/database.module.js'
 import { ProfilesModule } from './modules/profiles/profiles.module.js'
 import { StorageModule } from './storage/storage.module.js'
 import { PaymentsModule } from './modules/payments/payments.module.js'
+import { AppController } from './app.controller.js'
+import { AppService } from './app.service.js'
+import { Notification } from './notifications/entities/notification.entity.js'
+import { KybDocument } from './modules/auth/entities/kyb-document.entity.js'
+import { Ledger } from './modules/auth/entities/ledger.entity.js'
+import { KycDocument } from './modules/auth/entities/kyc-document.entity.js'
+import { Profile } from './modules/auth/entities/profile.entity.js'
+import { RefreshToken } from './modules/auth/entities/refresh-token.entity.js'
+import { Transaction } from './modules/auth/entities/transaction.entity.js'
+import { User } from './modules/auth/entities/user.entity.js'
+import { Wallet } from './modules/auth/entities/wallet.entity.js'
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js'
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js'
 import path from 'path'
@@ -60,7 +71,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
         database: configService.get<string>('database.database'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        entities: [Notification, KybDocument, Ledger, KycDocument, Profile, RefreshToken, Transaction, User, Wallet],
         synchronize: false,
         logging: process.env.NODE_ENV === 'development',
       }),
@@ -74,7 +85,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
     StorageModule,
     PaymentsModule,
   ],
-  controllers: [],
-  providers: [HttpExceptionFilter, LoggingInterceptor],
+  controllers: [AppController],
+  providers: [AppService, HttpExceptionFilter, LoggingInterceptor],
 })
 export class AppModule {}

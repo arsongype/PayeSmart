@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, ParseIntPipe, Post, Req, UseGuards } from
 import { AuthGuard } from '@nestjs/passport'
 import { PaymentsService } from './payments.service.js'
 import { InitiatePaymentDto } from './dto/initiate-payment.dto.js'
+import { ConfirmTwoFactorDto } from './dto/confirm-2fa.dto.js'
 
 interface RequestWithUser extends Request {
   user: { sub: string }
@@ -45,5 +46,14 @@ export class PaymentsController {
   @Post(':id/process')
   process(@Param('id', ParseIntPipe) id: number, @Req() req: RequestWithUser) {
     return this.paymentsService.processForUser(parseInt(req.user.sub, 10), id)
+  }
+
+  @Post(':id/confirm-2fa')
+  confirmTwoFactor(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ConfirmTwoFactorDto,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.paymentsService.confirmTwoFactor(parseInt(req.user.sub, 10), id, dto.code)
   }
 }

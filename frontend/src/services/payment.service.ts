@@ -65,4 +65,9 @@ export const paymentService = {
     const { data } = await apiClient.get(`/payments/${transactionId}`)
     return data
   },
+
+  async confirmTwoFactor(transactionId: number, code: string): Promise<PaymentTransaction> {
+    const { data } = await apiClient.post(`/payments/${transactionId}/confirm-2fa`, { code })
+    return data
+  },
 }

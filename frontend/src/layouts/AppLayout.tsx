@@ -28,10 +28,15 @@ export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const [notifications, setNotifications] = useState<Array<{ id: number; title: string; message: string; isRead: boolean; createdAt: string }>>([])
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
 
   useEffect(() => {
-    apiClient.get<Array<{ isRead: boolean }>>('/notifications')
-      .then(({ data }) => setUnreadNotifications(data.filter((notification) => !notification.isRead).length))
+    apiClient.get<Array<{ id: number; title: string; message: string; isRead: boolean; createdAt: string }>>('/notifications')
+      .then(({ data }) => {
+        setNotifications(data)
+        setUnreadNotifications(data.filter((notification) => !notification.isRead).length)
+      })
       .catch(() => undefined)
   }, [])
 
@@ -148,11 +153,33 @@ export function AppLayout({ children }: AppLayoutProps) {
             <p className="truncate text-sm font-medium text-dark-200 sm:hidden">Paysmart</p>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
-            <button type="button" aria-label="Notifications" title="Notifications" className="relative rounded-md p-2 text-dark-400 hover:bg-dark-700 hover:text-dark-100">
+          <div className="relative flex items-center gap-2 sm:gap-4">
+            <button type="button" aria-label="Notifications" title="Notifications" onClick={() => setNotificationsOpen((open) => !open)} className="relative rounded-md p-2 text-dark-400 hover:bg-dark-700 hover:text-dark-100">
               <Bell size={20} />
               {unreadNotifications > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] leading-4 text-white">{unreadNotifications}</span>}
             </button>
+            {notificationsOpen && (
+              <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-dark-600 bg-dark-800 shadow-2xl">
+                <div className="flex items-center justify-between border-b border-dark-700 px-4 py-3">
+                  <p className="text-sm font-semibold text-dark-100">Notifications</p>
+                  <span className="text-xs text-dark-500">{notifications.length}</span>
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <p className="px-4 py-6 text-center text-sm text-dark-500">Aucune notification</p>
+                  ) : notifications.slice(0, 8).map((notification) => (
+                    <div key={notification.id} className="border-b border-dark-700/70 px-4 py-3 last:border-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-medium text-dark-100">{notification.title}</p>
+                        {!notification.isRead && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-400" aria-label="Non lu" />}
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-dark-300">{notification.message}</p>
+                      <p className="mt-1 text-[10px] text-dark-500">{new Date(notification.createdAt).toLocaleString('fr-FR')}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="hidden text-right sm:block">
               <p className="text-sm font-medium text-dark-200">{user?.firstName} {user?.lastName}</p>
               <p className="text-xs capitalize text-dark-500">{user?.role}</p>

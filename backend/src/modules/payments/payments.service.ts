@@ -15,6 +15,7 @@ import { InitiatePaymentDto } from './dto/initiate-payment.dto.js'
 import { NotificationService } from '../../notifications/services/notification.service.js'
 import { SandboxGatewayService } from './sandbox-gateway.service.js'
 import { Queue, Worker } from 'bullmq'
+import { createHash, randomInt } from 'node:crypto'
 
 export type FraudRiskDecision = 'APPROVE' | 'REQUIRE_2FA' | 'BLOCK'
 
@@ -216,25 +217,41 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async process(transactionId: number) {
+  async process(transactionId: number, skipRiskEvaluation = false) {
     const transaction = await this.transactionRepository.findOne({ where: { id: transactionId } })
     if (!transaction || transaction.status !== TransactionStatus.PENDING) return transaction
 
     try {
-      const risk = await this.evaluateTransactionRisk(transaction.senderWalletId, transaction)
-      const metadata = { ...(transaction.metadata ?? {}), riskScore: risk.riskScore, riskLevel: risk.riskLevel, riskDecision: risk.decision, riskReasons: risk.reasons }
-      transaction.metadata = metadata
-      if (risk.decision === 'BLOCK') {
-        transaction.status = TransactionStatus.FAILED
-        transaction.failureReason = `Transaction bloquée par la détection de fraude : ${risk.reason}`
-        await this.transactionRepository.save(transaction)
-        return transaction
-      }
-      if (risk.decision === 'REQUIRE_2FA') {
-        transaction.status = TransactionStatus.PENDING
-        transaction.failureReason = 'Vérification 2FA requise avant exécution.'
-        await this.transactionRepository.save(transaction)
-        return transaction
+      if (!skipRiskEvaluation) {
+        const risk = await this.evaluateTransactionRisk(transaction.senderWalletId, transaction)
+        const metadata = { ...(transaction.metadata ?? {}), riskScore: risk.riskScore, riskLevel: risk.riskLevel, riskDecision: risk.decision, riskReasons: risk.reasons }
+        transaction.metadata = metadata
+        if (risk.decision === 'BLOCK') {
+          transaction.status = TransactionStatus.FAILED
+          transaction.failureReason = `Transaction bloquée par la détection de fraude : ${risk.reason}`
+          await this.transactionRepository.save(transaction)
+          return transaction
+        }
+        if (risk.decision === 'REQUIRE_2FA') {
+          const code = String(randomInt(0, 1_000_000)).padStart(6, '0')
+          transaction.metadata = {
+            ...metadata,
+            twoFactorCodeHash: createHash('sha256').update(code).digest('hex'),
+            twoFactorExpiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+          }
+          transaction.status = TransactionStatus.PENDING
+          transaction.failureReason = 'Vérification 2FA requise avant exécution.'
+          await this.transactionRepository.save(transaction)
+          const senderWallet = await this.walletRepository.findOne({ where: { id: transaction.senderWalletId } })
+          if (senderWallet) {
+            await this.notificationService.create(
+              senderWallet.userId,
+              'Confirmation 2FA requise',
+              `Votre code de confirmation pour le paiement #${transaction.id} est ${code}. Il expire dans 10 minutes.`,
+            )
+          }
+          return transaction
+        }
       }
       transaction.status = TransactionStatus.PROCESSING
       await this.transactionRepository.save(transaction)
@@ -271,6 +288,31 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
   async processForUser(userId: number, transactionId: number) {
     await this.findOne(userId, transactionId)
     return this.process(transactionId)
+  }
+
+  async confirmTwoFactor(userId: number, transactionId: number, code: string) {
+    const transaction = await this.findOne(userId, transactionId)
+    if (transaction.status !== TransactionStatus.PENDING || transaction.failureReason !== 'Vérification 2FA requise avant exécution.') {
+      throw new BadRequestException('Cette transaction ne demande pas de confirmation 2FA')
+    }
+
+    const senderWallet = await this.walletRepository.findOne({ where: { id: transaction.senderWalletId } })
+    if (!senderWallet || senderWallet.userId !== userId) {
+      throw new BadRequestException('Seul l’émetteur peut confirmer ce paiement')
+    }
+
+    const metadata = (transaction.metadata ?? {}) as Record<string, unknown>
+    const expiresAt = typeof metadata.twoFactorExpiresAt === 'string' ? Date.parse(metadata.twoFactorExpiresAt) : 0
+    const expectedHash = typeof metadata.twoFactorCodeHash === 'string' ? metadata.twoFactorCodeHash : ''
+    const receivedHash = createHash('sha256').update(code).digest('hex')
+    if (!expectedHash || !expiresAt || expiresAt < Date.now() || receivedHash !== expectedHash) {
+      throw new BadRequestException('Code 2FA invalide ou expiré')
+    }
+
+    transaction.metadata = { ...metadata, twoFactorVerified: true }
+    transaction.failureReason = null
+    await this.transactionRepository.save(transaction)
+    return this.process(transactionId, true)
   }
 
   async findHistory(userId: number) {
