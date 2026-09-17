@@ -15,10 +15,14 @@ import { Transaction } from './entities/transaction.entity.js'
 import { Ledger } from './entities/ledger.entity.js'
 import { JwtStrategy } from './strategies/jwt.strategy.js'
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js'
+import { NotificationsModule } from '../../notifications/notifications.module.js'
+import { SecurityModule } from '../../security/security.module.js'
 
 @Module({
   imports: [
     ConfigModule,
+    NotificationsModule,
+    SecurityModule,
     PassportModule,
     TypeOrmModule.forFeature([User, RefreshToken, Profile, Wallet, KycDocument, KybDocument, Transaction, Ledger]),
     JwtModule.registerAsync({

@@ -1,5 +1,5 @@
 import { Controller, Post, Body, HttpCode, HttpStatus, Get, UseGuards, Req, Param, Patch } from '@nestjs/common';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { AuthService } from '../services/auth.service.js';
 import { RegisterDto, LoginDto, RefreshTokenDto, UpdateRoleDto, UpdateKycStatusDto } from '../dto/auth.dto.js';
 import { AuthGuard } from '@nestjs/passport';
@@ -25,8 +25,12 @@ export class AuthController {
 
   @HttpCode(HttpStatus.OK)
   @Post('login')
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto)
+  login(@Body() dto: LoginDto, @Req() req: Request) {
+    return this.authService.login(dto, {
+      ipAddress: req.ip ?? req.socket.remoteAddress ?? 'unknown',
+      userAgent: req.get('user-agent') ?? 'unknown',
+      deviceFingerprint: req.get('x-device-fingerprint') ?? null,
+    })
   }
 
   @HttpCode(HttpStatus.OK)

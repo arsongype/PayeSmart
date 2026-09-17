@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Req, UseGuards } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
+import type { Request } from 'express'
 import { PaymentsService } from './payments.service.js'
 import { InitiatePaymentDto } from './dto/initiate-payment.dto.js'
 import { ConfirmTwoFactorDto } from './dto/confirm-2fa.dto.js'
@@ -30,7 +31,10 @@ export class PaymentsController {
 
   @Post('initiate')
   initiate(@Body() dto: InitiatePaymentDto, @Req() req: RequestWithUser) {
-    return this.paymentsService.initiate(parseInt(req.user.sub, 10), dto)
+    return this.paymentsService.initiate(parseInt(req.user.sub, 10), dto, {
+      ipAddress: req.ip ?? req.socket.remoteAddress ?? 'unknown',
+      deviceFingerprint: req.get('x-device-fingerprint') ?? req.get('user-agent') ?? 'unknown',
+    })
   }
 
   @Get('history')

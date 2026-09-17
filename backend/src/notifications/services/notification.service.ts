@@ -14,4 +14,11 @@ export class NotificationService {
   findByUserId(userId: number) {
     return this.repository.find({ where: { userId }, order: { createdAt: 'DESC' } })
   }
+
+  async markAsRead(userId: number, notificationId: number) {
+    const notification = await this.repository.findOne({ where: { id: notificationId, userId } })
+    if (!notification) return null
+    notification.isRead = true
+    return this.repository.save(notification)
+  }
 }

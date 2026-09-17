@@ -16,6 +16,7 @@ import { NotificationService } from '../../notifications/services/notification.s
 import { SandboxGatewayService } from './sandbox-gateway.service.js'
 import { Queue, Worker } from 'bullmq'
 import { createHash, randomInt } from 'node:crypto'
+import { CryptoService } from '../../security/services/crypto.service.js'
 
 export type FraudRiskDecision = 'APPROVE' | 'REQUIRE_2FA' | 'BLOCK'
 
@@ -40,6 +41,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     private notificationService: NotificationService,
     private sandboxGateway: SandboxGatewayService,
     private configService: ConfigService,
+    private cryptoService: CryptoService,
   ) {}
 
   onModuleInit() {
@@ -101,7 +103,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async initiate(senderUserId: number, dto: InitiatePaymentDto) {
+  async initiate(senderUserId: number, dto: InitiatePaymentDto, securityContext?: { ipAddress: string; deviceFingerprint: string }) {
     const sender = await this.userRepository.findOne({ where: { id: senderUserId } })
     if (!sender) throw new NotFoundException('Utilisateur émetteur introuvable')
     if (sender.kycStatus !== KycStatus.APPROVED || (sender.role === 'MERCHANT' && sender.kybStatus !== KybStatus.APPROVED)) {
@@ -131,9 +133,11 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (dto.currency && dto.currency !== (senderWallet.currency || 'EUR')) throw new BadRequestException('Devise non supportée')
 
     const metadata = {
-      phoneNumber: dto.phoneNumber,
-      cardToken: dto.cardToken,
-      bankReference: dto.bankReference,
+      phoneNumber: dto.phoneNumber ? this.cryptoService.encrypt(dto.phoneNumber) : undefined,
+      cardToken: dto.cardToken ? this.cryptoService.encrypt(dto.cardToken) : undefined,
+      bankReference: dto.bankReference ? this.cryptoService.encrypt(dto.bankReference) : undefined,
+      deviceId: securityContext?.deviceFingerprint ? createHash('sha256').update(securityContext.deviceFingerprint).digest('hex') : undefined,
+      ipAddress: securityContext?.ipAddress,
       ...(dto.channel === PaymentChannel.QR ? { qrData: `paysmart://pay/${senderWallet.id}/${recipientWallet.id}` } : {}),
       ...(dto.channel === PaymentChannel.BANK_TRANSFER ? { temporaryIban: `FR76PAYSMART${String(recipientWallet.id).padStart(10, '0')}` } : {}),
     }
@@ -256,7 +260,11 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       transaction.status = TransactionStatus.PROCESSING
       await this.transactionRepository.save(transaction)
 
-      const gatewayResult = await this.sandboxGateway.authorize(transaction)
+      const gatewayTransaction = {
+        ...transaction,
+        metadata: this.decryptSensitiveMetadata(transaction.metadata),
+      } as Transaction
+      const gatewayResult = await this.sandboxGateway.authorize(gatewayTransaction)
       transaction.externalReference = gatewayResult.providerReference
       await this.transactionRepository.save(transaction)
       await this.dataSource.transaction(async (manager) => {
@@ -283,6 +291,16 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       await this.transactionRepository.save(transaction)
     }
     return transaction
+  }
+
+  private decryptSensitiveMetadata(metadata: Record<string, unknown> | null) {
+    if (!metadata) return metadata
+    return Object.fromEntries(Object.entries(metadata).map(([key, value]) => {
+      if (['phoneNumber', 'cardToken', 'bankReference'].includes(key) && typeof value === 'string') {
+        return [key, this.cryptoService.decrypt(value)]
+      }
+      return [key, value]
+    }))
   }
 
   async processForUser(userId: number, transactionId: number) {

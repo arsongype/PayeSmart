@@ -98,6 +98,9 @@ export class User {
   @Column({ nullable: true, name: 'two_factor_secret' })
   twoFactorSecret: string;
 
+  @Column({ type: 'json', nullable: true, name: 'security_metadata' })
+  securityMetadata: Record<string, string | number | null> | null;
+
   @OneToMany('RefreshToken', (token: RefreshToken) => token.user)
   refreshTokens: RefreshToken[];
 

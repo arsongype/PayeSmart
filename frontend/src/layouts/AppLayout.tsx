@@ -31,6 +31,15 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [notifications, setNotifications] = useState<Array<{ id: number; title: string; message: string; isRead: boolean; createdAt: string }>>([])
   const [notificationsOpen, setNotificationsOpen] = useState(false)
 
+  const openNotifications = async () => {
+    setNotificationsOpen((open) => !open)
+    if (unreadNotifications === 0) return
+    const unread = notifications.filter((notification) => !notification.isRead)
+    await Promise.all(unread.map((notification) => apiClient.patch(`/notifications/${notification.id}/read`).catch(() => undefined)))
+    setNotifications((current) => current.map((notification) => ({ ...notification, isRead: true })))
+    setUnreadNotifications(0)
+  }
+
   useEffect(() => {
     apiClient.get<Array<{ id: number; title: string; message: string; isRead: boolean; createdAt: string }>>('/notifications')
       .then(({ data }) => {
@@ -154,7 +163,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
 
           <div className="relative flex items-center gap-2 sm:gap-4">
-            <button type="button" aria-label="Notifications" title="Notifications" onClick={() => setNotificationsOpen((open) => !open)} className="relative rounded-md p-2 text-dark-400 hover:bg-dark-700 hover:text-dark-100">
+            <button type="button" aria-label="Notifications" title="Notifications" onClick={() => void openNotifications()} className="relative rounded-md p-2 text-dark-400 hover:bg-dark-700 hover:text-dark-100">
               <Bell size={20} />
               {unreadNotifications > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] leading-4 text-white">{unreadNotifications}</span>}
             </button>

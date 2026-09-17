@@ -19,13 +19,10 @@ import { RefreshToken } from './modules/auth/entities/refresh-token.entity.js'
 import { Transaction } from './modules/auth/entities/transaction.entity.js'
 import { User } from './modules/auth/entities/user.entity.js'
 import { Wallet } from './modules/auth/entities/wallet.entity.js'
+import { AuditLog } from './security/entities/audit-log.entity.js'
+import { SecurityModule } from './security/security.module.js'
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js'
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js'
-import path from 'path'
-import { fileURLToPath } from 'url'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -49,6 +46,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
           url: process.env.AI_SERVICE_URL ?? 'http://localhost:8001',
           apiKey: process.env.AI_API_KEY ?? 'dev-secret-key-change-in-production',
         },
+        security: {
+          encryptionKey: process.env.ENCRYPTION_KEY ?? 'dev-only-change-me',
+        },
         redis: {
           url: process.env.REDIS_URL,
         },
@@ -71,7 +71,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
         database: configService.get<string>('database.database'),
-        entities: [Notification, KybDocument, Ledger, KycDocument, Profile, RefreshToken, Transaction, User, Wallet],
+        entities: [AuditLog, Notification, KybDocument, Ledger, KycDocument, Profile, RefreshToken, Transaction, User, Wallet],
         synchronize: false,
         logging: process.env.NODE_ENV === 'development',
       }),
@@ -84,6 +84,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
     ProfilesModule,
     StorageModule,
     PaymentsModule,
+    SecurityModule,
   ],
   controllers: [AppController],
   providers: [AppService, HttpExceptionFilter, LoggingInterceptor],

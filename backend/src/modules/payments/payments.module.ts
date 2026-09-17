@@ -8,11 +8,13 @@ import { Transaction } from '../auth/entities/transaction.entity.js'
 import { Ledger } from '../auth/entities/ledger.entity.js'
 import { NotificationsModule } from '../../notifications/notifications.module.js'
 import { SandboxGatewayService } from './sandbox-gateway.service.js'
+import { SecurityModule } from '../../security/security.module.js'
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Wallet, Transaction, Ledger]),
     NotificationsModule,
+    SecurityModule,
   ],
   controllers: [PaymentsController],
   providers: [PaymentsService, SandboxGatewayService],

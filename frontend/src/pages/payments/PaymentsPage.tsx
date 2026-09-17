@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowDownLeft, ArrowUpRight, CreditCard, Printer, RefreshCw, Send, UserRound } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, CreditCard, Printer, RefreshCw, Send, UserRound, WandSparkles } from 'lucide-react'
 import { Button } from '../../components/common/Button'
 import { useAuth } from '../../contexts/AuthContext'
 import { paymentService, type PaymentChannel, type PaymentTransaction, type RecipientAccount, type VirtualCard } from '../../services/payment.service'
@@ -38,6 +38,14 @@ export default function PaymentsPage() {
   const [lastTransaction, setLastTransaction] = useState<PaymentTransaction | null>(null)
   const [twoFactorCode, setTwoFactorCode] = useState('')
   const [confirmingTwoFactor, setConfirmingTwoFactor] = useState(false)
+
+  const generateCardToken = () => {
+    const randomPart = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID().replaceAll('-', '').slice(0, 24)
+      : `${Date.now()}${Math.random().toString(36).slice(2, 14)}`
+    setCardToken(`tok_test_${randomPart}`)
+    setError(null)
+  }
 
   const load = async () => {
     try {
@@ -286,9 +294,14 @@ export default function PaymentsPage() {
             )}
             {paymentMode === 'CARD' && (
               <div className="mt-4">
-                <label className="mb-2 block text-sm text-dark-300" htmlFor="card-token">Token de carte bancaire</label>
-                <input id="card-token" required value={cardToken} onChange={(event) => setCardToken(event.target.value)} placeholder="tok_test_... ou token sandbox" className="w-full rounded-lg border border-dark-600 bg-dark-900 px-3 py-2 text-dark-100 outline-none focus:border-primary-500" />
-                <p className="mt-2 text-xs text-dark-500">Le token vient normalement du fournisseur de paiement (Stripe, PSP ou sandbox). En test, tu peux saisir un token de démonstration tant qu’il est une chaîne valide.</p>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label className="block text-sm text-dark-300" htmlFor="card-token">Token de carte bancaire</label>
+                  <Button type="button" size="sm" variant="outline" onClick={generateCardToken}>
+                    <WandSparkles className="h-4 w-4" /> Générer
+                  </Button>
+                </div>
+                <input id="card-token" required value={cardToken} onChange={(event) => setCardToken(event.target.value)} placeholder="Cliquez sur Générer" className="w-full rounded-lg border border-dark-600 bg-dark-900 px-3 py-2 font-mono text-sm text-dark-100 outline-none focus:border-primary-500" />
+                <p className="mt-2 text-xs text-dark-500">Un token sandbox unique sera créé automatiquement pour ce paiement.</p>
               </div>
             )}
             {paymentMode === 'QR' && (

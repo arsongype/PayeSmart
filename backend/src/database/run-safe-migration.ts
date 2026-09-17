@@ -13,6 +13,8 @@ const client = new Client({
 })
 
 const statements = [
+  `CREATE TABLE IF NOT EXISTS audit_logs (id SERIAL PRIMARY KEY, user_id INTEGER NULL, method VARCHAR(16) NOT NULL, path VARCHAR(255) NOT NULL, action VARCHAR(120), ip_address VARCHAR(64), user_agent TEXT, status_code INTEGER NOT NULL DEFAULT 200, response_time_ms INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT NOW())`,
+  `CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at)`,
   `DO $$ BEGIN
     CREATE TYPE user_status_enum AS ENUM ('ACTIVE', 'SUSPENDED', 'DELETED', 'PENDING_VERIFICATION');
   EXCEPTION WHEN duplicate_object THEN NULL;
@@ -23,6 +25,7 @@ const statements = [
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS reactivation_deadline TIMESTAMP`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS revalidated_at TIMESTAMP`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS security_metadata JSONB`,
   `CREATE INDEX IF NOT EXISTS idx_users_account_status ON users(account_status)`,
   `ALTER TABLE wallets ADD COLUMN IF NOT EXISTS card_number VARCHAR(19)`,
   `ALTER TABLE wallets ADD COLUMN IF NOT EXISTS card_holder_name VARCHAR(255)`,

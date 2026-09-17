@@ -35,6 +35,7 @@ const buildService = (role: Role = Role.USER, kycStatus = KycStatus.APPROVED, ky
     {} as never,
     {} as never,
     {} as never,
+    { encrypt: (value: string) => `enc:${value}` } as never,
   )
   ;(service as unknown as { redisQueue: { add: ReturnType<typeof vi.fn> } }).redisQueue = { add: vi.fn() }
   return { service, transactionRepository }

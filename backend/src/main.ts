@@ -7,6 +7,9 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter.js'
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js'
 import { ConfigService } from '@nestjs/config'
 import net from 'node:net'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
+import { AuditInterceptor } from './security/interceptors/audit.interceptor.js'
 
 const isPortInUse = (port: number): Promise<boolean> => new Promise((resolve) => {
   const probe = net.createConnection({ host: '127.0.0.1', port })
@@ -33,6 +36,9 @@ async function bootstrap() {
     credentials: true,
   })
 
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }))
+  app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false }))
+
   app.setGlobalPrefix('api/v1')
 
   app.useGlobalPipes(
@@ -44,6 +50,7 @@ async function bootstrap() {
   )
 
   app.useGlobalInterceptors(new ClassSerializerInterceptor(new Reflector()))
+  app.useGlobalInterceptors(app.get(AuditInterceptor))
 
   app.useGlobalFilters(new HttpExceptionFilter())
   app.useGlobalInterceptors(new LoggingInterceptor())

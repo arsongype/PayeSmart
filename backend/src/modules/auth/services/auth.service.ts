@@ -11,6 +11,9 @@ import { Role } from '../enums/role.enum.js';
 import { KycStatus } from '../enums/kyc-status.enum.js';
 import { Wallet } from '../entities/wallet.entity.js';
 import { WalletStatus } from '../enums/wallet-status.enum.js';
+import { createHash } from 'node:crypto'
+import { NotificationService } from '../../../notifications/services/notification.service.js'
+import { AuditService } from '../../../security/services/audit.service.js'
 
 @Injectable()
 export class AuthService {
@@ -23,6 +26,8 @@ export class AuthService {
     private walletRepository: Repository<Wallet>,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private notificationService: NotificationService,
+    private auditService: AuditService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -57,7 +62,7 @@ export class AuthService {
     }
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, context?: { ipAddress: string; userAgent: string; deviceFingerprint: string | null }) {
     const user = await this.userRepository.findOne({ where: { email: dto.email } });
     if (!user) {
       throw new UnauthorizedException('Identifiants invalides');
@@ -66,6 +71,18 @@ export class AuthService {
     const matches = await argon2.verify(user.passwordHash, dto.password);
     if (!matches) {
       throw new UnauthorizedException('Identifiants invalides');
+    }
+
+    if (context) {
+      const fingerprint = createHash('sha256').update(context.deviceFingerprint || context.userAgent).digest('hex')
+      const previous = user.securityMetadata
+      const anomaly = Boolean(previous && (previous.deviceFingerprint !== fingerprint || previous.ipAddress !== context.ipAddress))
+      user.securityMetadata = { deviceFingerprint: fingerprint, ipAddress: context.ipAddress, lastLoginAt: Date.now() }
+      await this.userRepository.save(user)
+      if (anomaly) {
+        await this.auditService.record({ userId: user.id, method: 'LOGIN', path: '/auth/login', action: 'ANOMALOUS_LOGIN', ipAddress: context.ipAddress, userAgent: context.userAgent, statusCode: 200 })
+        await this.notificationService.create(user.id, 'Nouvelle connexion détectée', `Une connexion depuis un nouvel appareil ou une nouvelle adresse IP a été détectée (${context.ipAddress}).`)
+      }
     }
 
     return this.generateTokens(user);
