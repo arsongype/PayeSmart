@@ -12,6 +12,7 @@ const ResetPasswordPage = lazy(() => import('../pages/auth/ResetPasswordPage'))
 const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage'))
 const AdminUsersPage = lazy(() => import('../pages/admin/AdminUsersPage'))
 const AdminUserDetailPage = lazy(() => import('../pages/admin/AdminUserDetailPage'))
+const AdminFraudPage = lazy(() => import('../pages/admin/AdminFraudPage'))
 const ProfilePage = lazy(() => import('../pages/profile/ProfilePage'))
 const WalletPage = lazy(() => import('../pages/profile/WalletPage'))
 const KycPage = lazy(() => import('../pages/profile/KycPage'))
@@ -138,6 +139,16 @@ export const router = createBrowserRouter([
       <ProtectedRoute>
         <Suspense fallback={loader}>
           <AdminUserDetailPage />
+        </Suspense>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/admin/fraud',
+    element: (
+      <ProtectedRoute>
+        <Suspense fallback={loader}>
+          <AdminFraudPage />
         </Suspense>
       </ProtectedRoute>
     ),

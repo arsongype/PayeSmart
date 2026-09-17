@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm'
-import { DataSource, Repository } from 'typeorm'
+import axios from 'axios'
+import { DataSource, MoreThanOrEqual, Repository } from 'typeorm'
 import { User } from '../auth/entities/user.entity.js'
 import { Wallet } from '../auth/entities/wallet.entity.js'
 import { Transaction } from '../auth/entities/transaction.entity.js'
@@ -14,6 +15,14 @@ import { InitiatePaymentDto } from './dto/initiate-payment.dto.js'
 import { NotificationService } from '../../notifications/services/notification.service.js'
 import { SandboxGatewayService } from './sandbox-gateway.service.js'
 import { Queue, Worker } from 'bullmq'
+
+export type FraudRiskDecision = 'APPROVE' | 'REQUIRE_2FA' | 'BLOCK'
+
+export function evaluateRiskDecision(score: number): FraudRiskDecision {
+  if (score < 40) return 'APPROVE'
+  if (score < 75) return 'REQUIRE_2FA'
+  return 'BLOCK'
+}
 
 @Injectable()
 export class PaymentsService implements OnModuleInit, OnModuleDestroy {
@@ -173,13 +182,63 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     void processNext()
   }
 
+  private async evaluateTransactionRisk(senderUserId: number, transaction: Transaction) {
+    const baseUrl = this.configService.get<string>('aiService.url', 'http://localhost:8001')
+    const apiKey = this.configService.get<string>('aiService.apiKey', 'dev-secret-key-change-in-production')
+    const senderWallet = await this.walletRepository.findOne({ where: { id: transaction.senderWalletId } })
+    const userId = senderWallet?.userId ?? senderUserId
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    const riskPayload = {
+      user_id: userId,
+      amount: Number(transaction.amount),
+      channel: transaction.channel,
+      transaction_count_24h: await this.transactionRepository.count({
+        where: { senderWalletId: transaction.senderWalletId, createdAt: MoreThanOrEqual(since) },
+      }),
+      device_id: transaction.metadata?.deviceId ?? 'unknown-device',
+      ip_address: transaction.metadata?.ipAddress ?? '0.0.0.0',
+      recipient_wallet_id: transaction.recipientWalletId,
+      hour: new Date().getHours(),
+    }
+    const response = await axios.post<{ risk_score: number; risk_level: string; decision: FraudRiskDecision; reasons: string[] }>(
+      `${baseUrl}/api/v1/fraud-detection/predict`,
+      riskPayload,
+      { headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' } },
+    )
+    const riskScore = Number(response.data.risk_score ?? 0)
+    const decision = response.data.decision ?? evaluateRiskDecision(riskScore)
+    return {
+      riskScore,
+      riskLevel: response.data.risk_level ?? (riskScore < 40 ? 'LOW' : riskScore < 75 ? 'MEDIUM' : 'HIGH'),
+      decision,
+      reasons: response.data.reasons ?? ['Transaction analysée par l’IA de fraude.'],
+      reason: response.data.reasons?.[0] ?? 'Vérification de fraude terminée.',
+    }
+  }
+
   async process(transactionId: number) {
     const transaction = await this.transactionRepository.findOne({ where: { id: transactionId } })
     if (!transaction || transaction.status !== TransactionStatus.PENDING) return transaction
-    transaction.status = TransactionStatus.PROCESSING
-    await this.transactionRepository.save(transaction)
 
     try {
+      const risk = await this.evaluateTransactionRisk(transaction.senderWalletId, transaction)
+      const metadata = { ...(transaction.metadata ?? {}), riskScore: risk.riskScore, riskLevel: risk.riskLevel, riskDecision: risk.decision, riskReasons: risk.reasons }
+      transaction.metadata = metadata
+      if (risk.decision === 'BLOCK') {
+        transaction.status = TransactionStatus.FAILED
+        transaction.failureReason = `Transaction bloquée par la détection de fraude : ${risk.reason}`
+        await this.transactionRepository.save(transaction)
+        return transaction
+      }
+      if (risk.decision === 'REQUIRE_2FA') {
+        transaction.status = TransactionStatus.PENDING
+        transaction.failureReason = 'Vérification 2FA requise avant exécution.'
+        await this.transactionRepository.save(transaction)
+        return transaction
+      }
+      transaction.status = TransactionStatus.PROCESSING
+      await this.transactionRepository.save(transaction)
+
       const gatewayResult = await this.sandboxGateway.authorize(transaction)
       transaction.externalReference = gatewayResult.providerReference
       await this.transactionRepository.save(transaction)

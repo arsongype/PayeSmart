@@ -16,6 +16,7 @@ import { Profile } from '../auth/entities/profile.entity.js'
 import { Wallet } from '../auth/entities/wallet.entity.js'
 import { KycDocument } from '../auth/entities/kyc-document.entity.js'
 import { KybDocument } from '../auth/entities/kyb-document.entity.js'
+import { Transaction } from '../auth/entities/transaction.entity.js'
 import { AuthModule } from '../auth/auth.module.js'
 import { UsersModule } from '../../users/users.module.js'
 import { StorageModule } from '../../storage/storage.module.js'
@@ -24,7 +25,7 @@ import { NotificationsModule } from '../../notifications/notifications.module.js
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([User, Profile, Wallet, KycDocument, KybDocument]),
+    TypeOrmModule.forFeature([User, Profile, Wallet, KycDocument, KybDocument, Transaction]),
     AuthModule,
     UsersModule,
     StorageModule,

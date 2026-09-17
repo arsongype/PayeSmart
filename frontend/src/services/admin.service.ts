@@ -60,4 +60,9 @@ export const adminService = {
     const { data } = await apiClient.patch(`/admin/users/${userId}/cancel-deletion`)
     return data
   },
+
+  async getFraudAlerts() {
+    const { data } = await apiClient.get('/admin/fraud-alerts')
+    return data
+  },
 }

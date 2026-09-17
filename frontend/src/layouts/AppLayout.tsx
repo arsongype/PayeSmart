@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   BarChart3,
+  AlertTriangle,
   Bell,
   CreditCard,
   LogOut,
@@ -40,6 +41,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { icon: User, label: 'Profil', href: ROUTES.PROFILE },
     { icon: WalletIcon, label: 'Portefeuille', href: ROUTES.WALLET },
     { icon: Shield, label: user?.role === 'MERCHANT' ? 'Vérification KYC / KYB' : 'Vérification KYC', href: ROUTES.KYC },
+    ...(user?.role === 'ADMIN' ? [{ icon: AlertTriangle, label: 'Alertes fraude', href: ROUTES.ADMIN_FRAUD }] : []),
     { icon: Settings, label: 'Paramètres', href: '/settings' },
     ...(user?.role === 'ADMIN' ? [{ icon: UsersIcon, label: 'Utilisateurs', href: ROUTES.ADMIN_USERS }] : []),
   ]

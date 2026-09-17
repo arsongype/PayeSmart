@@ -1,14 +1,15 @@
-import type { Transaction } from './Transaction.model'
-
 export interface FraudAlert {
-  id: string
-  transactionId: string
-  transaction: Transaction
+  id: number
+  transactionId: number
+  amount: number
+  currency: string
+  status: string
+  channel: string
   riskScore: number
   riskLevel: 'low' | 'medium' | 'high' | 'critical'
   reason: string
-  isResolved: boolean
-  resolvedAt?: string
+  sender: { id: number; name: string } | null
+  recipient: { id: number; name: string } | null
   createdAt: string
 }
 
