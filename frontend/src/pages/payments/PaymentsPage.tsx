@@ -249,7 +249,8 @@ export default function PaymentsPage() {
             {paymentMode === 'CARD' && (
               <div className="mt-4">
                 <label className="mb-2 block text-sm text-dark-300" htmlFor="card-token">Token de carte bancaire</label>
-                <input id="card-token" required value={cardToken} onChange={(event) => setCardToken(event.target.value)} placeholder="tok_sandbox_..." className="w-full rounded-lg border border-dark-600 bg-dark-900 px-3 py-2 text-dark-100 outline-none focus:border-primary-500" />
+                <input id="card-token" required value={cardToken} onChange={(event) => setCardToken(event.target.value)} placeholder="tok_test_... ou token sandbox" className="w-full rounded-lg border border-dark-600 bg-dark-900 px-3 py-2 text-dark-100 outline-none focus:border-primary-500" />
+                <p className="mt-2 text-xs text-dark-500">Le token vient normalement du fournisseur de paiement (Stripe, PSP ou sandbox). En test, tu peux saisir un token de démonstration tant qu’il est une chaîne valide.</p>
               </div>
             )}
             {paymentMode === 'QR' && (
@@ -268,15 +269,52 @@ export default function PaymentsPage() {
             <p className="mt-3 text-xs text-dark-500">Le paiement est autorisé uniquement vers un compte existant et vérifié.</p>
           </form>
 
-          <div className="rounded-xl border border-primary-500/30 bg-linear-to-br from-primary-700 to-dark-800 p-6">
+          <div className="overflow-hidden rounded-2xl border border-primary-500/40 bg-linear-to-br from-primary-700 via-primary-600 to-dark-800 p-5 shadow-2xl shadow-primary-950/30">
             <div className="flex items-center justify-between">
-              <CreditCard className="h-7 w-7 text-white" />
-              <span className="text-xs uppercase tracking-wider text-primary-100">Paysmart Virtual</span>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10">
+                  <CreditCard className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.25em] text-primary-100">Paysmart</p>
+                  <p className="text-xs font-semibold tracking-[0.2em] text-white">VIRTUAL</p>
+                </div>
+              </div>
+              <span className="rounded-full border border-white/20 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-primary-100">Pay</span>
             </div>
-            <p className="mt-10 font-mono text-xl tracking-widest text-white">{card?.cardNumber || '•••• •••• •••• ••••'}</p>
+
+            <div className="mt-6 space-y-3">
+              <div className="rounded-xl border border-white/10 bg-black/10 p-3 backdrop-blur-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[9px] uppercase tracking-[0.2em] text-primary-100">Expéditeur</p>
+                    <p className="mt-1 font-mono text-xs text-white">{card?.walletNumber || '—'}</p>
+                  </div>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full border border-primary-200/50 bg-primary-500/20 text-base text-primary-100">→</div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-black/10 p-3 backdrop-blur-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[9px] uppercase tracking-[0.2em] text-primary-100">Destinataire</p>
+                    <p className="mt-1 font-mono text-xs text-white">{recipient?.walletNumber || '—'}</p>
+                  </div>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full border border-primary-200/50 bg-white/10 text-base text-white">⇄</div>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-6 font-mono text-xl tracking-[0.35em] text-white">{card?.cardNumber || '•••• •••• •••• ••••'}</p>
             <div className="mt-6 flex items-end justify-between gap-3">
-              <div><p className="text-[10px] uppercase text-primary-100">Titulaire</p><p className="text-sm font-semibold text-white">{card?.cardHolderName || user?.email || '-'}</p></div>
-              <div><p className="text-[10px] uppercase text-primary-100">Compte</p><p className="font-mono text-xs text-white">{card?.walletNumber || '-'}</p></div>
+              <div>
+                <p className="text-[10px] uppercase text-primary-100">Titulaire</p>
+                <p className="text-sm font-semibold text-white">{card?.cardHolderName || user?.email || '-'}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] uppercase text-primary-100">Compte</p>
+                <p className="font-mono text-xs text-white">{card?.walletNumber || '-'}</p>
+              </div>
             </div>
           </div>
         </div>
