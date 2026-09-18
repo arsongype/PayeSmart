@@ -33,6 +33,10 @@ export const registerSchema = z.object({
   cin: cinSchema,
   phone: phoneSchema,
   dateOfBirth: dateOfBirthSchema,
+  address: z.string().min(3, 'Adresse requise'),
+  city: z.string().min(2, 'Ville requise'),
+  country: z.string().min(2, 'Pays requis'),
+  postalCode: z.string().min(3, 'Code postal requis'),
   role: roleSchema,
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Les mots de passe ne correspondent pas',

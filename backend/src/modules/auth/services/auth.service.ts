@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { User } from '../entities/user.entity.js';
+import { Profile } from '../entities/profile.entity.js';
 import { RefreshToken } from '../entities/refresh-token.entity.js';
 import { RegisterDto, LoginDto } from '../dto/auth.dto.js';
 import { ConfigService } from '@nestjs/config';
@@ -24,6 +25,8 @@ export class AuthService {
     private refreshTokenRepository: Repository<RefreshToken>,
     @InjectRepository(Wallet)
     private walletRepository: Repository<Wallet>,
+      @InjectRepository(Profile)
+      private profileRepository: Repository<Profile>,
     private jwtService: JwtService,
     private configService: ConfigService,
     private notificationService: NotificationService,
@@ -47,14 +50,22 @@ export class AuthService {
       const normalizedRole: Role = dto.role ?? Role.USER
       const normalizedKycStatus: typeof KycStatus[keyof typeof KycStatus] = dto.kycStatus ?? KycStatus.NON_VERIFIE
       const passwordHash = await argon2.hash(dto.password)
+      const { address, city, country, postalCode, ...userData } = dto
       const user = this.userRepository.create({
-        ...dto,
+        ...userData,
         role: normalizedRole,
         kycStatus: normalizedKycStatus,
         passwordHash,
       })
 
       const savedUser = await this.userRepository.save(user)
+      await this.profileRepository.save(this.profileRepository.create({
+        userId: savedUser.id,
+        address,
+        city,
+        country,
+        postalCode,
+      }))
       return this.generateTokens(savedUser)
     } catch (error) {
       console.error('Register error', error)
@@ -104,7 +115,10 @@ export class AuthService {
   }
 
   async me(userId: string) {
-    const user = await this.userRepository.findOne({ where: { id: parseInt(userId) } })
+    const user = await this.userRepository.findOne({
+      where: { id: parseInt(userId) },
+      relations: { profile: true },
+    })
     if (!user) {
       throw new UnauthorizedException('Utilisateur non trouvé')
     }
@@ -118,6 +132,11 @@ export class AuthService {
       cin: user.cin,
       phone: user.phone,
       dateOfBirth: user.dateOfBirth,
+      address: user.profile?.address,
+      city: user.profile?.city,
+      country: user.profile?.country,
+      postalCode: user.profile?.postalCode,
+      profile: user.profile,
       role: user.role,
       kycStatus: user.kycStatus,
       kybStatus: user.kybStatus,

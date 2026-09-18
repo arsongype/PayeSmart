@@ -14,6 +14,10 @@ export interface User {
   cin?: string;
   phone?: string;
   dateOfBirth?: string;
+  address?: string;
+  city?: string;
+  country?: string;
+  postalCode?: string;
   isEmailVerified: boolean;
   profile?: Profile;
   wallet?: Wallet;

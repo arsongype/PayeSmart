@@ -28,7 +28,7 @@ export class Profile {
   @Column({ nullable: true })
   country: string
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, name: 'postal_code' })
   postalCode: string
 
   @Column({ nullable: true, name: 'id_number' })

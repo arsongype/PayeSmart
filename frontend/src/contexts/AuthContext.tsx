@@ -6,7 +6,7 @@ export interface AuthContextValue {
   isAuthenticated: boolean
   isLoading: boolean
   login: (credentials: { email: string; password: string }) => Promise<void>
-  register: (data: { email: string; password: string; confirmPassword: string; firstName: string; lastName: string; cin?: string; phone?: string; dateOfBirth?: string; role?: 'USER' | 'MERCHANT' | 'ADMIN' }) => Promise<void>
+  register: (data: { email: string; password: string; confirmPassword: string; firstName: string; lastName: string; cin?: string; phone?: string; dateOfBirth?: string; address: string; city: string; country: string; postalCode: string; role?: 'USER' | 'MERCHANT' | 'ADMIN' }) => Promise<void>
   logout: () => void
   refreshUser: () => Promise<void>
   updateUser: (user: User) => void

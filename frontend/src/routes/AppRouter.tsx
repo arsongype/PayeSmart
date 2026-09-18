@@ -17,6 +17,7 @@ const ProfilePage = lazy(() => import('../pages/profile/ProfilePage'))
 const WalletPage = lazy(() => import('../pages/profile/WalletPage'))
 const KycPage = lazy(() => import('../pages/profile/KycPage'))
 const PaymentsPage = lazy(() => import('../pages/payments/PaymentsPage'))
+const SettingsPage = lazy(() => import('../pages/profile/SettingsPage'))
 
 const loader = (
   <div className="min-h-screen flex items-center justify-center bg-dark-900">
@@ -105,6 +106,16 @@ export const router = createBrowserRouter([
       <ProtectedRoute>
         <Suspense fallback={loader}>
           <ProfilePage />
+        </Suspense>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/settings',
+    element: (
+      <ProtectedRoute>
+        <Suspense fallback={loader}>
+          <SettingsPage />
         </Suspense>
       </ProtectedRoute>
     ),

@@ -58,6 +58,10 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
     cin?: string
     phone?: string
     dateOfBirth?: string
+    address: string
+    city: string
+    country: string
+    postalCode: string
     role?: 'USER' | 'MERCHANT' | 'ADMIN'
   }) => {
     try {

@@ -40,7 +40,15 @@ export default function DashboardPage() {
   const totals = report?.totals ?? { volume: 0, transactions: 0, fraudRate: 0, revenue: 0 }
   const aiMetrics = report?.aiMetrics ?? { precision: null, recall: null, f1Score: null, analyzedTransactions: 0 }
   const maxChannelAmount = Math.max(...(report?.channels.map((channel) => channel.amount) ?? [1]), 1)
-  const formatMoney = (amount: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(amount)
+  const selectedCurrency = (() => {
+    try {
+      const stored = localStorage.getItem(`paysmart-settings-${user?.id ?? 'guest'}`)
+      return stored ? (JSON.parse(stored) as { currency?: string }).currency ?? 'EUR' : 'EUR'
+    } catch {
+      return 'EUR'
+    }
+  })()
+  const formatMoney = (amount: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: selectedCurrency, maximumFractionDigits: 0 }).format(amount)
   const formatMetric = (value: number | null) => value === null ? 'N/D' : `${(value * 100).toFixed(1)}%`
 
   return (

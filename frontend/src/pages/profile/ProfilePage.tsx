@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { FileText, Shield, Wallet, ChevronRight } from 'lucide-react'
+import { FileText, Shield, Wallet, ChevronRight, Save } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { profileService } from '../../services/profile.service'
 import { walletService } from '../../services/wallet.service'
@@ -17,19 +17,28 @@ export default function ProfilePage() {
   const [kycDocs, setKycDocs] = useState<KycDocument[]>([])
   const [kybDocs, setKybDocs] = useState<KybDocument[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [addressForm, setAddressForm] = useState({ address: '', city: '', country: '', postalCode: '' })
   const mountedRef = useRef(false)
 
   const loadData = useCallback(async () => {
     if (!user || !mountedRef.current) return
     try {
       const [profileRes, walletRes, kycRes, kybRes] = await Promise.all([
-        profileService.getProfile(user.id).catch(() => null),
+        profileService.getProfile(user.id).catch(() => user.profile ?? null),
         walletService.getWallet(user.id).catch(() => null),
         kycService.getDocuments(user.id).catch(() => []),
         kybService.getDocuments(user.id).catch(() => []),
       ])
       if (!mountedRef.current) return
       setProfile(profileRes)
+      setAddressForm({
+        address: profileRes?.address ?? '',
+        city: profileRes?.city ?? '',
+        country: profileRes?.country ?? '',
+        postalCode: profileRes?.postalCode ?? '',
+      })
       setWallet(walletRes)
       setKycDocs(kycRes)
       setKybDocs(kybRes)
@@ -41,6 +50,19 @@ export default function ProfilePage() {
       }
     }
   }, [user])
+
+  const saveAddress = async () => {
+    if (!user) return
+    setSaving(true)
+    setSaved(false)
+    try {
+      const updated = await profileService.updateProfile(user.id, addressForm)
+      setProfile(updated)
+      setSaved(true)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   useEffect(() => {
     mountedRef.current = true
@@ -101,23 +123,29 @@ export default function ProfilePage() {
                 <FileText className="h-5 w-5 text-primary-500" />
                 <h2 className="text-lg font-semibold text-dark-50">Adresse</h2>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-dark-400">Adresse</p>
-                  <p className="text-sm text-dark-100">{profile?.address || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-dark-400">Ville</p>
-                  <p className="text-sm text-dark-100">{profile?.city || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-dark-400">Pays</p>
-                  <p className="text-sm text-dark-100">{profile?.country || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-dark-400">Code postal</p>
-                  <p className="text-sm text-dark-100">{profile?.postalCode || '-'}</p>
-                </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {[
+                  ['Adresse', 'address', '12 rue des Fleurs'],
+                  ['Ville', 'city', 'Dakar'],
+                  ['Pays', 'country', 'Sénégal'],
+                  ['Code postal', 'postalCode', '10000'],
+                ].map(([label, key, placeholder]) => (
+                  <label key={key} className="text-xs text-dark-400">
+                    {label}
+                    <input
+                      value={addressForm[key as keyof typeof addressForm]}
+                      placeholder={placeholder}
+                      onChange={(event) => setAddressForm({ ...addressForm, [key]: event.target.value })}
+                      className="mt-1 w-full rounded-lg border border-dark-700 bg-dark-900/50 px-3 py-2 text-sm text-dark-100 outline-none focus:border-primary-500"
+                    />
+                  </label>
+                ))}
+              </div>
+              <div className="mt-5 flex items-center justify-between gap-3">
+                {saved && <span className="text-sm text-emerald-400">Adresse enregistrée.</span>}
+                <button type="button" onClick={() => void saveAddress()} disabled={saving} className="ml-auto flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-500 disabled:opacity-50">
+                  <Save size={16} /> {saving ? 'Enregistrement...' : 'Enregistrer l’adresse'}
+                </button>
               </div>
             </div>
 

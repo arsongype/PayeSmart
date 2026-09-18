@@ -26,6 +26,10 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
     cin: '',
     phone: '',
     dateOfBirth: '',
+    address: '',
+    city: '',
+    country: '',
+    postalCode: '',
     role: 'USER',
   })
   const [errors, setErrors] = useState<Partial<Record<keyof RegisterFormData, string>>>({})
@@ -130,6 +134,39 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
             error={errors.lastName}
           />
         </div>
+
+        <Input
+          label="Adresse"
+          placeholder="12 rue des Fleurs"
+          value={formData.address}
+          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+          error={errors.address}
+        />
+
+        <div className="grid grid-cols-2 gap-2.5">
+          <Input
+            label="Ville"
+            placeholder="Dakar"
+            value={formData.city}
+            onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+            error={errors.city}
+          />
+          <Input
+            label="Code postal"
+            placeholder="10000"
+            value={formData.postalCode}
+            onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+            error={errors.postalCode}
+          />
+        </div>
+
+        <Input
+          label="Pays"
+          placeholder="Sénégal"
+          value={formData.country}
+          onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+          error={errors.country}
+        />
 
         <div className="grid grid-cols-2 gap-2.5">
           <Input

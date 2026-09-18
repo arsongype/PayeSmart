@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common'
+import { Injectable, ConflictException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 import { Profile } from '../../auth/entities/profile.entity.js'
@@ -27,14 +27,14 @@ export class ProfilesService {
 
   async findByUserId(userId: number) {
     const profile = await this.profileRepository.findOne({ where: { userId } })
-    if (!profile) {
-      throw new NotFoundException('Profil non trouvé')
-    }
-    return profile
+    return profile ?? this.profileRepository.save(this.profileRepository.create({ userId }))
   }
 
   async update(userId: number, dto: Partial<CreateProfileDto>) {
-    const profile = await this.findByUserId(userId)
+    const profile = await this.profileRepository.findOne({ where: { userId } })
+    if (!profile) {
+      return this.profileRepository.save(this.profileRepository.create({ ...dto, userId }))
+    }
     Object.assign(profile, dto)
     return this.profileRepository.save(profile)
   }
