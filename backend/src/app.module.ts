@@ -8,6 +8,7 @@ import { DatabaseModule } from './database/database.module.js'
 import { ProfilesModule } from './modules/profiles/profiles.module.js'
 import { StorageModule } from './storage/storage.module.js'
 import { PaymentsModule } from './modules/payments/payments.module.js'
+import { ReportingModule } from './modules/reporting/reporting.module.js'
 import { AppController } from './app.controller.js'
 import { AppService } from './app.service.js'
 import { Notification } from './notifications/entities/notification.entity.js'
@@ -84,6 +85,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js
     ProfilesModule,
     StorageModule,
     PaymentsModule,
+    ReportingModule,
     SecurityModule,
   ],
   controllers: [AppController],

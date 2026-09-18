@@ -30,6 +30,10 @@ app.add_middleware(
 API_KEY = os.getenv("AI_API_KEY", "dev-secret-key-change-in-production")
 ocr_service = OCRService()
 trust_score_service = TrustScoreService()
+fraud_metrics = {
+    "analyzed_transactions": 0,
+    "predicted_fraud": 0,
+}
 
 class KYCAnalysisRequest(BaseModel):
     user_id: int
@@ -90,6 +94,25 @@ async def health_check():
         "service": "ai-service",
         "version": "1.0.0",
         "ocr_available": ocr_service.is_available(),
+    }
+
+@app.get("/api/v1/metrics", dependencies=[Depends(verify_api_key)])
+async def get_metrics():
+    """Return model counters and configured evaluation metrics for reporting."""
+    analyzed = fraud_metrics["analyzed_transactions"]
+    configured_precision = os.getenv("AI_MODEL_PRECISION")
+    configured_recall = os.getenv("AI_MODEL_RECALL")
+    precision = float(configured_precision) if configured_precision else None
+    recall = float(configured_recall) if configured_recall else None
+    f1_score = None
+    if precision is not None and recall is not None and precision + recall > 0:
+        f1_score = round((2 * precision * recall) / (precision + recall), 4)
+    return {
+        "precision": precision,
+        "recall": recall,
+        "f1Score": f1_score,
+        "analyzedTransactions": analyzed,
+        "predictedFraud": fraud_metrics["predicted_fraud"],
     }
 
 @app.post("/api/v1/kyc/analyze", response_model=DocumentAnalysisResponse, dependencies=[Depends(verify_api_key)])
@@ -230,6 +253,9 @@ async def predict_fraud_risk(request: FraudDetectionRequest):
             score += 16
 
         risk_score = max(0.0, min(100.0, round(score, 2)))
+        fraud_metrics["analyzed_transactions"] += 1
+        if risk_score >= 40:
+            fraud_metrics["predicted_fraud"] += 1
         if risk_score < 40:
             decision = "APPROVE"
             risk_level = "LOW"
