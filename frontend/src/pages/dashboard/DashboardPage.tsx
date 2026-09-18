@@ -11,9 +11,15 @@ import {
   Users,
 } from 'lucide-react'
 import { downloadReport, getDashboardReport, type DashboardReport } from '../../services/reporting.service'
+import { useSettings } from '../../contexts/SettingsContext'
+import { useLocale } from '../../hooks/useLocale'
+import { useTranslation } from '../../utils/i18n'
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const { settings } = useSettings()
+  const locale = useLocale()
+  const { t } = useTranslation()
   const [report, setReport] = useState<DashboardReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -22,7 +28,7 @@ export default function DashboardPage() {
   useEffect(() => {
     getDashboardReport()
       .then(setReport)
-      .catch(() => setError('Les données Analytics sont momentanément indisponibles.'))
+      .catch(() => setError(t('analyticsUnavailable')))
       .finally(() => setLoading(false))
   }, [])
 
@@ -31,7 +37,7 @@ export default function DashboardPage() {
     try {
       await downloadReport(format)
     } catch {
-      setError(`L'export ${format.toUpperCase()} est indisponible.`)
+      setError(t('exportUnavailable', { format: format.toUpperCase() }))
     } finally {
       setExporting(null)
     }
@@ -40,115 +46,131 @@ export default function DashboardPage() {
   const totals = report?.totals ?? { volume: 0, transactions: 0, fraudRate: 0, revenue: 0 }
   const aiMetrics = report?.aiMetrics ?? { precision: null, recall: null, f1Score: null, analyzedTransactions: 0 }
   const maxChannelAmount = Math.max(...(report?.channels.map((channel) => channel.amount) ?? [1]), 1)
-  const selectedCurrency = (() => {
+  const formatMoney = (amount: number) => {
     try {
-      const stored = localStorage.getItem(`paysmart-settings-${user?.id ?? 'guest'}`)
-      return stored ? (JSON.parse(stored) as { currency?: string }).currency ?? 'EUR' : 'EUR'
+      return new Intl.NumberFormat(locale, { style: 'currency', currency: settings.currency, maximumFractionDigits: 0 }).format(amount)
     } catch {
-      return 'EUR'
+      return `${amount.toLocaleString(locale)} ${settings.currency}`
     }
-  })()
-  const formatMoney = (amount: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: selectedCurrency, maximumFractionDigits: 0 }).format(amount)
+  }
   const formatMetric = (value: number | null) => value === null ? 'N/D' : `${(value * 100).toFixed(1)}%`
 
+  const metricLabels = [t('precision'), t('recall'), t('f1Score'), t('analyzed')]
+
   return (
-    <div className="space-y-8">
-      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary-400">Analytics & Reporting</p>
-          <h1 className="text-2xl font-bold text-dark-50">Vue d'ensemble</h1>
-          <p className="mt-1 text-dark-400">Bienvenue, {user?.firstName} ! Voici les indicateurs de votre activité.</p>
+    <div className="page-enter space-y-8">
+      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-blue-100 p-8 shadow-lg shadow-blue-900/10 sm:p-10">
+        <div className="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-black">{t('analyticsReporting')}</p>
+            <h1 className="font-serif text-4xl font-bold tracking-tight text-black">{t('overview')}</h1>
+            <p className="text-lg text-black">{t('welcomeMessage', { name: user?.firstName ?? '' })}</p>
+          </div>
+          <div className="flex gap-3">
+             <button type="button" onClick={() => void handleExport('csv')} disabled={exporting !== null} className="flex items-center gap-2 rounded-2xl border border-gray-400 bg-white px-5 py-2.5 text-sm font-semibold text-black shadow-sm transition hover:bg-blue-50 disabled:cursor-wait disabled:opacity-50">
+              <Download size={16} /> {t('exportCSV')}
+            </button>
+            <button type="button" onClick={() => void handleExport('pdf')} disabled={exporting !== null} className="flex items-center gap-2 rounded-2xl border border-gray-400 bg-white px-5 py-2.5 text-sm font-semibold text-black shadow-sm transition hover:bg-blue-50 disabled:cursor-wait disabled:opacity-50">
+              <FileText size={16} /> {t('exportPDF')}
+            </button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => void handleExport('csv')} disabled={exporting !== null} className="flex items-center gap-2 rounded-lg border border-dark-600 px-3 py-2 text-sm text-dark-300 hover:bg-dark-700 disabled:cursor-wait disabled:opacity-50">
-            <Download size={16} /> Export CSV
-          </button>
-          <button type="button" onClick={() => void handleExport('pdf')} disabled={exporting !== null} className="flex items-center gap-2 rounded-lg border border-dark-600 px-3 py-2 text-sm text-dark-300 hover:bg-dark-700 disabled:cursor-wait disabled:opacity-50">
-            <FileText size={16} /> Export PDF
-          </button>
-        </div>
+        <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-primary-400/10 blur-3xl" />
       </header>
 
-      {error && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
-      {loading && <div className="rounded-lg border border-dark-700 bg-dark-800 px-4 py-3 text-sm text-dark-400">Chargement des données Analytics...</div>}
+      {error && <div role="alert" className="rounded-2xl border border-red-500/40 bg-red-500/10 px-5 py-4 text-base text-black">{error}</div>}
+      {loading && <div className="rounded-2xl border border-gray-300 bg-gray-50 px-5 py-4 text-base text-black">{t('loadingAnalyticsData')}</div>}
 
-      <section aria-label="Indicateurs principaux" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section aria-label={t('overview')} className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Volume financier', value: formatMoney(totals.volume), icon: FileBarChart, color: 'text-primary-400' },
-          { label: 'Transactions', value: totals.transactions.toLocaleString('fr-FR'), icon: CreditCard, color: 'text-sky-400' },
-          { label: 'Taux de fraude', value: `${totals.fraudRate.toFixed(1)}%`, icon: ShieldCheck, color: 'text-emerald-400' },
-          { label: 'Revenus nets', value: formatMoney(totals.revenue), icon: BarChart3, color: 'text-amber-400' },
+          { label: t('volume'), value: formatMoney(totals.volume), icon: FileBarChart, color: 'text-black', bg: 'bg-primary-500/10' },
+           { label: t('transactions'), value: totals.transactions.toLocaleString(locale), icon: CreditCard, color: 'text-black', bg: 'bg-sky-500/10' },
+          { label: t('fraudRate'), value: `${totals.fraudRate.toFixed(1)}%`, icon: ShieldCheck, color: 'text-black', bg: 'bg-emerald-500/10' },
+          { label: t('revenue'), value: formatMoney(totals.revenue), icon: BarChart3, color: 'text-black', bg: 'bg-amber-500/10' },
         ].map((stat) => {
           const Icon = stat.icon
           return (
-            <article key={stat.label} className="rounded-xl border border-dark-700 bg-dark-800 p-5">
+            <article key={stat.label} className="group relative overflow-hidden rounded-3xl border border-gray-300 bg-white p-6 shadow-lg shadow-black/20 transition duration-300 hover:-translate-y-1 hover:border-gray-400 hover:shadow-xl">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-dark-400">{stat.label}</p>
-                <Icon size={19} className={stat.color} />
+                <p className="text-base font-medium text-black">{stat.label}</p>
+                <div className={`rounded-2xl p-2.5 ${stat.bg}`}>
+                  <Icon size={22} className={stat.color} />
+                </div>
               </div>
-              <p className="mt-3 text-2xl font-bold text-dark-50">{stat.value}</p>
-              <p className="mt-2 text-sm text-dark-500">Données consolidées en temps réel</p>
+              <p className="mt-4 text-3xl font-bold text-black">{stat.value}</p>
+              <p className="mt-2 text-sm text-black">{t('realTimeConsolidatedData')}</p>
             </article>
           )
         })}
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-        <article className="rounded-xl border border-dark-700 bg-dark-800 p-6">
-          <div className="mb-6 flex items-center justify-between">
+        <article className="rounded-3xl border border-gray-300 bg-white p-6 shadow-lg shadow-black/20">
+          <div className="mb-8 flex items-center justify-between">
             <div>
-              <h2 className="font-semibold text-dark-50">Volumes par méthode de paiement</h2>
-              <p className="mt-1 text-sm text-dark-500">Répartition des flux financiers consolidés</p>
+              <h2 className="text-xl font-semibold text-black">{t('volumesByPaymentMethod')}</h2>
+              <p className="mt-1 text-base text-black">{t('channelsDescription')}</p>
             </div>
-            <BarChart3 size={20} className="text-primary-400" />
+            <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
+              <BarChart3 size={22} />
+            </div>
           </div>
-          <div className="space-y-5">
+          <div className="space-y-6">
             {(report?.channels ?? []).map((item) => (
-              <div key={item.channel}>
-                <div className="mb-2 flex justify-between text-sm">
-                  <span className="text-dark-300">{item.channel}</span>
-                  <span className="font-medium text-dark-100">{formatMoney(item.amount)}</span>
+              <div key={item.channel} className="space-y-2">
+                <div className="flex items-center justify-between text-base">
+                  <span className="font-medium text-black">{item.channel}</span>
+                  <span className="font-semibold text-black">{formatMoney(item.amount)}</span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-dark-700">
-                  <div className="h-full rounded-full bg-primary-500" style={{ width: `${Math.max((item.amount / maxChannelAmount) * 100, 4)}%` }} />
+                <div className="h-3 overflow-hidden rounded-full bg-gray-200/80">
+                  <div className="metric-bar h-full rounded-full bg-gradient-to-r from-primary-500 to-primary-400 shadow-[0_0_14px_rgba(77,133,238,0.3)]" style={{ width: `${Math.max((item.amount / maxChannelAmount) * 100, 4)}%` }} />
                 </div>
               </div>
             ))}
           </div>
         </article>
 
-        <article className="rounded-xl border border-dark-700 bg-dark-800 p-6">
+        <article className="rounded-3xl border border-gray-300 bg-white p-6 shadow-lg shadow-black/20">
           <div className="mb-6 flex items-center gap-3">
-            <ShieldCheck size={20} className="text-emerald-400" />
+            <div className="rounded-2xl bg-emerald-500/10 p-2.5 text-black">
+              <ShieldCheck size={22} />
+            </div>
             <div>
-              <h2 className="font-semibold text-dark-50">Performance IA</h2>
-              <p className="mt-1 text-sm text-dark-500">GET /api/v1/metrics</p>
+              <h2 className="text-xl font-semibold text-black">{t('performance')}</h2>
+                <p className="text-sm text-black">{t('apiMetricsEndpoint')}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            {['Précision', 'Rappel', 'F1-score', 'Analysées'].map((label) => (
-              <div key={label} className="rounded-lg border border-dark-700 bg-dark-900/50 p-3">
-                <p className="text-xs text-dark-500">{label}</p>
-                <p className="mt-1 text-lg font-semibold text-dark-100">{label === 'Précision' ? formatMetric(aiMetrics.precision) : label === 'Rappel' ? formatMetric(aiMetrics.recall) : label === 'F1-score' ? formatMetric(aiMetrics.f1Score) : aiMetrics.analyzedTransactions.toLocaleString('fr-FR')}</p>
-              </div>
+            {metricLabels.map((label, index) => (
+               <div key={label} className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-sm text-black">{label}</p>
+                  <p className="mt-2 text-2xl font-bold text-black">{index === 0 ? formatMetric(aiMetrics.precision) : index === 1 ? formatMetric(aiMetrics.recall) : index === 2 ? formatMetric(aiMetrics.f1Score) : aiMetrics.analyzedTransactions.toLocaleString(locale)}</p>
+               </div>
             ))}
           </div>
         </article>
       </section>
 
       {user?.role === 'ADMIN' && (
-        <section aria-labelledby="admin-panel" className="rounded-xl border border-dark-700 bg-dark-800 p-6">
-          <div className="mb-5 flex items-center gap-3">
-            <Users size={20} className="text-primary-400" />
+        <section aria-labelledby="admin-panel" className="rounded-3xl border border-gray-300 bg-white p-6 shadow-lg shadow-black/20">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
+              <Users size={22} />
+            </div>
             <div>
-              <h2 id="admin-panel" className="font-semibold text-dark-50">Panneau d'administration</h2>
-              <p className="mt-1 text-sm text-dark-500">Supervision des utilisateurs, transactions et alertes IA</p>
+              <h2 id="admin-panel" className="text-xl font-semibold text-black">{t('adminPanel')}</h2>
+               <p className="text-base text-black">{t('adminDescription')}</p>
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {[["Utilisateurs actifs", report?.admin?.activeUsers ?? 0, Users], ['Transactions à vérifier', report?.admin?.transactionsToReview ?? 0, CreditCard], ['Alertes IA ouvertes', report?.admin?.aiAlerts ?? 0, AlertTriangle]].map(([label, value, Icon]) => {
+          <div className="grid gap-4 sm:grid-cols-3">
+            {[
+              [t('activeUsers'), report?.admin?.activeUsers ?? 0, Users],
+              [t('transactionsToReview'), report?.admin?.transactionsToReview ?? 0, CreditCard],
+              [t('aiAlerts'), report?.admin?.aiAlerts ?? 0, AlertTriangle],
+            ].map(([label, value, Icon]) => {
               const ItemIcon = Icon as typeof Users
-              return <div key={label as string} className="flex items-center justify-between rounded-lg border border-dark-700 bg-dark-900/50 p-4"><div><p className="text-sm text-dark-400">{label as string}</p><p className="mt-1 text-xl font-bold text-dark-50">{(value as number).toLocaleString('fr-FR')}</p></div><ItemIcon size={20} className="text-amber-400" /></div>
+                 return <div key={label as string} className="flex items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 p-5 transition hover:border-gray-300"><div><p className="text-base text-black">{label as string}</p><p className="mt-2 text-3xl font-bold text-black">{(value as number).toLocaleString(locale)}</p></div><div className="rounded-2xl bg-amber-500/10 p-2.5 text-black"><ItemIcon size={22} /></div></div>
             })}
           </div>
         </section>
@@ -156,3 +178,6 @@ export default function DashboardPage() {
     </div>
   )
 }
+
+
+

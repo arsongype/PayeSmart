@@ -1,22 +1,26 @@
 import type { ReactNode } from 'react'
 import { ShieldCheck } from 'lucide-react'
+import { useTranslation } from '../utils/i18n'
 
 interface AuthLayoutProps {
   children: ReactNode
 }
 
 export function AuthLayout({ children }: AuthLayoutProps) {
+  const { t } = useTranslation()
   return (
-    <div className="min-h-screen bg-dark-900 flex">
+    <div className="min-h-screen bg-white flex">
       <div className="flex-1 flex items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md">{children}</div>
+        <div className="w-full max-w-md animate-slide-up">
+          {children}
+        </div>
       </div>
 
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-dark-950">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary-900/20 via-dark-900 to-dark-950" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.15),transparent_70%)]" />
+        <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-gray-100">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(59,130,246,0.15),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(59,130,246,0.1),transparent_50%)]" />
 
-        <div className="absolute inset-0 opacity-20">
+        <div className="absolute inset-0 opacity-30">
           <svg className="w-full h-full" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">
             <defs>
               <linearGradient id="circuitGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -42,19 +46,19 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
         <div className="relative z-10 flex flex-col items-center justify-center text-center px-12">
           <div className="relative mb-8">
-            <div className="absolute inset-0 bg-primary-500/20 rounded-full blur-3xl animate-pulse-slow" />
+            <div className="absolute inset-0 bg-primary-500/30 rounded-full blur-3xl animate-pulse-slow" />
             <ShieldCheck
-              className="relative h-32 w-32 text-primary-400 drop-shadow-[0_0_30px_rgba(59,130,246,0.5)]"
+              className="relative h-32 w-32 text-black drop-shadow-[0_0_30px_rgba(59,130,246,0.5)]"
               strokeWidth={1}
             />
           </div>
-          <h1 className="text-4xl font-bold text-dark-50 mb-4">Paysmart</h1>
-          <p className="text-lg text-dark-300 max-w-md">
-            La plateforme de paiement sécurisée pour vos transactions en Afrique
+          <h1 className="text-4xl font-bold text-black mb-4 tracking-tight">{t('paysmart')}</h1>
+          <p className="text-lg text-black/80 max-w-md">
+            {t('securePlatform')}
           </p>
-          <div className="mt-8 flex items-center gap-6 text-dark-400">
+          <div className="mt-8 flex items-center gap-6 text-black/70">
             <div className="flex items-center gap-2">
-              <svg className="h-5 w-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -62,10 +66,10 @@ export function AuthLayout({ children }: AuthLayoutProps) {
                   d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
                 />
               </svg>
-              <span className="text-sm text-dark-300">Sécurisé</span>
+              <span className="text-sm">{t('securedBy')}</span>
             </div>
             <div className="flex items-center gap-2">
-              <svg className="h-5 w-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -73,10 +77,10 @@ export function AuthLayout({ children }: AuthLayoutProps) {
                   d="M13 10V3L4 14h7v7l9-11h-7z"
                 />
               </svg>
-              <span className="text-sm text-dark-300">Rapide</span>
+              <span className="text-sm">{t('fast')}</span>
             </div>
             <div className="flex items-center gap-2">
-              <svg className="h-5 w-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -84,7 +88,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
                   d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              <span className="text-sm text-dark-300">Panafricain</span>
+              <span className="text-sm">{t('panafrican')}</span>
             </div>
           </div>
         </div>
@@ -92,3 +96,6 @@ export function AuthLayout({ children }: AuthLayoutProps) {
     </div>
   )
 }
+
+
+

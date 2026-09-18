@@ -8,6 +8,8 @@ import type { KybDocument } from '../../models/User.model'
 import { Button } from '../../components/common/Button'
 import { AnalysisResult, type DocumentAnalysis } from '../../components/common/AnalysisResult'
 import { TrustScorePanel, type TrustScoreData } from '../../components/common/TrustScorePanel'
+import { useLocale } from '../../hooks/useLocale'
+import { useTranslation } from '../../utils/i18n'
 
 interface KybPageProps {
   embedded?: boolean
@@ -15,6 +17,8 @@ interface KybPageProps {
 
 export default function KybPage({ embedded = false }: KybPageProps) {
   const { user } = useAuth()
+  const locale = useLocale()
+  const { t } = useTranslation()
   const [documents, setDocuments] = useState<KybDocument[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -27,7 +31,7 @@ export default function KybPage({ embedded = false }: KybPageProps) {
   const loadDocuments = useCallback(() => {
     if (user?.id) {
       kybService.getDocuments(user.id).then(setDocuments).catch((err) => {
-        setError(err instanceof Error ? err.message : 'Impossible de charger les documents')
+        setError(err instanceof Error ? err.message : t('cannotLoadDocuments'))
       }).finally(() => setLoading(false))
     }
   }, [user])
@@ -48,20 +52,20 @@ export default function KybPage({ embedded = false }: KybPageProps) {
       const { data } = await apiClient.post(`/kyc/trust-score/${user.id}/recalculate`)
       setTrustScore(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Impossible de recalculer le Trust Score')
+      setError(err instanceof Error ? err.message : t('cannotRecalculateTrustScore'))
     } finally {
       setRecalculating(false)
     }
   }
 
   const handleDelete = async (documentId: number) => {
-    if (!window.confirm('Supprimer cette demande KYB ?')) return
+    if (!window.confirm(t('deleteKycRequest'))) return
     try {
       await kybService.deleteDocument(documentId)
       setDocuments((previous) => previous.filter((document) => document.id !== documentId))
       setTrustScore(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Impossible de supprimer la demande')
+      setError(err instanceof Error ? err.message : t('cannotDeleteRequest'))
     }
   }
 
@@ -80,9 +84,9 @@ export default function KybPage({ embedded = false }: KybPageProps) {
       setDocuments((prev) => [...prev, data])
     } catch (err) {
       if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message ?? 'Erreur lors de l\'upload KYB')
+        setError(err.response?.data?.message ?? t('kybUploadError'))
       } else {
-        setError(err instanceof Error ? err.message : 'Erreur lors de l\'upload KYB')
+        setError(err instanceof Error ? err.message : t('kybUploadError'))
       }
     } finally {
       setUploading(false)
@@ -90,97 +94,113 @@ export default function KybPage({ embedded = false }: KybPageProps) {
     }
   }
 
-  if (loading) return <div className="min-h-screen bg-dark-900 flex items-center justify-center text-dark-400">Chargement...</div>
+  if (loading) return <div className="page-enter min-h-screen bg-white flex items-center justify-center text-black">{t('loading')}</div>
 
   return (
-    <div className={embedded ? '' : 'min-h-screen bg-dark-900 p-4 lg:p-8'}>
-      <div className={embedded ? '' : 'max-w-4xl mx-auto'}>
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-dark-50">Vérification KYB</h1>
-          <p className="text-dark-400 mt-1">Soumettez les documents de votre entreprise pour devenir marchand vérifié.</p>
-        </div>
-
-        {error && (
-          <div className="mb-6 rounded-lg bg-red-500/10 border border-red-500/50 p-4 text-sm text-red-400">
-            {error}
+    <div className={embedded ? 'page-enter space-y-6' : 'page-enter min-h-screen bg-white p-4 lg:p-8'}>
+      <div className={embedded ? '' : 'mx-auto max-w-4xl space-y-8'}>
+        {!embedded && (
+          <div>
+            <h1 className="text-3xl font-bold text-black">{t('kybVerification')}</h1>
+             <p className="text-lg text-black">{t('submitCompanyDocs')}</p>
           </div>
         )}
+
+          {error && (
+            <div className="rounded-2xl bg-red-500/10 border border-red-500/50 p-4 text-base text-black">
+              {error}
+            </div>
+          )}
 
         {!embedded && (
           <TrustScorePanel score={trustScore} onRecalculate={recalculateTrustScore} loading={recalculating} />
         )}
 
-        <div className="bg-dark-800 border border-dark-700 rounded-xl p-6 mb-6">
-          <h2 className="text-lg font-semibold text-dark-50 mb-4">Documents requis</h2>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-4 bg-dark-900/50 rounded-lg border border-dark-700">
-              <div className="flex items-center gap-3">
-                <FileText className="h-5 w-5 text-primary-500" />
+        <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+            <h2 className="text-xl font-semibold text-black mb-6">{t('requiredDocuments')}</h2>
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-base font-medium text-black">{t('kbis')} / {t('cin')}</p>
+                       <p className="text-sm text-black">{t('kbisDescription')}</p>
+                    </div>
+                  </div>
                 <div>
-                  <p className="text-sm font-medium text-dark-100">KBIS / NIF</p>
-                  <p className="text-xs text-dark-400">Extrait Kbis ou Numéro d'Identification Fiscale</p>
+                  <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleUpload} disabled={uploading} />
+                  <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => {
+                    pendingDocumentTypeRef.current = 'KBIS'
+                    fileInputRef.current?.click()
+                  }} className="rounded-xl border border-gray-300">
+                    <Upload className="h-4 w-4 mr-2" />
+                    {uploading ? t('uploading') : t('add')}
+                  </Button>
                 </div>
-              </div>
-              <div>
-                <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleUpload} disabled={uploading} />
-                <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => {
-                  pendingDocumentTypeRef.current = 'KBIS'
-                  fileInputRef.current?.click()
-                }}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  {uploading ? 'Envoi...' : 'Ajouter'}
-                </Button>
               </div>
             </div>
-            <div className="flex items-center justify-between p-4 bg-dark-900/50 rounded-lg border border-dark-700">
-              <div className="flex items-center gap-3">
-                <FileText className="h-5 w-5 text-primary-500" />
-                <div>
-                  <p className="text-sm font-medium text-dark-100">RIB</p>
-                  <p className="text-xs text-dark-400">Relevé d'Identité Bancaire</p>
+            <div className="rounded-2xl border border-gray-200 bg-white p-5">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                      <div>
+                        <p className="text-base font-medium text-black">{t('rib')}</p>
+                         <p className="text-sm text-black">{t('ribDescription')}</p>
+                      </div>
                 </div>
-              </div>
-              <div>
-                <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => {
-                  pendingDocumentTypeRef.current = 'RIB'
-                  fileInputRef.current?.click()
-                }}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  {uploading ? 'Envoi...' : 'Ajouter'}
-                </Button>
+                <div>
+                  <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => {
+                    pendingDocumentTypeRef.current = 'RIB'
+                    fileInputRef.current?.click()
+                  }} className="rounded-xl border border-gray-300">
+                    <Upload className="h-4 w-4 mr-2" />
+                    {uploading ? t('uploading') : t('add')}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-dark-800 border border-dark-700 rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-dark-50 mb-4">Documents soumis</h2>
-          {documents.length === 0 ? (
-            <p className="text-sm text-dark-400 text-center py-8">Aucun document soumis</p>
+        <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+            <h2 className="text-xl font-semibold text-black mb-6">{t('submittedDocuments')}</h2>
+            {documents.length === 0 ? (
+               <p className="text-base text-black text-center py-8">{t('noDocuments')}</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {documents.map((doc) => (
                 <div key={doc.id}>
-                  <div className="flex items-center justify-between p-4 bg-dark-900/50 rounded-lg border border-dark-700">
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-5 w-5 text-primary-500" />
-                    <div>
-                      <p className="text-sm font-medium text-dark-100">{doc.documentType}</p>
-                      <p className="text-xs text-dark-400">{doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : '-'}</p>
+                  <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-xl bg-primary-500/10 p-2 text-black">
+                          <FileText className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="text-base font-medium text-black">{doc.documentType}</p>
+                             <p className="text-sm text-black">{doc.createdAt ? new Date(doc.createdAt).toLocaleDateString(locale) : '-'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-full font-medium ${
+                          doc.status === 'APPROVED' ? 'bg-emerald-500/10 text-black border border-emerald-500/30' :
+                          doc.status === 'REJECTED' ? 'bg-red-500/10 text-black border border-red-500/30' :
+                          'bg-amber-500/10 text-black border border-amber-500/30'
+                        }`}>
+                          {doc.status === 'APPROVED' && <CheckCircle2 className="h-3 w-3" />}
+                          {doc.status === 'REJECTED' && <XCircle className="h-3 w-3" />}
+                          {doc.status}
+                        </span>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => handleDelete(doc.id)} aria-label={t('deleteKycRequestAria')} className="rounded-xl">
+                          <Trash2 className="h-4 w-4 text-black" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 ${
-                    doc.status === 'APPROVED' ? 'bg-green-500/10 text-green-400 border border-green-500/30' :
-                    doc.status === 'REJECTED' ? 'bg-red-500/10 text-red-400 border border-red-500/30' :
-                    'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30'
-                  }`}>
-                    {doc.status === 'APPROVED' && <CheckCircle2 className="h-3 w-3" />}
-                    {doc.status === 'REJECTED' && <XCircle className="h-3 w-3" />}
-                    {doc.status}
-                  </span>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => handleDelete(doc.id)} aria-label="Supprimer la demande KYB">
-                    <Trash2 className="h-4 w-4 text-red-400" />
-                  </Button>
                   </div>
                   <AnalysisResult analysis={doc.metadata?.analysis as DocumentAnalysis | undefined} onRecalculate={recalculateTrustScore} recalculating={recalculating} />
                 </div>
@@ -192,3 +212,6 @@ export default function KybPage({ embedded = false }: KybPageProps) {
     </div>
   )
 }
+
+
+

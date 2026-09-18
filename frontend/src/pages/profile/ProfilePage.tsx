@@ -9,9 +9,11 @@ import { ROUTES } from '../../utils/constants'
 import { FullPageLoader } from '../../components/common/Loader'
 import { Button } from '../../components/common/Button'
 import type { Profile, Wallet as WalletType, KycDocument, KybDocument } from '../../models/User.model'
+import { useTranslation } from '../../utils/i18n'
 
 export default function ProfilePage() {
   const { user } = useAuth()
+  const { t } = useTranslation()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [wallet, setWallet] = useState<WalletType | null>(null)
   const [kycDocs, setKycDocs] = useState<KycDocument[]>([])
@@ -76,175 +78,166 @@ export default function ProfilePage() {
   if (loading) return <FullPageLoader />
 
   return (
-    <div className="min-h-screen bg-dark-900 p-4 lg:p-8">
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-dark-50">Mon Profil</h1>
-          <p className="text-dark-400 mt-1">Gérez vos informations personnelles et vos documents</p>
+    <div className="page-enter min-h-screen bg-white p-4 lg:p-8">
+      <div className="mx-auto max-w-5xl space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold text-black">{t('myProfile')}</h1>
+          <p className="text-lg text-black">{t('managePersonalInfo')}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-dark-800 border border-dark-700 rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <FileText className="h-5 w-5 text-primary-500" />
-                <h2 className="text-lg font-semibold text-dark-50">Informations personnelles</h2>
+            <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <h2 className="text-xl font-semibold text-black">{t('personalInfo')}</h2>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-dark-400">Prénom</p>
-                  <p className="text-sm text-dark-100">{user?.firstName || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-dark-400">Nom</p>
-                  <p className="text-sm text-dark-100">{user?.lastName || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-dark-400">Email</p>
-                  <p className="text-sm text-dark-100">{user?.email || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-dark-400">Téléphone</p>
-                  <p className="text-sm text-dark-100">{user?.phone || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-dark-400">CIN</p>
-                  <p className="text-sm text-dark-100">{user?.cin || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-dark-400">Date de naissance</p>
-                  <p className="text-sm text-dark-100">{user?.dateOfBirth || '-'}</p>
-                </div>
+                {[
+                  [t('firstName'), user?.firstName || '-'],
+                  [t('lastName'), user?.lastName || '-'],
+                  [t('email'), user?.email || '-'],
+                  [t('phone'), user?.phone || '-'],
+                  [t('cin'), user?.cin || '-'],
+                  [t('dateOfBirth'), user?.dateOfBirth || '-'],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border border-gray-200 bg-white p-4">
+                    <p className="text-sm text-black">{label as string}</p>
+                    <p className="mt-1 text-base font-medium text-black">{value as string}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="bg-dark-800 border border-dark-700 rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <FileText className="h-5 w-5 text-primary-500" />
-                <h2 className="text-lg font-semibold text-dark-50">Adresse</h2>
+            <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <h2 className="text-xl font-semibold text-black">{t('address')}</h2>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {[
-                  ['Adresse', 'address', '12 rue des Fleurs'],
-                  ['Ville', 'city', 'Dakar'],
-                  ['Pays', 'country', 'Sénégal'],
-                  ['Code postal', 'postalCode', '10000'],
+                  [t('address'), 'address', '12 rue des Fleurs'],
+                  [t('city'), 'city', 'Dakar'],
+                  [t('country'), 'country', 'Sénégal'],
+                  [t('postalCode'), 'postalCode', '10000'],
                 ].map(([label, key, placeholder]) => (
-                  <label key={key} className="text-xs text-dark-400">
-                    {label}
+                  <label key={key as string} className="text-sm text-black">
+                    {label as string}
                     <input
                       value={addressForm[key as keyof typeof addressForm]}
-                      placeholder={placeholder}
-                      onChange={(event) => setAddressForm({ ...addressForm, [key]: event.target.value })}
-                      className="mt-1 w-full rounded-lg border border-dark-700 bg-dark-900/50 px-3 py-2 text-sm text-dark-100 outline-none focus:border-primary-500"
+                      placeholder={placeholder as string}
+                      onChange={(event) => setAddressForm({ ...addressForm, [key as string]: event.target.value })}
+                      className="mt-1 w-full rounded-2xl border border-gray-300 bg-white px-4 py-2.5 text-base text-black outline-none focus:border-primary-500"
                     />
                   </label>
                 ))}
               </div>
-              <div className="mt-5 flex items-center justify-between gap-3">
-                {saved && <span className="text-sm text-emerald-400">Adresse enregistrée.</span>}
-                <button type="button" onClick={() => void saveAddress()} disabled={saving} className="ml-auto flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-500 disabled:opacity-50">
-                  <Save size={16} /> {saving ? 'Enregistrement...' : 'Enregistrer l’adresse'}
+              <div className="mt-6 flex items-center justify-between gap-3">
+                {saved && <span className="text-sm text-black">{t('addressSaved')}</span>}
+                <button type="button" onClick={() => void saveAddress()} disabled={saving} className="ml-auto flex items-center gap-2 rounded-2xl bg-primary-600 px-5 py-2.5 text-sm font-medium text-black hover:bg-primary-500 disabled:opacity-50">
+                  <Save size={16} /> {saving ? t('saving') : t('saveAddress')}
                 </button>
               </div>
             </div>
 
             {user?.role === 'MERCHANT' && (
-              <div className="bg-dark-800 border border-dark-700 rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <Shield className="h-5 w-5 text-primary-500" />
-                  <h2 className="text-lg font-semibold text-dark-50">Informations entreprise</h2>
+              <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
+                    <Shield className="h-5 w-5" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-black">{t('companyInfo')}</h2>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-dark-400">Entreprise</p>
-                    <p className="text-sm text-dark-100">{profile?.companyName || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-dark-400">SIREN / NIF</p>
-                    <p className="text-sm text-dark-100">{profile?.sirenNif || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-dark-400">Registre de commerce</p>
-                    <p className="text-sm text-dark-100">{profile?.tradeRegister || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-dark-400">RIB</p>
-                    <p className="text-sm text-dark-100">{profile?.companyRib || '-'}</p>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <p className="text-xs text-dark-400">Adresse entreprise</p>
-                    <p className="text-sm text-dark-100">{profile?.companyAddress || '-'}</p>
-                  </div>
+                  {[
+                    [t('company'), profile?.companyName || '-'],
+                    [t('sirenNif'), profile?.sirenNif || '-'],
+                    [t('tradeRegister'), profile?.tradeRegister || '-'],
+                    [t('rib'), profile?.companyRib || '-'],
+                    [t('companyAddress'), profile?.companyAddress || '-'],
+                  ].map(([label, value], index) => (
+                    <div key={label as string} className={`rounded-2xl border border-gray-200 bg-white p-4 ${index === 4 ? 'sm:col-span-2' : ''}`}>
+                      <p className="text-sm text-black">{label as string}</p>
+                      <p className="mt-1 text-base font-medium text-black">{value as string}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
           </div>
 
           <div className="space-y-6">
-            <div className="bg-dark-800 border border-dark-700 rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <Wallet className="h-5 w-5 text-primary-500" />
-                <h2 className="text-lg font-semibold text-dark-50">Portefeuille</h2>
+            <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
+                  <Wallet className="h-5 w-5" />
+                </div>
+                <h2 className="text-xl font-semibold text-black">{t('wallet')}</h2>
               </div>
               {wallet ? (
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-xs text-dark-400">Numéro</p>
-                    <p className="text-sm text-dark-100 font-mono">{wallet.walletNumber}</p>
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                     <p className="text-sm text-black">{t('number')}</p>
+                    <p className="text-base font-medium text-black font-mono">{wallet.walletNumber}</p>
                   </div>
-                  <div>
-                    <p className="text-xs text-dark-400">Solde</p>
-                    <p className="text-2xl font-bold text-dark-50">{Number(wallet.balance).toFixed(2)} {wallet.currency || 'EUR'}</p>
+                  <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                     <p className="text-sm text-black">{t('balance')}</p>
+                    <p className="mt-1 text-2xl font-bold text-black">{Number(wallet.balance).toFixed(2)} {wallet.currency || 'EUR'}</p>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-dark-400">Statut</span>
-                    <span className="text-xs px-2 py-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/30">
+                  <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-4">
+                     <span className="text-sm text-black">{t('status')}</span>
+                    <span className="text-sm px-3 py-1.5 rounded-full bg-emerald-500/10 text-black border border-emerald-500/30 font-medium">
                       {wallet.status}
                     </span>
                   </div>
                 </div>
-              ) : (
-                <p className="text-sm text-dark-400">Aucun portefeuille</p>
-              )}
+                 ) : (
+                   <p className="text-sm text-black">{t('noWallet')}</p>
+                 )}
             </div>
 
-            <div className="bg-dark-800 border border-dark-700 rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <Shield className="h-5 w-5 text-primary-500" />
-                <h2 className="text-lg font-semibold text-dark-50">Vérification</h2>
+            <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
+                  <Shield className="h-5 w-5" />
+                </div>
+                <h2 className="text-xl font-semibold text-black">{t('verification')}</h2>
               </div>
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-dark-400">KYC</span>
-                  <span className="text-xs px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/30">
+                <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-4">
+                  <span className="text-sm text-black">{t('kyc')}</span>
+                  <span className="text-sm px-3 py-1.5 rounded-full bg-amber-500/10 text-black border border-amber-500/30 font-medium">
                     {user?.kycStatus || 'NON_VERIFIE'}
                   </span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-dark-400">Documents KYC</span>
-                  <span className="text-xs text-dark-300">{kycDocs.length}</span>
+                <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-4">
+                  <span className="text-sm text-black">{t('documentsKYC')}</span>
+                  <span className="text-sm font-medium text-black">{kycDocs.length}</span>
                 </div>
                 {user?.role === 'MERCHANT' && (
                   <>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-dark-400">KYB</span>
-                      <span className="text-xs px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/30">
+                    <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-4">
+                      <span className="text-sm text-black">{t('kyb')}</span>
+                      <span className="text-sm px-3 py-1.5 rounded-full bg-amber-500/10 text-black border border-amber-500/30 font-medium">
                         {user?.kybStatus || 'NON_VERIFIE'}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-dark-400">Documents KYB</span>
-                      <span className="text-xs text-dark-300">{kybDocs.length}</span>
+                    <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-4">
+                      <span className="text-sm text-black">{t('documentsKYB')}</span>
+                      <span className="text-sm font-medium text-black">{kybDocs.length}</span>
                     </div>
                   </>
                 )}
               </div>
             </div>
 
-            <Button className="w-full" onClick={() => window.location.href = ROUTES.KYC}>
+            <Button className="w-full rounded-2xl" onClick={() => window.location.href = ROUTES.KYC}>
               <Shield className="h-4 w-4 mr-2" />
-              Compléter la vérification
+              {t('completeVerification')}
               <ChevronRight className="h-4 w-4 ml-auto" />
             </Button>
           </div>
@@ -253,3 +246,6 @@ export default function ProfilePage() {
     </div>
   )
 }
+
+
+

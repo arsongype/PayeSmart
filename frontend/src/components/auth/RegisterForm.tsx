@@ -7,6 +7,7 @@ import type { RegisterFormData } from '../../utils/validators'
 import { registerSchema } from '../../utils/validators'
 import { useAuth } from '../../contexts/AuthContext'
 import axios from 'axios'
+import { useTranslation } from '../../utils/i18n'
 
 interface RegisterFormProps {
   onSuccess?: () => void
@@ -14,6 +15,7 @@ interface RegisterFormProps {
 
 export function RegisterForm({ onSuccess }: RegisterFormProps) {
   const { register } = useAuth()
+  const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -53,7 +55,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
         console.error('Register field errors:', fieldErrors)
         setErrors(fieldErrors)
       } else {
-        setError('Erreur de validation')
+        setError(t('validationError'))
       }
       return false
     }
@@ -77,21 +79,21 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
       console.log('Register API call...')
       const response = await register(formData)
       console.log('Register API success:', response)
-      setSuccess('Compte créé avec succès ! Redirection vers la connexion...')
+      setSuccess(t('successRedirect'))
       setTimeout(() => {
         onSuccess?.()
       }, 1200)
     } catch (err) {
       console.error('Register API error:', err)
       if (axios.isAxiosError(err) && !err.response) {
-        setError('Impossible de joindre le serveur. Démarrez le backend sur le port 3000 puis réessayez.')
+        setError(t('cannotReachServer'))
       } else if (err && typeof err === 'object' && 'response' in err) {
         const axiosError = err as { response?: { data?: { message?: string } } }
-        setError(axiosError.response?.data?.message || "Échec de l'inscription")
+        setError(axiosError.response?.data?.message || t('registrationFailed'))
       } else if (err instanceof Error) {
         setError(err.message)
       } else {
-        setError("Échec de l'inscription")
+        setError(t('registrationFailed'))
       }
     } finally {
       setIsLoading(false)
@@ -101,12 +103,12 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-3 w-full max-w-md mx-auto">
       <div className="space-y-0.5 text-center">
-        <h1 className="text-xl font-bold text-dark-50">Create account</h1>
-        <p className="text-[11px] text-dark-300">Rejoignez la plateforme de paiement Paysmart</p>
+        <h1 className="text-xl font-bold text-black">{t('registerTitle')}</h1>
+        <p className="text-xs text-black">{t('joinPlatform')}</p>
       </div>
 
       {error && (
-        <div className="rounded-lg bg-red-500/10 border border-red-500/50 p-2.5 text-xs text-red-400">
+        <div className="rounded-lg bg-red-500/10 border border-red-500/50 p-2.5 text-xs text-black">
           {error}
         </div>
       )}
@@ -120,15 +122,15 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
       <div className="space-y-2.5">
         <div className="grid grid-cols-2 gap-2.5">
           <Input
-            label="Prénom"
-            placeholder="Jean"
+            label={t('firstNameLabelRegister')}
+            placeholder={t('firstNamePlaceholder')}
             value={formData.firstName}
             onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
             error={errors.firstName}
           />
           <Input
-            label="Nom"
-            placeholder="Dupont"
+            label={t('lastNameLabelRegister')}
+            placeholder={t('lastNamePlaceholder')}
             value={formData.lastName}
             onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
             error={errors.lastName}
@@ -136,8 +138,8 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
         </div>
 
         <Input
-          label="Adresse"
-          placeholder="12 rue des Fleurs"
+          label={t('addressLabelRegister')}
+          placeholder={t('addressPlaceholder')}
           value={formData.address}
           onChange={(e) => setFormData({ ...formData, address: e.target.value })}
           error={errors.address}
@@ -145,15 +147,15 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
 
         <div className="grid grid-cols-2 gap-2.5">
           <Input
-            label="Ville"
-            placeholder="Dakar"
+            label={t('cityLabelRegister')}
+            placeholder={t('cityPlaceholder')}
             value={formData.city}
             onChange={(e) => setFormData({ ...formData, city: e.target.value })}
             error={errors.city}
           />
           <Input
-            label="Code postal"
-            placeholder="10000"
+            label={t('postalCodeLabelRegister')}
+            placeholder={t('postalCodePlaceholder')}
             value={formData.postalCode}
             onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
             error={errors.postalCode}
@@ -161,8 +163,8 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
         </div>
 
         <Input
-          label="Pays"
-          placeholder="Sénégal"
+          label={t('countryLabelRegister')}
+          placeholder={t('countryPlaceholder')}
           value={formData.country}
           onChange={(e) => setFormData({ ...formData, country: e.target.value })}
           error={errors.country}
@@ -170,16 +172,16 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
 
         <div className="grid grid-cols-2 gap-2.5">
           <Input
-            label="CIN"
-            placeholder="123456789"
+            label={t('cinLabelRegister')}
+            placeholder={t('cinPlaceholder')}
             value={formData.cin}
             onChange={(e) => setFormData({ ...formData, cin: e.target.value })}
             error={errors.cin}
           />
           <Input
-            label="Téléphone"
+            label={t('phoneLabelRegister')}
             type="tel"
-            placeholder="+221 77 123 45 67"
+            placeholder={t('phonePlaceholder')}
             value={formData.phone}
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             error={errors.phone}
@@ -187,9 +189,9 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
         </div>
 
         <Input
-          label="Email"
+          label={t('emailLabelRegister')}
           type="email"
-          placeholder="vous@exemple.com"
+          placeholder={t('emailPlaceholder')}
           value={formData.email}
           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
           error={errors.email}
@@ -202,40 +204,40 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
 
         <div className="grid grid-cols-2 gap-2.5">
           <div>
-            <label className="block text-xs font-medium text-dark-200 mb-1">Date de naissance</label>
+            <label className="block text-xs font-medium text-black mb-1">{t('dateOfBirthLabel')}</label>
             <input
               type="date"
               value={formData.dateOfBirth}
               onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-              className="w-full rounded-lg border border-dark-700 bg-dark-800/50 px-2.5 py-1.5 text-xs text-dark-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              className="w-full rounded-lg border border-gray-300 bg-gray-50 px-2.5 py-1.5 text-xs text-black focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
             />
-            {errors.dateOfBirth && <p className="mt-1 text-[11px] text-red-400">{errors.dateOfBirth}</p>}
+            {errors.dateOfBirth && <p className="mt-1 text-xs text-black">{errors.dateOfBirth}</p>}
           </div>
           <div>
-            <label className="block text-xs font-medium text-dark-200 mb-1">Type de compte</label>
+            <label className="block text-xs font-medium text-black mb-1">{t('accountTypeLabel')}</label>
             <select
               value={formData.role}
               onChange={(e) => setFormData({ ...formData, role: e.target.value as RegisterFormData['role'] })}
-              className="w-full rounded-lg border border-dark-700 bg-dark-800/50 px-2.5 py-1.5 text-xs text-dark-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              className="w-full rounded-lg border border-gray-300 bg-gray-50 px-2.5 py-1.5 text-xs text-black focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
             >
-              <option value="USER">Utilisateur</option>
-              <option value="MERCHANT">Marchand</option>
-              <option value="ADMIN">Administrateur</option>
+              <option value="USER">{t('individualType')}</option>
+              <option value="MERCHANT">{t('merchantType')}</option>
+              <option value="ADMIN">{t('adminType')}</option>
             </select>
           </div>
         </div>
 
         <PasswordInput
-          label="Mot de passe"
-          placeholder="••••••••"
+          label={t('passwordLabelRegister')}
+          placeholder={t('passwordPlaceholder')}
           value={formData.password}
           onChange={(value) => setFormData({ ...formData, password: value })}
           error={errors.password}
         />
 
         <PasswordInput
-          label="Confirmer le mot de passe"
-          placeholder="••••••••"
+          label={t('confirmPasswordLabel')}
+          placeholder={t('passwordPlaceholder')}
           value={formData.confirmPassword}
           onChange={(value) => setFormData({ ...formData, confirmPassword: value })}
           error={errors.confirmPassword}
@@ -247,18 +249,21 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
           className="w-full shadow-lg shadow-primary-900/20 hover:shadow-xl hover:shadow-primary-900/30"
           isLoading={isLoading}
         >
-          Create account
+          {t('createAccountButton')}
         </Button>
       </div>
 
       <div className="text-center">
         <Link
           to="/login"
-          className="text-[11px] text-dark-300 hover:text-primary-400 transition-colors"
+          className="text-xs text-black hover:text-black transition-colors"
         >
-          Vous avez déjà un compte ? Se connecter
+          {t('alreadyHaveAccount')}
         </Link>
       </div>
     </form>
   )
 }
+
+
+

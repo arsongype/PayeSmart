@@ -8,9 +8,13 @@ import { Button } from '../../components/common/Button'
 import { AnalysisResult, type DocumentAnalysis } from '../../components/common/AnalysisResult'
 import { TrustScorePanel, type TrustScoreData } from '../../components/common/TrustScorePanel'
 import KybPage from './KybPage'
+import { useLocale } from '../../hooks/useLocale'
+import { useTranslation } from '../../utils/i18n'
 
 export default function KycPage() {
   const { user } = useAuth()
+  const locale = useLocale()
+  const { t } = useTranslation()
   const [activeVerification, setActiveVerification] = useState<'KYC' | 'KYB'>('KYC')
   const [documents, setDocuments] = useState<KycDocument[]>([])
   const [loading, setLoading] = useState(true)
@@ -23,7 +27,7 @@ export default function KycPage() {
   const loadDocuments = useCallback(() => {
     if (user?.id) {
       kycService.getDocuments(user.id).then(setDocuments).catch((err) => {
-        setError(err instanceof Error ? err.message : 'Impossible de charger les documents')
+        setError(err instanceof Error ? err.message : t('cannotLoadDocuments'))
       }).finally(() => setLoading(false))
     }
   }, [user])
@@ -44,20 +48,20 @@ export default function KycPage() {
       const { data } = await apiClient.post(`/kyc/trust-score/${user.id}/recalculate`)
       setTrustScore(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Impossible de recalculer le Trust Score')
+      setError(err instanceof Error ? err.message : t('cannotRecalculateTrustScore'))
     } finally {
       setRecalculating(false)
     }
   }
 
   const handleDelete = async (documentId: number) => {
-    if (!window.confirm('Supprimer cette demande KYC ?')) return
+    if (!window.confirm(t('deleteKycRequest'))) return
     try {
       await kycService.deleteDocument(documentId)
       setDocuments((previous) => previous.filter((document) => document.id !== documentId))
       setTrustScore(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Impossible de supprimer la demande')
+      setError(err instanceof Error ? err.message : t('cannotDeleteRequest'))
     }
   }
 
@@ -67,7 +71,7 @@ export default function KycPage() {
       localStorage.setItem('user', JSON.stringify(data))
       window.location.reload()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Impossible de réactiver le compte')
+      setError(err instanceof Error ? err.message : t('cannotReactivateAccount'))
     }
   }
 
@@ -78,7 +82,7 @@ export default function KycPage() {
     setUploading(true)
     setError(null)
     try {
-      const documentType = prompt('Type de document (CIN, PASSPORT, ADDRESS_PROOF, PHOTO_ID):') as KycDocument['documentType']
+      const documentType = prompt(t('documentTypePrompt')) as KycDocument['documentType']
       if (!documentType) return
 
       const formData = new FormData()
@@ -90,36 +94,36 @@ export default function KycPage() {
       })
       setDocuments((prev) => [...prev, data])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors de l\'upload')
+      setError(err instanceof Error ? err.message : t('uploadError'))
     } finally {
       setUploading(false)
       event.target.value = ''
     }
   }
 
-  if (loading) return <div className="min-h-screen bg-dark-900 flex items-center justify-center text-dark-400">Chargement...</div>
+  if (loading) return <div className="page-enter min-h-screen bg-white flex items-center justify-center text-black">{t('loading')}</div>
 
   return (
-    <div className="min-h-screen bg-dark-900 p-4 lg:p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-dark-50">Vérification</h1>
-          <p className="text-dark-400 mt-1">Choisissez le type de vérification à compléter.</p>
+    <div className="page-enter min-h-screen bg-white p-4 lg:p-8">
+      <div className="mx-auto max-w-4xl space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold text-black">{t('verification')}</h1>
+          <p className="text-lg text-black">{t('chooseVerificationType')}</p>
         </div>
 
-        <div className="mb-6 flex flex-wrap gap-3" role="tablist" aria-label="Type de vérification">
+        <div className="flex flex-wrap gap-3" role="tablist" aria-label={t('verificationType')}>
           <button
             type="button"
             role="tab"
             aria-selected={activeVerification === 'KYC'}
             onClick={() => setActiveVerification('KYC')}
-            className={`rounded-lg border px-5 py-3 text-sm font-semibold transition-colors ${
+            className={`rounded-2xl border px-6 py-3 text-sm font-semibold transition-colors ${
               activeVerification === 'KYC'
-                ? 'border-primary-500 bg-primary-600/15 text-primary-300'
-                : 'border-dark-700 bg-dark-800 text-dark-400 hover:border-primary-600/50 hover:text-dark-100'
+                ? 'border-primary-500 bg-primary-600/15 text-black'
+                   : 'border-gray-300 bg-gray-50 text-black hover:border-primary-600/50 hover:text-black'
             }`}
           >
-            Vérification KYC
+            {t('kycVerification')}
           </button>
           {user?.role === 'MERCHANT' && (
             <button
@@ -127,29 +131,29 @@ export default function KycPage() {
               role="tab"
               aria-selected={activeVerification === 'KYB'}
               onClick={() => setActiveVerification('KYB')}
-              className={`rounded-lg border px-5 py-3 text-sm font-semibold transition-colors ${
+            className={`rounded-2xl border px-6 py-3 text-base font-semibold transition-colors ${
                 activeVerification === 'KYB'
-                  ? 'border-primary-500 bg-primary-600/15 text-primary-300'
-                  : 'border-dark-700 bg-dark-800 text-dark-400 hover:border-primary-600/50 hover:text-dark-100'
+                  ? 'border-primary-500 bg-primary-600/15 text-black'
+                  : 'border-gray-300 bg-gray-50 text-black hover:border-primary-600/50 hover:text-black'
               }`}
             >
-              Vérification KYB
+              {t('kybVerification')}
             </button>
           )}
         </div>
 
-        {error && (
-          <div className="mb-6 rounded-lg bg-red-500/10 border border-red-500/50 p-4 text-sm text-red-400">
-            {error}
-          </div>
-        )}
+          {error && (
+            <div className="rounded-2xl bg-red-500/10 border border-red-500/50 p-4 text-base text-black">
+              {error}
+            </div>
+          )}
 
         {user?.accountStatus === 'DELETED' && user.reactivationDeadline && new Date(user.reactivationDeadline) > new Date() && (
-          <div className="mb-6 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-4 text-sm text-yellow-300">
-            <p className="font-medium">Votre compte est en attente de suppression définitive.</p>
-            <p className="mt-1">Réactivez-le avant le {new Date(user.reactivationDeadline).toLocaleDateString('fr-FR')} pour recommencer votre vérification.</p>
-            <Button type="button" size="sm" variant="primary" className="mt-3" onClick={handleRevalidate}>
-              Réactiver et recommencer la vérification
+          <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 text-base text-black">
+            <p className="font-medium">{t('accountDeletionPending')}</p>
+            <p className="mt-1">{t('reactivateBeforeDate', { date: new Date(user.reactivationDeadline).toLocaleDateString(locale) })}</p>
+            <Button type="button" size="sm" variant="primary" className="mt-3 rounded-xl" onClick={handleRevalidate}>
+              {t('reactivateAndRestartVerification')}
             </Button>
           </div>
         )}
@@ -157,62 +161,70 @@ export default function KycPage() {
         <TrustScorePanel score={trustScore} onRecalculate={recalculateTrustScore} loading={recalculating} />
 
         {activeVerification === 'KYC' && <>
-          <div className="bg-dark-800 border border-dark-700 rounded-xl p-6 mb-6">
-          <h2 className="text-lg font-semibold text-dark-50 mb-4">Documents requis</h2>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-4 bg-dark-900/50 rounded-lg border border-dark-700">
-              <div className="flex items-center gap-3">
-                <FileText className="h-5 w-5 text-primary-500" />
+          <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+            <h2 className="text-xl font-semibold text-black mb-6">{t('requiredDocuments')}</h2>
+            <div className="rounded-2xl border border-gray-200 bg-white p-5">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-base font-medium text-black">{t('idCardOrPassport')}</p>
+                     <p className="text-sm text-black">{t('frontAndBack')}</p>
+                  </div>
+                </div>
                 <div>
-                  <p className="text-sm font-medium text-dark-100">Carte d'identité / Passeport</p>
-                  <p className="text-xs text-dark-400">Recto et verso</p>
+                  <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleUpload} disabled={uploading} />
+                  <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()} className="rounded-xl border border-gray-300">
+                    <Upload className="h-4 w-4 mr-2" />
+                    {uploading ? t('uploading') : t('add')}
+                  </Button>
                 </div>
               </div>
-              <div>
-                <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleUpload} disabled={uploading} />
-                <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  {uploading ? 'Envoi...' : 'Ajouter'}
-                </Button>
-              </div>
             </div>
-          </div>
           </div>
 
-          <div className="bg-dark-800 border border-dark-700 rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-dark-50 mb-4">Documents soumis</h2>
-          {documents.length === 0 ? (
-            <p className="text-sm text-dark-400 text-center py-8">Aucun document soumis</p>
-          ) : (
-            <div className="space-y-3">
-              {documents.map((doc) => (
-                <div key={doc.id}>
-                  <div className="flex items-center justify-between p-4 bg-dark-900/50 rounded-lg border border-dark-700">
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-5 w-5 text-primary-500" />
-                    <div>
-                      <p className="text-sm font-medium text-dark-100">{doc.documentType}</p>
-                      <p className="text-xs text-dark-400">{doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : '-'}</p>
+          <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+            <h2 className="text-xl font-semibold text-black mb-6">{t('submittedDocuments')}</h2>
+            {documents.length === 0 ? (
+               <p className="text-base text-black text-center py-8">{t('noDocuments')}</p>
+            ) : (
+              <div className="space-y-4">
+                {documents.map((doc) => (
+                  <div key={doc.id}>
+                    <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="rounded-xl bg-primary-500/10 p-2 text-black">
+                            <FileText className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="text-base font-medium text-black">{doc.documentType}</p>
+                             <p className="text-sm text-black">{doc.createdAt ? new Date(doc.createdAt).toLocaleDateString(locale) : '-'}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-full font-medium ${
+                            doc.status === 'APPROVED' ? 'bg-emerald-500/10 text-black border border-emerald-500/30' :
+                            doc.status === 'REJECTED' ? 'bg-red-500/10 text-black border border-red-500/30' :
+                            'bg-amber-500/10 text-black border border-amber-500/30'
+                          }`}>
+                            {doc.status === 'APPROVED' && <CheckCircle2 className="h-3 w-3" />}
+                            {doc.status === 'REJECTED' && <XCircle className="h-3 w-3" />}
+                            {doc.status}
+                          </span>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => handleDelete(doc.id)} aria-label={t('deleteKycRequestAria')} className="rounded-xl">
+                            <Trash2 className="h-4 w-4 text-black" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
+                    <AnalysisResult analysis={doc.metadata?.analysis as DocumentAnalysis | undefined} onRecalculate={recalculateTrustScore} recalculating={recalculating} />
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 ${
-                    doc.status === 'APPROVED' ? 'bg-green-500/10 text-green-400 border border-green-500/30' :
-                    doc.status === 'REJECTED' ? 'bg-red-500/10 text-red-400 border border-red-500/30' :
-                    'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30'
-                  }`}>
-                    {doc.status === 'APPROVED' && <CheckCircle2 className="h-3 w-3" />}
-                    {doc.status === 'REJECTED' && <XCircle className="h-3 w-3" />}
-                    {doc.status}
-                  </span>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => handleDelete(doc.id)} aria-label="Supprimer la demande KYC">
-                    <Trash2 className="h-4 w-4 text-red-400" />
-                  </Button>
-                  </div>
-                  <AnalysisResult analysis={doc.metadata?.analysis as DocumentAnalysis | undefined} onRecalculate={recalculateTrustScore} recalculating={recalculating} />
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
           </div>
         </>}
 
@@ -221,3 +233,6 @@ export default function KycPage() {
     </div>
   )
 }
+
+
+

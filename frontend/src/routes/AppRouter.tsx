@@ -20,7 +20,7 @@ const PaymentsPage = lazy(() => import('../pages/payments/PaymentsPage'))
 const SettingsPage = lazy(() => import('../pages/profile/SettingsPage'))
 
 const loader = (
-  <div className="min-h-screen flex items-center justify-center bg-dark-900">
+  <div className="min-h-screen flex items-center justify-center bg-white">
     <FullPageLoader />
   </div>
 )
@@ -169,3 +169,7 @@ export const router = createBrowserRouter([
     element: <Navigate to="/dashboard" replace />,
   },
 ])
+
+
+
+

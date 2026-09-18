@@ -9,10 +9,14 @@ import { FullPageLoader } from '../../components/common/Loader'
 import { Button } from '../../components/common/Button'
 import { AnalysisResult, type DocumentAnalysis } from '../../components/common/AnalysisResult'
 import { TrustScorePanel, type TrustScoreData } from '../../components/common/TrustScorePanel'
+import { useLocale } from '../../hooks/useLocale'
+import { useTranslation } from '../../utils/i18n'
 
 export default function AdminUserDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const locale = useLocale()
+  const { t } = useTranslation()
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [kycDocs, setKycDocs] = useState<KycDocument[]>([])
   const [kybDocs, setKybDocs] = useState<KybDocument[]>([])
@@ -39,7 +43,7 @@ export default function AdminUserDetailPage() {
       setError(null)
     } catch (err) {
       if (!mountedRef.current) return
-      setError(err instanceof Error ? err.message : 'Erreur lors du chargement')
+      setError(err instanceof Error ? err.message : t('errorLoading'))
     } finally {
       if (mountedRef.current) {
         setLoading(false)
@@ -53,7 +57,7 @@ export default function AdminUserDetailPage() {
     try {
       setTrustScore(await adminService.recalculateTrustScore(parseInt(id)))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Impossible de recalculer le Trust Score')
+      setError(err instanceof Error ? err.message : t('cannotRecalculateTrustScore'))
     } finally {
       setRecalculating(false)
     }
@@ -75,7 +79,7 @@ export default function AdminUserDetailPage() {
       await adminService.reviewKyc(docId, status, rejectionReason)
       setKycDocs((prev) => prev.map((doc) => (doc.id === docId ? { ...doc, status, rejectionReason } : doc)))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors de la validation')
+      setError(err instanceof Error ? err.message : t('errorValidation'))
     }
   }
 
@@ -84,7 +88,7 @@ export default function AdminUserDetailPage() {
       await adminService.reviewKyb(docId, status, rejectionReason)
       setKybDocs((prev) => prev.map((doc) => (doc.id === docId ? { ...doc, status, rejectionReason } : doc)))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors de la validation')
+      setError(err instanceof Error ? err.message : t('errorValidation'))
     }
   }
 
@@ -92,25 +96,25 @@ export default function AdminUserDetailPage() {
     if (!selectedUser) return
     try {
       if (action === 'suspend') {
-        const reason = window.prompt('Motif du blocage :')
+        const reason = window.prompt(t('blockReasonPrompt'))
         if (!reason) return
         await adminService.suspendUser(selectedUser.id, reason)
       } else if (action === 'delete') {
-        if (!window.confirm('Supprimer ce compte ? Une réactivation sera possible pendant 30 jours.')) return
+        if (!window.confirm(t('deleteAccountConfirm'))) return
         await adminService.deleteUser(selectedUser.id)
       } else if (action === 'reactivate') {
         await adminService.reactivateUser(selectedUser.id)
       } else if (action === 'cancelDeletion') {
         await adminService.cancelDeletion(selectedUser.id)
       } else {
-        if (!window.confirm('Supprimer définitivement ce compte ?')) return
+        if (!window.confirm(t('permanentDeleteConfirm'))) return
         await adminService.permanentlyDeleteUser(selectedUser.id)
         navigate('/admin/users')
         return
       }
       await loadUserDetail()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors de la gestion du compte')
+      setError(err instanceof Error ? err.message : t('errorAccountManagement'))
     }
   }
 
@@ -118,65 +122,65 @@ export default function AdminUserDetailPage() {
 
   if (!selectedUser) {
     return (
-      <div className="min-h-screen bg-dark-900 flex items-center justify-center text-dark-400">
-        Utilisateur non trouvé
+      <div className="page-enter min-h-screen bg-white flex items-center justify-center text-black">
+        {t('userNotFound')}
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-dark-900 p-4 lg:p-8">
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-6">
-          <Button variant="ghost" onClick={() => navigate('/admin/users')} className="mb-4">
+    <div className="page-enter min-h-screen bg-white p-4 lg:p-8">
+      <div className="mx-auto max-w-5xl space-y-8">
+        <div>
+          <Button variant="ghost" onClick={() => navigate('/admin/users')} className="mb-4 rounded-xl border border-gray-300">
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Retour à la liste
+            {t('backToList')}
           </Button>
           <div className="flex items-center gap-3 mb-2">
-            <div className="h-12 w-12 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium text-lg">
+            <div className="h-12 w-12 rounded-full bg-primary-600 flex items-center justify-center text-black font-medium text-lg">
               {selectedUser.firstName?.[0]}{selectedUser.lastName?.[0]}
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-dark-50">{selectedUser.firstName} {selectedUser.lastName}</h1>
-              <p className="text-sm text-dark-400">{selectedUser.email}</p>
+              <h1 className="text-3xl font-bold text-black">{selectedUser.firstName} {selectedUser.lastName}</h1>
+              <p className="text-base text-black">{selectedUser.email}</p>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <span className={`text-xs px-2.5 py-1 rounded-full border ${
-              selectedUser.accountStatus === 'ACTIVE' ? 'border-green-500/30 bg-green-500/10 text-green-400' :
-              selectedUser.accountStatus === 'SUSPENDED' ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400' :
-              'border-red-500/30 bg-red-500/10 text-red-400'
+            <span className={`text-sm px-3 py-1.5 rounded-full border font-medium ${
+              selectedUser.accountStatus === 'ACTIVE' ? 'border-emerald-500/30 bg-emerald-500/10 text-black' :
+              selectedUser.accountStatus === 'SUSPENDED' ? 'border-amber-500/30 bg-amber-500/10 text-black' :
+              'border-red-500/30 bg-red-500/10 text-black'
             }`}>
-              Compte : {selectedUser.accountStatus}
+              {t('accountStatusLabel', { status: selectedUser.accountStatus })}
             </span>
             {selectedUser.reactivationDeadline && (
-              <span className="text-xs text-dark-400">
-                Réactivation jusqu'au {new Date(selectedUser.reactivationDeadline).toLocaleDateString('fr-FR')}
+              <span className="text-sm text-black">
+                {t('reactivationUntilDate', { date: new Date(selectedUser.reactivationDeadline).toLocaleDateString(locale) })}
               </span>
             )}
             {selectedUser.accountStatus === 'ACTIVE' && (
               <>
-                <Button size="sm" variant="outline" onClick={() => updateAccount('suspend')}>
-                  <Ban className="h-3 w-3 mr-1" /> Bloquer
+                <Button size="sm" variant="outline" onClick={() => updateAccount('suspend')} className="rounded-xl border border-gray-300">
+                  <Ban className="h-3 w-3 mr-1" /> {t('block')}
                 </Button>
-                <Button size="sm" variant="danger" onClick={() => updateAccount('delete')}>
-                  <Trash2 className="h-3 w-3 mr-1" /> Supprimer
+                <Button size="sm" variant="danger" onClick={() => updateAccount('delete')} className="rounded-xl">
+                  <Trash2 className="h-3 w-3 mr-1" /> {t('deleteAccount')}
                 </Button>
               </>
             )}
             {selectedUser.accountStatus === 'SUSPENDED' && (
-              <Button size="sm" variant="primary" onClick={() => updateAccount('reactivate')}>
-                <RotateCcw className="h-3 w-3 mr-1" /> Réactiver
+              <Button size="sm" variant="primary" onClick={() => updateAccount('reactivate')} className="rounded-xl">
+                <RotateCcw className="h-3 w-3 mr-1" /> {t('reactivate')}
               </Button>
             )}
             {selectedUser.accountStatus === 'DELETED' && (
               <>
-                <Button size="sm" variant="primary" onClick={() => updateAccount('cancelDeletion')}>
-                  <RotateCcw className="h-3 w-3 mr-1" /> Annuler la suppression
+                <Button size="sm" variant="primary" onClick={() => updateAccount('cancelDeletion')} className="rounded-xl">
+                  <RotateCcw className="h-3 w-3 mr-1" /> {t('cancelDeletion')}
                 </Button>
                 {selectedUser.reactivationDeadline && new Date(selectedUser.reactivationDeadline) < new Date() && (
-                  <Button size="sm" variant="danger" onClick={() => updateAccount('permanentDelete')}>
-                    <Trash2 className="h-3 w-3 mr-1" /> Supprimer définitivement
+                  <Button size="sm" variant="danger" onClick={() => updateAccount('permanentDelete')} className="rounded-xl">
+                    <Trash2 className="h-3 w-3 mr-1" /> {t('permanentlyDelete')}
                   </Button>
                 )}
               </>
@@ -184,155 +188,150 @@ export default function AdminUserDetailPage() {
           </div>
         </div>
 
-        {error && (
-          <div className="mb-6 rounded-lg bg-red-500/10 border border-red-500/50 p-4 text-sm text-red-400">
-            {error}
-          </div>
-        )}
+          {error && (
+            <div className="rounded-2xl bg-red-500/10 border border-red-500/50 p-4 text-base text-black">
+              {error}
+            </div>
+          )}
 
         <TrustScorePanel score={trustScore} onRecalculate={recalculateTrustScore} loading={recalculating} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-dark-800 border border-dark-700 rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <UserIcon className="h-5 w-5 text-primary-500" />
-                <h2 className="text-lg font-semibold text-dark-50">Profil</h2>
+            <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
+                  <UserIcon className="h-5 w-5" />
+                </div>
+                <h2 className="text-xl font-semibold text-black">{t('profileInfo')}</h2>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-dark-400">Prénom</p>
-                  <p className="text-sm text-dark-100">{selectedUser.firstName || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-dark-400">Nom</p>
-                  <p className="text-sm text-dark-100">{selectedUser.lastName || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-dark-400">Email</p>
-                  <p className="text-sm text-dark-100">{selectedUser.email || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-dark-400">Téléphone</p>
-                  <p className="text-sm text-dark-100">{selectedUser.phone || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-dark-400">CIN</p>
-                  <p className="text-sm text-dark-100">{selectedUser.cin || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-dark-400">Rôle</p>
-                  <p className="text-sm text-dark-100">{selectedUser.role}</p>
-                </div>
+                {[
+                  [t('firstName'), selectedUser.firstName || '-'],
+                  [t('lastName'), selectedUser.lastName || '-'],
+                  [t('email'), selectedUser.email || '-'],
+                  [t('phone'), selectedUser.phone || '-'],
+                  [t('cin'), selectedUser.cin || '-'],
+                  [t('role'), selectedUser.role],
+                 ].map(([label, value]) => (
+                    <div key={label as string} className="rounded-2xl border border-gray-200 bg-white p-4">
+                      <p className="text-sm text-black">{label as string}</p>
+                      <p className="mt-1 text-base font-medium text-black">{value as string}</p>
+                    </div>
+                  ))}
               </div>
             </div>
 
-            <div className="bg-dark-800 border border-dark-700 rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <Wallet className="h-5 w-5 text-primary-500" />
-                <h2 className="text-lg font-semibold text-dark-50">Portefeuille</h2>
+            <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
+                  <Wallet className="h-5 w-5" />
+                </div>
+                <h2 className="text-xl font-semibold text-black">{t('wallet')}</h2>
               </div>
               {selectedUser.wallet ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-dark-400">Numéro</p>
-                    <p className="text-sm text-dark-100 font-mono">{selectedUser.wallet.walletNumber}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-dark-400">Solde</p>
-                    <p className="text-sm text-dark-100">{Number(selectedUser.wallet.balance).toFixed(2)} {selectedUser.wallet.currency || 'EUR'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-dark-400">Statut</p>
-                    <p className="text-sm text-dark-100">{selectedUser.wallet.status}</p>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-dark-400">Aucun portefeuille</p>
-              )}
+                  {[
+                    [t('number'), selectedUser.wallet.walletNumber],
+                    [t('balance'), `${Number(selectedUser.wallet.balance).toFixed(2)} ${selectedUser.wallet.currency || 'EUR'}`],
+                    [t('status'), selectedUser.wallet.status],
+                   ].map(([label, value]) => (
+                    <div key={label as string} className="rounded-2xl border border-gray-200 bg-white p-4">
+                      <p className="text-sm text-black">{label as string}</p>
+                      <p className="mt-1 text-base font-medium text-black">{value as string}</p>
+                    </div>
+                    ))}
+                 </div>
+                  ) : (
+                    <p className="text-sm text-black">{t('noWallet')}</p>
+                  )}
             </div>
 
-            <div className="bg-dark-800 border border-dark-700 rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <FileText className="h-5 w-5 text-primary-500" />
-                <h2 className="text-lg font-semibold text-dark-50">Documents KYC</h2>
-              </div>
-              {kycDocs.length === 0 ? (
-                <p className="text-sm text-dark-400">Aucun document KYC</p>
-              ) : (
-                <div className="space-y-3">
-                  {kycDocs.map((doc) => (
-                    <div key={doc.id} className="rounded-lg border border-dark-700 bg-dark-900/50 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                        <p className="text-sm font-medium text-dark-100">{doc.documentType}</p>
-                        <p className="text-xs text-dark-400">{doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : '-'}</p>
-                        {doc.rejectionReason && <p className="text-xs text-red-400 mt-1">Motif: {doc.rejectionReason}</p>}
-                        </div>
-                      {doc.status === 'EN_COURS' && (
-                        <div className="flex items-center gap-2">
-                          <Button size="sm" variant="primary" onClick={() => handleKycReview(doc.id, 'APPROVED')}>
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Valider
-                          </Button>
-                          <Button size="sm" variant="danger" onClick={() => handleKycReview(doc.id, 'REJECTED', 'Document non conforme')}>
-                            <XCircle className="h-3 w-3 mr-1" />
-                            Rejeter
-                          </Button>
-                        </div>
-                      )}
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        doc.status === 'APPROVED' ? 'bg-green-500/10 text-green-400 border border-green-500/30' :
-                        doc.status === 'REJECTED' ? 'bg-red-500/10 text-red-400 border border-red-500/30' :
-                        'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30'
-                      }`}>
-                        {doc.status}
-                      </span>
-                      </div>
-                      <AnalysisResult analysis={doc.metadata?.analysis as DocumentAnalysis | undefined} onRecalculate={recalculateTrustScore} recalculating={recalculating} />
-                    </div>
-                  ))}
+            <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
+                  <FileText className="h-5 w-5" />
                 </div>
-              )}
+                <h2 className="text-xl font-semibold text-black">{t('documentsKYC')}</h2>
+              </div>
+               {kycDocs.length === 0 ? (
+                  <p className="text-sm text-black">{t('noKycDocuments')}</p>
+               ) : (
+                 <div className="space-y-4">
+                   {kycDocs.map((doc) => (
+                   <div key={doc.id} className="rounded-2xl border border-gray-200 bg-white p-5">
+                     <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-base font-medium text-black">{doc.documentType}</p>
+                                <p className="text-sm text-black">{doc.createdAt ? new Date(doc.createdAt).toLocaleDateString(locale) : '-'}</p>
+                            {doc.rejectionReason && <p className="text-sm text-black mt-1">{t('rejectionReasonLabel', { reason: doc.rejectionReason })}</p>}
+                          </div>
+                         {doc.status === 'EN_COURS' && (
+                           <div className="flex items-center gap-2">
+                             <Button size="sm" variant="primary" onClick={() => handleKycReview(doc.id, 'APPROVED')} className="rounded-xl">
+                               <CheckCircle2 className="h-3 w-3 mr-1" />
+                               {t('approve')}
+                             </Button>
+                             <Button size="sm" variant="danger" onClick={() => handleKycReview(doc.id, 'REJECTED', t('validation'))} className="rounded-xl">
+                               <XCircle className="h-3 w-3 mr-1" />
+                               {t('reject')}
+                             </Button>
+                           </div>
+                         )}
+                         <span className={`text-sm px-3 py-1.5 rounded-full ${
+                           doc.status === 'APPROVED' ? 'bg-emerald-500/10 text-black border border-emerald-500/30' :
+                           doc.status === 'REJECTED' ? 'bg-red-500/10 text-black border border-red-500/30' :
+                           'bg-amber-500/10 text-black border border-amber-500/30'
+                         }`}>
+                           {doc.status}
+                         </span>
+                       </div>
+                       <AnalysisResult analysis={doc.metadata?.analysis as DocumentAnalysis | undefined} onRecalculate={recalculateTrustScore} recalculating={recalculating} />
+                     </div>
+                   ))}
+                 </div>
+               )}
             </div>
 
             {selectedUser.role === 'MERCHANT' && (
-              <div className="bg-dark-800 border border-dark-700 rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <Shield className="h-5 w-5 text-primary-500" />
-                  <h2 className="text-lg font-semibold text-dark-50">Documents KYB</h2>
+              <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
+                    <Shield className="h-5 w-5" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-black">{t('documentsKYB')}</h2>
                 </div>
                 {kybDocs.length === 0 ? (
-                  <p className="text-sm text-dark-400">Aucun document KYB</p>
+                  <p className="text-sm text-black">{t('noKybDocuments')}</p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {kybDocs.map((doc) => (
-                      <div key={doc.id} className="rounded-lg border border-dark-700 bg-dark-900/50 p-4">
+                      <div key={doc.id} className="rounded-2xl border border-gray-200 bg-white p-5">
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                          <p className="text-sm font-medium text-dark-100">{doc.documentType}</p>
-                          <p className="text-xs text-dark-400">{doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : '-'}</p>
-                          {doc.rejectionReason && <p className="text-xs text-red-400 mt-1">Motif: {doc.rejectionReason}</p>}
+                         <div>
+                            <p className="text-base font-medium text-black">{doc.documentType}</p>
+                              <p className="text-sm text-black">{doc.createdAt ? new Date(doc.createdAt).toLocaleDateString(locale) : '-'}</p>
+                              {doc.rejectionReason && <p className="text-sm text-black mt-1">{t('rejectionReasonLabel', { reason: doc.rejectionReason })}</p>}
                           </div>
-                        {doc.status === 'EN_COURS' && (
-                          <div className="flex items-center gap-2">
-                            <Button size="sm" variant="primary" onClick={() => handleKybReview(doc.id, 'APPROVED')}>
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                              Valider
-                            </Button>
-                            <Button size="sm" variant="danger" onClick={() => handleKybReview(doc.id, 'REJECTED', 'Document non conforme')}>
-                              <XCircle className="h-3 w-3 mr-1" />
-                              Rejeter
-                            </Button>
-                          </div>
-                        )}
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          doc.status === 'APPROVED' ? 'bg-green-500/10 text-green-400 border border-green-500/30' :
-                          doc.status === 'REJECTED' ? 'bg-red-500/10 text-red-400 border border-red-500/30' :
-                          'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30'
-                        }`}>
-                          {doc.status}
-                        </span>
+                           {doc.status === 'EN_COURS' && (
+                             <div className="flex items-center gap-2">
+                               <Button size="sm" variant="primary" onClick={() => handleKybReview(doc.id, 'APPROVED')} className="rounded-xl">
+                                 <CheckCircle2 className="h-3 w-3 mr-1" />
+                                 {t('approve')}
+                               </Button>
+                               <Button size="sm" variant="danger" onClick={() => handleKybReview(doc.id, 'REJECTED', t('validation'))} className="rounded-xl">
+                                 <XCircle className="h-3 w-3 mr-1" />
+                                 {t('reject')}
+                               </Button>
+                             </div>
+                           )}
+                           <span className={`text-sm px-3 py-1.5 rounded-full ${
+                             doc.status === 'APPROVED' ? 'bg-emerald-500/10 text-black border border-emerald-500/30' :
+                             doc.status === 'REJECTED' ? 'bg-red-500/10 text-black border border-red-500/30' :
+                             'bg-amber-500/10 text-black border border-amber-500/30'
+                           }`}>
+                             {doc.status}
+                           </span>
                         </div>
                         <AnalysisResult analysis={doc.metadata?.analysis as DocumentAnalysis | undefined} onRecalculate={recalculateTrustScore} recalculating={recalculating} />
                       </div>
@@ -347,3 +346,6 @@ export default function AdminUserDetailPage() {
     </div>
   )
 }
+
+
+

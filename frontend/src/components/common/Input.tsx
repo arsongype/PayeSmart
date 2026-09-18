@@ -1,62 +1,63 @@
-import type { InputHTMLAttributes, ReactNode } from 'react'
+import React, { type InputHTMLAttributes, ReactNode } from 'react'
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string
   error?: string
-  hint?: string
   leftIcon?: ReactNode
   rightIcon?: ReactNode
+  helperText?: string
 }
 
 export function Input({
   label,
   error,
-  hint,
   leftIcon,
   rightIcon,
+  helperText,
   className = '',
-  id,
   ...props
 }: InputProps) {
-  const inputId = id || label?.toLowerCase().replace(/\s/g, '-')
-
   return (
-    <div className="w-full">
+    <div className="w-full space-y-1.5">
       {label && (
-        <label htmlFor={inputId} className="block text-sm font-medium text-dark-300 mb-1.5">
+        <label className="block text-xs font-medium text-black ml-1">
           {label}
         </label>
       )}
       <div className="relative">
         {leftIcon && (
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-dark-500">
+           <div className="absolute left-3 top-1/2 -translate-y-1/2 text-black">
             {leftIcon}
           </div>
         )}
         <input
-          id={inputId}
           className={`
-            w-full rounded-lg border bg-dark-800/50 text-dark-100
-            placeholder-dark-500
-            transition-all duration-200 ease-in-out
-            focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
-            disabled:opacity-50 disabled:cursor-not-allowed
-            ${leftIcon ? 'pl-10' : 'pl-4'}
-            ${rightIcon ? 'pr-10' : 'pr-4'}
-            py-2.5 text-sm
-            ${error ? 'border-red-500 focus:ring-red-500' : 'border-dark-700'}
+            w-full rounded-xl border bg-gray-50 backdrop-blur-sm px-4 py-2.5 text-sm text-black
+             placeholder:text-black transition-all duration-200
+            focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 focus:bg-gray-50
+            hover:border-gray-300
+            ${leftIcon ? 'pl-10' : ''}
+            ${rightIcon ? 'pr-10' : ''}
+            ${error ? 'border-rose-500/50 focus:ring-rose-500/50 focus:border-rose-500' : 'border-gray-300/50'}
             ${className}
           `}
           {...props}
         />
         {rightIcon && (
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-dark-500">
+           <div className="absolute right-3 top-1/2 -translate-y-1/2 text-black">
             {rightIcon}
           </div>
         )}
       </div>
-      {error && <p className="mt-1.5 text-sm text-red-400">{error}</p>}
-      {hint && !error && <p className="mt-1.5 text-sm text-dark-500">{hint}</p>}
+      {error && (
+        <p className="text-xs text-black ml-1 animate-fade-in">{error}</p>
+      )}
+      {helperText && !error && (
+         <p className="text-xs text-black ml-1">{helperText}</p>
+      )}
     </div>
   )
 }
+
+
+

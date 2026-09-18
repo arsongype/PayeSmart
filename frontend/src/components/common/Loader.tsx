@@ -1,3 +1,5 @@
+import { useTranslation } from '../../utils/i18n'
+
 interface LoaderProps {
   size?: 'sm' | 'md' | 'lg'
   className?: string
@@ -10,6 +12,7 @@ const sizeStyles = {
 }
 
 export function Loader({ size = 'md', className = '' }: LoaderProps) {
+  const { t } = useTranslation()
   return (
     <div className={`flex items-center justify-center ${className}`}>
       <div
@@ -19,7 +22,7 @@ export function Loader({ size = 'md', className = '' }: LoaderProps) {
           border-primary-600 border-t-transparent
         `}
         role="status"
-        aria-label="Chargement"
+        aria-label={t('loading')}
       />
     </div>
   )
@@ -27,8 +30,11 @@ export function Loader({ size = 'md', className = '' }: LoaderProps) {
 
 export function FullPageLoader() {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-dark-900/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white backdrop-blur-sm">
       <Loader size="lg" />
     </div>
   )
 }
+
+
+
