@@ -12,7 +12,7 @@ export const storage = diskStorage({
 })
 
 export const fileFilter = (req: Request, file: Express.Multer.File, callback: (error: Error | null, acceptFile: boolean) => void) => {
-  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
+  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'application/pdf']
   if (allowedMimeTypes.includes(file.mimetype)) {
     callback(null, true)
   } else {

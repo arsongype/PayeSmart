@@ -15,6 +15,7 @@ import { WalletStatus } from '../enums/wallet-status.enum.js';
 import { createHash } from 'node:crypto'
 import { NotificationService } from '../../../notifications/services/notification.service.js'
 import { AuditService } from '../../../security/services/audit.service.js'
+import { getCurrencyForCountry, INITIAL_WALLET_BALANCE } from './wallet-defaults.js'
 
 @Injectable()
 export class AuthService {
@@ -244,7 +245,7 @@ export class AuthService {
     const existing = await this.walletRepository.findOne({ where: { userId } })
     if (existing) return existing
 
-    const user = await this.userRepository.findOne({ where: { id: userId } })
+    const user = await this.userRepository.findOne({ where: { id: userId }, relations: { profile: true } })
     if (!user) throw new UnauthorizedException('Utilisateur non trouvé')
 
     return this.walletRepository.save(
@@ -254,8 +255,8 @@ export class AuthService {
         cardNumber: this.generateCardNumber(userId),
         cardHolderName: [user.firstName, user.lastName].filter(Boolean).join(' ').toUpperCase() || user.email.toUpperCase(),
         status: WalletStatus.ACTIVE,
-        currency: 'EUR',
-        balance: 0,
+        currency: getCurrencyForCountry(user.profile?.country),
+        balance: INITIAL_WALLET_BALANCE,
         dailyLimit: 0,
         monthlyLimit: 0,
       }),

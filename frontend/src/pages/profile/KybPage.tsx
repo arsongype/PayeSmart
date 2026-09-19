@@ -80,11 +80,14 @@ export default function KybPage({ embedded = false }: KybPageProps) {
       formData.append('file', file)
       formData.append('documentType', pendingDocumentTypeRef.current)
 
-      const { data } = await apiClient.post('/kyb', formData)
+      const { data } = await apiClient.post('/kyb', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
       setDocuments((prev) => [...prev, data])
     } catch (err) {
       if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message ?? t('kybUploadError'))
+        const message = err.response?.data?.message
+        setError(Array.isArray(message) ? message.join(', ') : message ?? t('kybUploadError'))
       } else {
         setError(err instanceof Error ? err.message : t('kybUploadError'))
       }
@@ -131,7 +134,7 @@ export default function KybPage({ embedded = false }: KybPageProps) {
                     </div>
                   </div>
                 <div>
-                  <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleUpload} disabled={uploading} />
+                  <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.webp,.pdf" className="hidden" onChange={handleUpload} disabled={uploading} />
                   <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => {
                     pendingDocumentTypeRef.current = 'KBIS'
                     fileInputRef.current?.click()

@@ -23,8 +23,12 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
       const storedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null
       if (token && storedUser) {
         try {
-          const userData = JSON.parse(storedUser)
-          if (isMounted) setUser(userData)
+          JSON.parse(storedUser)
+          const { data: userData } = await apiClient.get<User>('/auth/me')
+          if (isMounted) {
+            setUser(userData)
+            localStorage.setItem('user', JSON.stringify(userData))
+          }
         } catch {
           localStorage.removeItem('access_token')
           localStorage.removeItem('refresh_token')

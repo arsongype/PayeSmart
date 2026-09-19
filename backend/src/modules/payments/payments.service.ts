@@ -20,6 +20,13 @@ import { CryptoService } from '../../security/services/crypto.service.js'
 
 export type FraudRiskDecision = 'APPROVE' | 'REQUIRE_2FA' | 'BLOCK'
 
+function normalizePhoneNumber(phoneNumber: string): string {
+  const digits = phoneNumber.replace(/\D/g, '')
+  if (digits.startsWith('00')) return digits.slice(2)
+  if (digits.startsWith('0') && digits.length === 10) return `261${digits.slice(1)}`
+  return digits
+}
+
 export function evaluateRiskDecision(score: number): FraudRiskDecision {
   if (score < 40) return 'APPROVE'
   if (score < 75) return 'REQUIRE_2FA'
@@ -75,9 +82,9 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async findRecipientByPhone(phoneNumber: string) {
-    const normalizedPhone = phoneNumber.replace(/\D/g, '')
+    const normalizedPhone = normalizePhoneNumber(phoneNumber)
     const users = await this.userRepository.find()
-    const user = users.find((candidate) => (candidate.phone ?? '').replace(/\D/g, '') === normalizedPhone)
+    const user = users.find((candidate) => normalizePhoneNumber(candidate.phone ?? '') === normalizedPhone)
     if (!user) throw new NotFoundException('Aucun compte associé à ce numéro de téléphone')
     const wallet = await this.walletRepository.findOne({ where: { userId: user.id } })
     if (!wallet) throw new NotFoundException('Le titulaire ne possède pas encore de portefeuille')
@@ -122,7 +129,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Le token de carte est requis')
     }
     const recipient = isMobileMoney && dto.phoneNumber
-      ? (await this.userRepository.find()).find((candidate) => (candidate.phone ?? '').replace(/\D/g, '') === dto.phoneNumber?.replace(/\D/g, ''))
+      ? (await this.userRepository.find()).find((candidate) => normalizePhoneNumber(candidate.phone ?? '') === normalizePhoneNumber(dto.phoneNumber ?? ''))
       : null
     const recipientWallet = recipient
       ? await this.walletRepository.findOne({ where: { userId: recipient.id } })

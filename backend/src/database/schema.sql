@@ -63,6 +63,7 @@ CREATE TABLE users (
   is_email_verified BOOLEAN NOT NULL DEFAULT FALSE,
   is_two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   two_factor_secret VARCHAR(255),
+  security_metadata JSONB,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );

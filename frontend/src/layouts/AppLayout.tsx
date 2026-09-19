@@ -45,13 +45,15 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 
   useEffect(() => {
+    if (!user?.id) return
+
     apiClient.get<Array<{ id: number; title: string; message: string; isRead: boolean; createdAt: string }>>('/notifications')
       .then(({ data }) => {
         setNotifications(data)
         setUnreadNotifications(data.filter((notification) => !notification.isRead).length)
       })
       .catch(() => undefined)
-  }, [])
+  }, [user?.id])
 
   const navItems = [
     { icon: BarChart3, label: t('overview'), href: ROUTES.DASHBOARD },

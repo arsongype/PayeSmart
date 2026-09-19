@@ -44,7 +44,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js
           refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
         },
         aiService: {
-          url: process.env.AI_SERVICE_URL ?? 'http://localhost:8001',
+          url: process.env.AI_SERVICE_URL ?? 'http://localhost:8101',
           apiKey: process.env.AI_API_KEY ?? 'dev-secret-key-change-in-production',
         },
         security: {

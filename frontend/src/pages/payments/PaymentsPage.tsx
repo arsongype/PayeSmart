@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import axios from 'axios'
 import { ArrowDownLeft, ArrowUpRight, CreditCard, Printer, RefreshCw, Send, UserRound, WandSparkles } from 'lucide-react'
 import { Button } from '../../components/common/Button'
 import { useAuth } from '../../contexts/AuthContext'
@@ -7,6 +8,15 @@ import { useSettings } from '../../contexts/SettingsContext'
 import { useTranslation } from '../../utils/i18n'
 
 type PaymentMode = 'MOBILE_MONEY' | 'CARD' | 'QR' | 'BANK_TRANSFER'
+
+function getPaymentErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const message = error.response?.data?.message
+    if (typeof message === 'string') return message
+    if (Array.isArray(message)) return message.join(', ')
+  }
+  return error instanceof Error ? error.message : fallback
+}
 
 const mobileMoneyChannels: Array<{ value: PaymentChannel; label: string }> = [
   { value: 'MVOLA', label: 'MVola' },
@@ -83,7 +93,7 @@ export default function PaymentsPage() {
         : await paymentService.findRecipient(lookupValue))
     } catch (err) {
       setRecipient(null)
-      setError(err instanceof Error ? err.message : t('recipientNotFound'))
+      setError(getPaymentErrorMessage(err, t('recipientNotFound')))
     }
   }
 
@@ -114,7 +124,7 @@ export default function PaymentsPage() {
       await load()
       void watchTransaction(transaction.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('cannotInitiatePayment'))
+      setError(getPaymentErrorMessage(err, t('cannotInitiatePayment')))
     } finally {
       setSubmitting(false)
     }
@@ -152,21 +162,22 @@ export default function PaymentsPage() {
     }
   }
 
-  const downloadReceipt = () => {
+  const downloadReceipt = async () => {
     if (!lastTransaction) return
-    const receipt = [
-      t('receiptTitle'),
+    const { jsPDF } = await import('jspdf')
+    const doc = new jsPDF()
+    doc.setFontSize(18)
+    doc.text(t('receiptTitle'), 14, 20)
+    doc.setFontSize(12)
+    const lines = [
       t('receiptReference', { ref: lastTransaction.externalReference ?? lastTransaction.id }),
       t('receiptAmount', { amount: lastTransaction.amount, currency: lastTransaction.currency }),
       t('receiptChannel', { channel: lastTransaction.channel }),
       t('receiptStatus', { status: statusLabel[lastTransaction.status] }),
       t('receiptDate', { date: new Date(lastTransaction.createdAt).toLocaleString(locale) }),
-    ].join('\n')
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(new Blob([receipt], { type: 'text/plain;charset=utf-8' }))
-    link.download = `paysmart-recu-${lastTransaction.id}.txt`
-    link.click()
-    URL.revokeObjectURL(link.href)
+    ]
+    doc.text(lines, 14, 32, { maxWidth: 180 })
+    doc.save(`paysmart-recu-${lastTransaction.id}.pdf`)
   }
 
   return (
@@ -327,7 +338,7 @@ export default function PaymentsPage() {
             <p className="mt-3 text-base text-black">{t('paymentAuthorized')}</p>
           </form>
 
-          <div className="overflow-hidden rounded-3xl border border-gray-300 bg-gradient-to-br from-blue-50 via-white to-gray-100 p-6 shadow-lg shadow-black/10">
+          <div className="overflow-hidden rounded-3xl border border-gray-300 bg-linear-to-br from-blue-50 via-white to-gray-100 p-6 shadow-lg shadow-black/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10">

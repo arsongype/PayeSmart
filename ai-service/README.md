@@ -14,7 +14,7 @@ Ou avec reload automatique :
 .\venv\Scripts\python.exe main.py --reload
 ```
 
-Le service démarre sur `http://localhost:8001`
+Le service démarre sur `http://localhost:8101`
 
 Pour activer l'analyse OCR des images et PDF sous Windows, installez aussi
 [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki), puis redémarrez le service.
@@ -50,7 +50,7 @@ Tous les endpoints nécessitent un header `X-API-Key` avec la valeur de `AI_API_
 
 Exemple avec curl :
 ```bash
-curl -X POST http://localhost:8001/api/v1/kyc/analyze \
+curl -X POST http://localhost:8101/api/v1/kyc/analyze \
   -H "X-API-Key: dev-secret-key-change-in-production" \
   -H "Content-Type: application/json" \
   -d '{"user_id": 1, "document_type": "CIN", "ocr_text": "..."}'

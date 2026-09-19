@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { downloadReport, getDashboardReport, type DashboardReport } from '../../services/reporting.service'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useLocale } from '../../hooks/useLocale'
@@ -45,7 +46,6 @@ export default function DashboardPage() {
 
   const totals = report?.totals ?? { volume: 0, transactions: 0, fraudRate: 0, revenue: 0 }
   const aiMetrics = report?.aiMetrics ?? { precision: null, recall: null, f1Score: null, analyzedTransactions: 0 }
-  const maxChannelAmount = Math.max(...(report?.channels.map((channel) => channel.amount) ?? [1]), 1)
   const formatMoney = (amount: number) => {
     try {
       return new Intl.NumberFormat(locale, { style: 'currency', currency: settings.currency, maximumFractionDigits: 0 }).format(amount)
@@ -116,19 +116,19 @@ export default function DashboardPage() {
               <BarChart3 size={22} />
             </div>
           </div>
-          <div className="space-y-6">
-            {(report?.channels ?? []).map((item) => (
-              <div key={item.channel} className="space-y-2">
-                <div className="flex items-center justify-between text-base">
-                  <span className="font-medium text-black">{item.channel}</span>
-                  <span className="font-semibold text-black">{formatMoney(item.amount)}</span>
-                </div>
-                <div className="h-3 overflow-hidden rounded-full bg-gray-200/80">
-                  <div className="metric-bar h-full rounded-full bg-gradient-to-r from-primary-500 to-primary-400 shadow-[0_0_14px_rgba(77,133,238,0.3)]" style={{ width: `${Math.max((item.amount / maxChannelAmount) * 100, 4)}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={(report?.channels ?? [])}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="channel" tick={{ fontSize: 12, fill: '#000' }} />
+              <YAxis tick={{ fontSize: 12, fill: '#000' }} />
+              <Tooltip
+                formatter={(value) => [formatMoney(Number(value)), t('volume')]}
+                labelFormatter={(label) => label}
+                contentStyle={{ borderRadius: 12, border: '1px solid #e5e7eb', backgroundColor: '#fff' }}
+              />
+              <Bar dataKey="amount" fill="#4d85ee" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </article>
 
         <article className="rounded-3xl border border-gray-300 bg-white p-6 shadow-lg shadow-black/20">

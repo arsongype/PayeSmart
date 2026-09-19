@@ -37,7 +37,10 @@ async function bootstrap() {
   })
 
   app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }))
-  app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false }))
+  const rateLimitWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000)
+  const defaultRateLimit = process.env.NODE_ENV === 'production' ? 120 : 600
+  const rateLimitMax = Number(process.env.RATE_LIMIT_MAX ?? defaultRateLimit)
+  app.use(rateLimit({ windowMs: rateLimitWindowMs, limit: rateLimitMax, standardHeaders: 'draft-7', legacyHeaders: false }))
 
   app.setGlobalPrefix('api/v1')
 

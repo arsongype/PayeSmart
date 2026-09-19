@@ -297,7 +297,7 @@ async def predict_fraud_risk(request: FraudDetectionRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", 8001))
+    port = int(os.getenv("PORT", 8101))
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         port_in_use = probe.connect_ex(("127.0.0.1", port)) == 0
     if port_in_use:

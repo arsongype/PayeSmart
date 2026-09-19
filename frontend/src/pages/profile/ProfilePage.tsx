@@ -8,7 +8,7 @@ import { kybService } from '../../services/kyb.service'
 import { ROUTES } from '../../utils/constants'
 import { FullPageLoader } from '../../components/common/Loader'
 import { Button } from '../../components/common/Button'
-import type { Profile, Wallet as WalletType, KycDocument, KybDocument } from '../../models/User.model'
+import type { Profile, Wallet as WalletType, KycDocument, KybDocument, User } from '../../models/User.model'
 import { useTranslation } from '../../utils/i18n'
 
 export default function ProfilePage() {
@@ -18,6 +18,7 @@ export default function ProfilePage() {
   const [wallet, setWallet] = useState<WalletType | null>(null)
   const [kycDocs, setKycDocs] = useState<KycDocument[]>([])
   const [kybDocs, setKybDocs] = useState<KybDocument[]>([])
+  const [profileUser, setProfileUser] = useState<User | null>(user)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -27,13 +28,15 @@ export default function ProfilePage() {
   const loadData = useCallback(async () => {
     if (!user || !mountedRef.current) return
     try {
-      const [profileRes, walletRes, kycRes, kybRes] = await Promise.all([
+      const [userRes, profileRes, walletRes, kycRes, kybRes] = await Promise.all([
+        profileService.getMe().catch(() => user),
         profileService.getProfile(user.id).catch(() => user.profile ?? null),
         walletService.getWallet(user.id).catch(() => null),
         kycService.getDocuments(user.id).catch(() => []),
         kybService.getDocuments(user.id).catch(() => []),
       ])
       if (!mountedRef.current) return
+      setProfileUser(userRes)
       setProfile(profileRes)
       setAddressForm({
         address: profileRes?.address ?? '',
@@ -96,12 +99,12 @@ export default function ProfilePage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
-                  [t('firstName'), user?.firstName || '-'],
-                  [t('lastName'), user?.lastName || '-'],
-                  [t('email'), user?.email || '-'],
-                  [t('phone'), user?.phone || '-'],
-                  [t('cin'), user?.cin || '-'],
-                  [t('dateOfBirth'), user?.dateOfBirth || '-'],
+                  [t('firstName'), profileUser?.firstName || '-'],
+                  [t('lastName'), profileUser?.lastName || '-'],
+                  [t('email'), profileUser?.email || '-'],
+                  [t('phone'), profileUser?.phone || '-'],
+                  [t('cin'), profileUser?.cin || '-'],
+                  [t('dateOfBirth'), profileUser?.dateOfBirth || '-'],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-2xl border border-gray-200 bg-white p-4">
                     <p className="text-sm text-black">{label as string}</p>

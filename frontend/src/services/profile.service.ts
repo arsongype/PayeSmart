@@ -2,7 +2,7 @@ import { apiClient } from '../config/axios.config'
 import type { Profile, User } from '../models/User.model'
 
 export const profileService = {
-  async getMe(): Promise<{ user: User }> {
+  async getMe(): Promise<User> {
     const { data } = await apiClient.get('/auth/me')
     return data
   },
