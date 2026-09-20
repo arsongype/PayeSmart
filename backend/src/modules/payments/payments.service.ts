@@ -118,7 +118,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     }
 
     const senderWallet = await this.walletRepository.findOne({ where: { userId: senderUserId } })
-    const isMobileMoney = [PaymentChannel.MVOLA, PaymentChannel.ORANGE_MONEY, PaymentChannel.AIRTEL_MONEY].includes(dto.channel)
+    const isMobileMoney = dto.channel === PaymentChannel.ORANGE_MONEY
     if (isMobileMoney && !dto.phoneNumber) {
       throw new BadRequestException('Le numéro de téléphone est requis pour Mobile Money')
     }
@@ -160,6 +160,17 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       metadata,
     }))
 
+    if (dto.channel === PaymentChannel.QR && recipientWallet.userId) {
+      const frontendBaseUrl = this.configService?.get?.('app.frontendUrl') ?? 'http://localhost:5173'
+      const confirmationUrl = `${frontendBaseUrl}/payments/confirm/${transaction.id}`
+      await this.notificationService.create(
+        recipientWallet.userId,
+        'Demande de paiement QR',
+        `Vous avez reçu une demande de paiement de ${dto.amount} ${dto.currency || 'EUR'}.`,
+        confirmationUrl,
+      )
+    }
+
     if (this.redisQueue) {
       await this.redisQueue.add('process-payment', { transactionId: transaction.id }, { removeOnComplete: true, removeOnFail: 100 })
     } else {
@@ -175,6 +186,57 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     const transaction = await this.transactionRepository.findOne({ where: { id: transactionId } })
     if (!transaction || (transaction.senderWalletId !== wallet.id && transaction.recipientWalletId !== wallet.id)) {
       throw new NotFoundException('Transaction non trouvée')
+    }
+    return transaction
+  }
+
+  async confirmQr(recipientUserId: number, transactionId: number) {
+    const recipientWallet = await this.walletRepository.findOne({ where: { userId: recipientUserId } })
+    if (!recipientWallet) throw new NotFoundException('Portefeuille destinataire non trouvé')
+    const transaction = await this.transactionRepository.findOne({ where: { id: transactionId } })
+    if (!transaction) throw new NotFoundException('Transaction non trouvée')
+    if (transaction.channel !== PaymentChannel.QR) throw new BadRequestException('Ce paiement n\'est pas un paiement QR')
+    if (transaction.recipientWalletId !== recipientWallet.id) throw new BadRequestException('Vous n\'êtes pas le destinataire de cette demande')
+    if (transaction.status !== TransactionStatus.PENDING) throw new BadRequestException('Cette demande n\'est plus en attente de confirmation')
+    transaction.status = TransactionStatus.PROCESSING
+    transaction.metadata = { ...(transaction.metadata ?? {}), recipientQrConfirmedAt: new Date().toISOString() }
+    await this.transactionRepository.save(transaction)
+    return this.executePayment(transaction)
+  }
+
+  private async executePayment(transaction: Transaction) {
+    try {
+      const gatewayTransaction = {
+        ...transaction,
+        metadata: this.decryptSensitiveMetadata(transaction.metadata),
+      } as Transaction
+      const gatewayResult = await this.sandboxGateway.authorize(gatewayTransaction)
+      transaction.externalReference = gatewayResult.providerReference
+      await this.transactionRepository.save(transaction)
+      await this.dataSource.transaction(async (manager) => {
+        const senderWallet = await manager.findOne(Wallet, { where: { id: transaction.senderWalletId }, lock: { mode: 'pessimistic_write' } })
+        const recipientWallet = await manager.findOne(Wallet, { where: { id: transaction.recipientWalletId }, lock: { mode: 'pessimistic_write' } })
+        if (!senderWallet || !recipientWallet) throw new BadRequestException('Portefeuille indisponible')
+        if (Number(senderWallet.balance) < Number(transaction.amount)) throw new BadRequestException('Solde insuffisant')
+
+        senderWallet.balance = Number(senderWallet.balance) - Number(transaction.amount)
+        recipientWallet.balance = Number(recipientWallet.balance) + Number(transaction.amount)
+        await manager.save([senderWallet, recipientWallet])
+        await manager.save(Ledger, [
+          manager.create(Ledger, { transactionId: transaction.id, walletId: senderWallet.id, amount: transaction.amount, currency: transaction.currency, direction: 'DEBIT', entryReference: `${transaction.externalReference}-D` }),
+          manager.create(Ledger, { transactionId: transaction.id, walletId: recipientWallet.id, amount: transaction.amount, currency: transaction.currency, direction: 'CREDIT', entryReference: `${transaction.externalReference}-C` }),
+        ])
+      })
+      transaction.status = TransactionStatus.COMPLETED
+      await this.transactionRepository.save(transaction)
+      const recipient = await this.walletRepository.findOne({ where: { id: transaction.recipientWalletId } })
+      if (recipient) await this.notificationService.create(recipient.userId, 'Paiement reçu', `Vous avez reçu ${transaction.amount} ${transaction.currency}.`)
+      const sender = await this.walletRepository.findOne({ where: { id: transaction.senderWalletId } })
+      if (sender) await this.notificationService.create(sender.userId, 'Paiement confirmé', `Votre paiement de ${transaction.amount} ${transaction.currency} a été confirmé et enregistré.`)
+    } catch (error) {
+      transaction.status = TransactionStatus.FAILED
+      transaction.failureReason = error instanceof Error ? error.message : 'Paiement échoué'
+      await this.transactionRepository.save(transaction)
     }
     return transaction
   }
@@ -264,34 +326,10 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           return transaction
         }
       }
-      transaction.status = TransactionStatus.PROCESSING
-      await this.transactionRepository.save(transaction)
-
-      const gatewayTransaction = {
-        ...transaction,
-        metadata: this.decryptSensitiveMetadata(transaction.metadata),
-      } as Transaction
-      const gatewayResult = await this.sandboxGateway.authorize(gatewayTransaction)
-      transaction.externalReference = gatewayResult.providerReference
-      await this.transactionRepository.save(transaction)
-      await this.dataSource.transaction(async (manager) => {
-        const senderWallet = await manager.findOne(Wallet, { where: { id: transaction.senderWalletId }, lock: { mode: 'pessimistic_write' } })
-        const recipientWallet = await manager.findOne(Wallet, { where: { id: transaction.recipientWalletId }, lock: { mode: 'pessimistic_write' } })
-        if (!senderWallet || !recipientWallet) throw new BadRequestException('Portefeuille indisponible')
-        if (Number(senderWallet.balance) < Number(transaction.amount)) throw new BadRequestException('Solde insuffisant')
-
-        senderWallet.balance = Number(senderWallet.balance) - Number(transaction.amount)
-        recipientWallet.balance = Number(recipientWallet.balance) + Number(transaction.amount)
-        await manager.save([senderWallet, recipientWallet])
-        await manager.save(Ledger, [
-          manager.create(Ledger, { transactionId, walletId: senderWallet.id, amount: transaction.amount, currency: transaction.currency, direction: 'DEBIT', entryReference: `${transaction.externalReference}-D` }),
-          manager.create(Ledger, { transactionId, walletId: recipientWallet.id, amount: transaction.amount, currency: transaction.currency, direction: 'CREDIT', entryReference: `${transaction.externalReference}-C` }),
-        ])
-      })
-      transaction.status = TransactionStatus.COMPLETED
-      await this.transactionRepository.save(transaction)
-      const recipient = await this.walletRepository.findOne({ where: { id: transaction.recipientWalletId } })
-      if (recipient) await this.notificationService.create(recipient.userId, 'Paiement reçu', `Vous avez reçu ${transaction.amount} ${transaction.currency}.`)
+      if (transaction.channel === PaymentChannel.QR && !((transaction.metadata ?? {}).recipientQrConfirmedAt as string | undefined)) {
+        return transaction
+      }
+      return this.executePayment(transaction)
     } catch (error) {
       transaction.status = TransactionStatus.FAILED
       transaction.failureReason = error instanceof Error ? error.message : 'Paiement échoué'
@@ -329,7 +367,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     const metadata = (transaction.metadata ?? {}) as Record<string, unknown>
     const expiresAt = typeof metadata.twoFactorExpiresAt === 'string' ? Date.parse(metadata.twoFactorExpiresAt) : 0
     const expectedHash = typeof metadata.twoFactorCodeHash === 'string' ? metadata.twoFactorCodeHash : ''
-    const receivedHash = createHash('sha256').update(code).digest('hex')
+    const receivedHash = createHash('sha256').update(code.trim()).digest('hex')
     if (!expectedHash || !expiresAt || expiresAt < Date.now() || receivedHash !== expectedHash) {
       throw new BadRequestException('Code 2FA invalide ou expiré')
     }
@@ -351,5 +389,41 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       ...transaction,
       direction: transaction.senderWalletId === wallet.id ? 'OUTGOING' : 'INCOMING',
     }))
+  }
+
+  async getTwoFactorStatus(userId: number, transactionId: number) {
+    const wallet = await this.walletRepository.findOne({ where: { userId } })
+    if (!wallet) throw new NotFoundException('Portefeuille non trouvé')
+    const transaction = await this.transactionRepository.findOne({ where: { id: transactionId } })
+    if (!transaction || (transaction.senderWalletId !== wallet.id && transaction.recipientWalletId !== wallet.id)) {
+      throw new NotFoundException('Transaction non trouvée')
+    }
+    if (transaction.status !== 'PENDING' || transaction.failureReason !== 'Vérification 2FA requise avant exécution.') {
+      return { requiresTwoFactor: false }
+    }
+    const metadata = (transaction.metadata ?? {}) as Record<string, unknown>
+    const expiresAt = typeof metadata.twoFactorExpiresAt === 'string' ? Date.parse(metadata.twoFactorExpiresAt) : 0
+    const remainingSeconds = expiresAt > Date.now() ? Math.max(0, Math.floor((expiresAt - Date.now()) / 1000)) : 0
+    return {
+      requiresTwoFactor: true,
+      remainingSeconds,
+      expiresAt: metadata.twoFactorExpiresAt ?? null,
+    }
+  }
+
+  async cancel(userId: number, transactionId: number) {
+    const wallet = await this.walletRepository.findOne({ where: { userId } })
+    if (!wallet) throw new NotFoundException('Portefeuille non trouvé')
+    const transaction = await this.transactionRepository.findOne({ where: { id: transactionId } })
+    if (!transaction || transaction.senderWalletId !== wallet.id) {
+      throw new NotFoundException('Transaction non trouvée')
+    }
+    if (transaction.status !== 'PENDING') {
+      throw new BadRequestException('Seul un paiement en attente peut être annulé')
+    }
+    transaction.status = TransactionStatus.FAILED
+    transaction.failureReason = 'Paiement annulé par l’utilisateur'
+    await this.transactionRepository.save(transaction)
+    return transaction
   }
 }

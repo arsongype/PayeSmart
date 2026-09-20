@@ -363,7 +363,12 @@ export interface Translations {
     receiptStatus: string
     receiptDate: string
     transactionStatus: string
+    transactionDetails: string
+    amount: string
+    direction: string
     qrDataLabel: string
+    qrScanConfirmed: string
+    qrConfirmationSent: string
     temporaryIbanLabel: string
     recipientPhoneNumber: string
     recipientAccountNumber: string
@@ -375,6 +380,14 @@ export interface Translations {
     bankReferenceLabel: string
     bankReferencePlaceholder: string
     cannotInitiatePayment: string
+    cannotConfirmQr: string
+    qrConfirmation: string
+    qrConfirmationDescription: string
+    confirmQr: string
+    qrConfirmedByRecipient: string
+    onlyRecipientCanConfirm: string
+    processing: string
+    transactionNotFound: string
     documentNonCompliant: string
     pending: string
     verificationKycKyb: string
@@ -385,6 +398,7 @@ export interface Translations {
     inProgress: string
     completed: string
     failed: string
+    twoFactorExpiresIn: string
   }
 }
 
@@ -429,6 +443,7 @@ export const translations: Record<Language, Translations> = {
       noTransactions: 'Aucune transaction',
       noAlerts: 'Aucune alerte',
       noNotifications: 'Aucune notification',
+      openAction: 'Ouvrir',
       welcome: 'Bienvenue',
       overview: 'Vue d\'ensemble',
       analytics: 'Analytics',
@@ -750,6 +765,9 @@ export const translations: Record<Language, Translations> = {
       receiptStatus: 'Statut: {{status}}',
       receiptDate: 'Date: {{date}}',
       transactionStatus: 'Transaction {{ref}} : {{status}}',
+      transactionDetails: 'Détails de la transaction',
+      amount: 'Montant',
+      direction: 'Direction',
       qrDataLabel: 'QR : {{data}}',
       temporaryIbanLabel: 'IBAN temporaire : {{iban}}',
       recipientPhoneNumber: 'Numéro de téléphone destinataire',
@@ -758,10 +776,20 @@ export const translations: Record<Language, Translations> = {
       refreshPayments: 'Actualiser les paiements',
       recipientSearchHelper: 'Le compte destinataire est recherché avec ce numéro. Les opérateurs sont proposés ci-dessus.',
       qrDynamicReady: 'QR dynamique prêt à être généré pour le compte {{wallet}}.',
+      qrScanConfirmed: 'J\'ai scanné le QR code',
+      qrConfirmationSent: 'Le lien de confirmation QR a été envoyé au destinataire.',
       temporaryIbanInfo: 'Un IBAN temporaire et une référence seront associés à ce virement.',
       bankReferenceLabel: 'Référence bancaire (optionnel)',
       bankReferencePlaceholder: 'Référence du virement',
       cannotInitiatePayment: 'Impossible d\'initier le paiement',
+      cannotConfirmQr: 'Impossible de confirmer le QR',
+      qrConfirmation: 'Confirmation du paiement QR',
+      qrConfirmationDescription: 'Vous êtes sur le point de confirmer la demande de paiement reçue par QR code.',
+      confirmQr: 'Confirmer le paiement QR',
+      qrConfirmedByRecipient: 'Paiement QR confirmé pour la transaction {{ref}}.',
+      onlyRecipientCanConfirm: 'Seul le destinataire connecté peut confirmer cette demande.',
+      processing: 'En cours',
+      transactionNotFound: 'Transaction non trouvée',
       documentNonCompliant: 'Document non conforme',
       pending: 'En attente',
       verificationKycKyb: 'Vérification KYC / KYB',
@@ -772,6 +800,10 @@ export const translations: Record<Language, Translations> = {
       inProgress: 'Traitement',
       completed: 'Terminé',
       failed: 'Échoué',
+      twoFactorExpiresIn: 'Expire dans {{seconds}}s',
+      paymentCancelled: 'Paiement annulé',
+      cannotCancelPayment: 'Impossible d’annuler le paiement',
+      cancelPayment: 'Annuler le paiement',
     },
   },
   en: {
@@ -814,6 +846,7 @@ export const translations: Record<Language, Translations> = {
       noTransactions: 'No transactions',
       noAlerts: 'No alerts',
       noNotifications: 'No notifications',
+      openAction: 'Open',
       welcome: 'Welcome',
       overview: 'Overview',
       analytics: 'Analytics',
@@ -1135,6 +1168,9 @@ export const translations: Record<Language, Translations> = {
       receiptStatus: 'Status: {{status}}',
       receiptDate: 'Date: {{date}}',
       transactionStatus: 'Transaction {{ref}}: {{status}}',
+      transactionDetails: 'Transaction Details',
+      amount: 'Amount',
+      direction: 'Direction',
       qrDataLabel: 'QR: {{data}}',
       temporaryIbanLabel: 'Temporary IBAN: {{iban}}',
       recipientPhoneNumber: 'Recipient phone number',
@@ -1143,10 +1179,20 @@ export const translations: Record<Language, Translations> = {
       refreshPayments: 'Refresh payments',
       recipientSearchHelper: 'The recipient account is searched with this number. Operators are proposed above.',
       qrDynamicReady: 'Dynamic QR ready to be generated for account {{wallet}}.',
+      qrScanConfirmed: 'I have scanned the QR code',
+      qrConfirmationSent: 'The QR confirmation link has been sent to the recipient.',
       temporaryIbanInfo: 'A temporary IBAN and reference will be associated with this transfer.',
       bankReferenceLabel: 'Bank reference (optional)',
       bankReferencePlaceholder: 'Transfer reference',
       cannotInitiatePayment: 'Unable to initiate payment',
+      cannotConfirmQr: 'Unable to confirm QR',
+      qrConfirmation: 'QR Payment Confirmation',
+      qrConfirmationDescription: 'You are about to confirm the payment request received via QR code.',
+      confirmQr: 'Confirm QR Payment',
+      qrConfirmedByRecipient: 'QR payment confirmed for transaction {{ref}}.',
+      onlyRecipientCanConfirm: 'Only the connected recipient can confirm this request.',
+      processing: 'Processing',
+      transactionNotFound: 'Transaction not found',
       documentNonCompliant: 'Document non-compliant',
       pending: 'Pending',
       verificationKycKyb: 'KYC / KYB Verification',
@@ -1157,6 +1203,10 @@ export const translations: Record<Language, Translations> = {
       inProgress: 'Processing',
       completed: 'Completed',
       failed: 'Failed',
+      twoFactorExpiresIn: 'Expires in {{seconds}}s',
+      paymentCancelled: 'Payment cancelled',
+      cannotCancelPayment: 'Unable to cancel payment',
+      cancelPayment: 'Cancel payment',
     },
   },
 }

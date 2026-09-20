@@ -32,7 +32,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const locale = useLocale()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [unreadNotifications, setUnreadNotifications] = useState(0)
-  const [notifications, setNotifications] = useState<Array<{ id: number; title: string; message: string; isRead: boolean; createdAt: string }>>([])
+  const [notifications, setNotifications] = useState<Array<{ id: number; title: string; message: string; isRead: boolean; createdAt: string; link: string | null }>>([])
   const [notificationsOpen, setNotificationsOpen] = useState(false)
 
   const openNotifications = async () => {
@@ -47,12 +47,24 @@ export function AppLayout({ children }: AppLayoutProps) {
   useEffect(() => {
     if (!user?.id) return
 
-    apiClient.get<Array<{ id: number; title: string; message: string; isRead: boolean; createdAt: string }>>('/notifications')
-      .then(({ data }) => {
+    let intervalId: ReturnType<typeof setInterval> | undefined = undefined
+
+    const loadNotifications = async () => {
+      try {
+        const { data } = await apiClient.get<Array<{ id: number; title: string; message: string; isRead: boolean; createdAt: string; link: string | null }>>('/notifications')
         setNotifications(data)
         setUnreadNotifications(data.filter((notification) => !notification.isRead).length)
-      })
-      .catch(() => undefined)
+      } catch {
+        // ignore notification polling errors
+      }
+    }
+
+    void loadNotifications()
+    intervalId = window.setInterval(loadNotifications, 10000)
+
+    return () => {
+      if (intervalId) window.clearInterval(intervalId)
+    }
   }, [user?.id])
 
   const navItems = [
@@ -184,16 +196,21 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <div className="max-h-80 overflow-y-auto">
                   {notifications.length === 0 ? (
                      <p className="px-4 py-6 text-center text-sm text-black">{t('noNotifications')}</p>
-                  ) : notifications.slice(0, 8).map((notification) => (
-                    <div key={notification.id} className="border-b border-gray-300/70 px-4 py-3 last:border-0">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-sm font-medium text-black">{notification.title}</p>
-                        {!notification.isRead && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-400" aria-label={t('unread')} />}
-                      </div>
-                      <p className="mt-1 text-xs leading-5 text-black">{notification.message}</p>
+                   ) : notifications.slice(0, 8).map((notification) => (
+                     <div key={notification.id} className="border-b border-gray-300/70 px-4 py-3 last:border-0">
+                       <div className="flex items-start justify-between gap-3">
+                         <p className="text-sm font-medium text-black">{notification.title}</p>
+                         {!notification.isRead && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-400" aria-label={t('unread')} />}
+                       </div>
+                       <p className="mt-1 text-xs leading-5 text-black">{notification.message}</p>
+                       {notification.link ? (
+                         <a href={notification.link} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs font-semibold text-primary-600 underline underline-offset-2">
+                           {t('openAction') ?? 'Ouvrir'}
+                         </a>
+                       ) : null}
                        <p className="mt-1 text-xs text-black">{new Date(notification.createdAt).toLocaleString(locale)}</p>
-                    </div>
-                  ))}
+                     </div>
+                   ))}
                 </div>
               </div>
             )}

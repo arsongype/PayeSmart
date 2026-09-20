@@ -18,11 +18,13 @@ function getPaymentErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
 
-const mobileMoneyChannels: Array<{ value: PaymentChannel; label: string }> = [
-  { value: 'MVOLA', label: 'MVola' },
-  { value: 'ORANGE_MONEY', label: 'Orange Money' },
-  { value: 'AIRTEL_MONEY', label: 'Airtel Money' },
-]
+function formatPhoneNumberInput(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 10)
+  if (digits.length <= 3) return digits
+  if (digits.length <= 5) return `${digits.slice(0, 3)} ${digits.slice(3)}`
+  if (digits.length <= 8) return `${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5)}`
+  return `${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 8)} ${digits.slice(8)}`
+}
 
 export default function PaymentsPage() {
   const { user } = useAuth()
@@ -33,7 +35,7 @@ export default function PaymentsPage() {
   const [recipient, setRecipient] = useState<RecipientAccount | null>(null)
   const [amount, setAmount] = useState('')
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('MOBILE_MONEY')
-  const [channel, setChannel] = useState<PaymentChannel>('MVOLA')
+  const [channel, setChannel] = useState<PaymentChannel>('ORANGE_MONEY')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [cardToken, setCardToken] = useState('')
   const [bankReference, setBankReference] = useState('')
@@ -46,6 +48,7 @@ export default function PaymentsPage() {
   const [lastTransaction, setLastTransaction] = useState<PaymentTransaction | null>(null)
   const [twoFactorCode, setTwoFactorCode] = useState('')
   const [confirmingTwoFactor, setConfirmingTwoFactor] = useState(false)
+  const [twoFactorRemainingSeconds, setTwoFactorRemainingSeconds] = useState<number | null>(null)
 
   const statusLabel: Record<PaymentTransaction['status'], string> = {
     PENDING: t('pending'),
@@ -53,6 +56,25 @@ export default function PaymentsPage() {
     COMPLETED: t('completed'),
     FAILED: t('failed'),
   }
+
+  useEffect(() => {
+    if (!lastTransaction) {
+      setTwoFactorRemainingSeconds(null)
+      return
+    }
+    const expiresAt = (lastTransaction.metadata as unknown as { twoFactorExpiresAt?: string } | null)?.twoFactorExpiresAt
+    if (!expiresAt) {
+      setTwoFactorRemainingSeconds(null)
+      return
+    }
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Math.floor((Date.parse(expiresAt) - Date.now()) / 1000))
+      setTwoFactorRemainingSeconds(remaining)
+    }
+    updateCountdown()
+    const intervalId = window.setInterval(updateCountdown, 1000)
+    return () => window.clearInterval(intervalId)
+  }, [lastTransaction?.id, lastTransaction?.metadata])
 
   const generateCardToken = () => {
     const randomPart = typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -68,6 +90,11 @@ export default function PaymentsPage() {
       const [transactions, virtualCard] = await Promise.all([paymentService.history(), paymentService.getVirtualCard()])
       setHistory(transactions)
       setCard(virtualCard)
+      const pendingTwoFactor = transactions.find((transaction) => transaction.status === 'PENDING' && transaction.failureReason === 'Vérification 2FA requise avant exécution.')
+      if (pendingTwoFactor) {
+        setLastTransaction(pendingTwoFactor)
+        setSuccess(t('paymentCreated', { reference: pendingTwoFactor.externalReference ?? `#${pendingTwoFactor.id}`, status: statusLabel[pendingTwoFactor.status] }))
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('cannotLoadPayments'))
     } finally {
@@ -78,6 +105,30 @@ export default function PaymentsPage() {
   useEffect(() => {
     if (user?.id) void load()
   }, [user?.id])
+
+  useEffect(() => {
+    if (!lastTransaction || lastTransaction.status !== 'PENDING' || lastTransaction.failureReason !== 'Vérification 2FA requise avant exécution.') {
+      return
+    }
+    let timeoutId: ReturnType<typeof window.setTimeout> | undefined = undefined
+    const poll = async () => {
+      try {
+        const updated = await paymentService.get(lastTransaction.id)
+        setLastTransaction(updated)
+        if (updated.status === 'COMPLETED' || updated.status === 'FAILED') {
+          setSuccess(updated.status === 'COMPLETED' ? t('paymentConfirmedLedger') : t('paymentFailed', { reason: updated.failureReason ?? t('unknownRecipient') }))
+          await load()
+        }
+      } catch {
+        // ignore polling errors
+      }
+      timeoutId = window.setTimeout(poll, 2000)
+    }
+    void poll()
+    return () => {
+      if (timeoutId) window.clearTimeout(timeoutId)
+    }
+  }, [lastTransaction?.id, lastTransaction?.status, lastTransaction?.failureReason])
 
   const findRecipient = async () => {
     const lookupValue = paymentMode === 'MOBILE_MONEY' ? phoneNumber.trim() : recipientWalletNumber.trim()
@@ -147,18 +198,37 @@ export default function PaymentsPage() {
 
   const confirmTwoFactor = async () => {
     if (!lastTransaction || !/^\d{6}$/.test(twoFactorCode)) return
+    const transactionId = lastTransaction.id
     try {
       setConfirmingTwoFactor(true)
       setError(null)
-      const updated = await paymentService.confirmTwoFactor(lastTransaction.id, twoFactorCode)
+      const updated = await paymentService.confirmTwoFactor(transactionId, twoFactorCode.trim())
       setLastTransaction(updated)
       setTwoFactorCode('')
       setSuccess(updated.status === 'COMPLETED' ? t('paymentConfirmed2fa') : t('paymentStatus', { status: statusLabel[updated.status] }))
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('invalid2faCode'))
+      setError(getPaymentErrorMessage(err, t('invalid2faCode')))
+      const refreshed = await paymentService.get(transactionId).catch(() => null)
+      if (refreshed && refreshed.status === 'PENDING' && refreshed.failureReason === 'Vérification 2FA requise avant exécution.') {
+        setLastTransaction(refreshed)
+        void watchTransaction(transactionId)
+      }
     } finally {
       setConfirmingTwoFactor(false)
+    }
+  }
+
+  const cancelPayment = async () => {
+    if (!lastTransaction) return
+    try {
+      setError(null)
+      const updated = await paymentService.cancel(lastTransaction.id)
+      setLastTransaction(updated)
+      setSuccess(t('paymentCancelled'))
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('cannotCancelPayment'))
     }
   }
 
@@ -170,8 +240,8 @@ export default function PaymentsPage() {
     doc.text(t('receiptTitle'), 14, 20)
     doc.setFontSize(12)
     const lines = [
-      t('receiptReference', { ref: lastTransaction.externalReference ?? lastTransaction.id }),
-      t('receiptAmount', { amount: lastTransaction.amount, currency: lastTransaction.currency }),
+      t('receiptReference', { ref: lastTransaction.externalReference ?? `#${lastTransaction.id}` }),
+      t('receiptAmount', { amount: Number(lastTransaction.amount).toFixed(2), currency: lastTransaction.currency }),
       t('receiptChannel', { channel: lastTransaction.channel }),
       t('receiptStatus', { status: statusLabel[lastTransaction.status] }),
       t('receiptDate', { date: new Date(lastTransaction.createdAt).toLocaleString(locale) }),
@@ -203,25 +273,31 @@ export default function PaymentsPage() {
             </div>
             {lastTransaction.metadata?.qrData && <p className="mt-2 font-mono text-sm">{t('qrDataLabel', { data: lastTransaction.metadata.qrData })}</p>}
             {lastTransaction.metadata?.temporaryIban && <p className="mt-2 font-mono text-sm">{t('temporaryIbanLabel', { iban: lastTransaction.metadata.temporaryIban })}</p>}
-            {lastTransaction.status === 'PENDING' && lastTransaction.failureReason === 'Vérification 2FA requise avant exécution.' && (
-              <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-primary-500/20 pt-4">
-                <div className="min-w-48 flex-1">
-                  <label className="mb-1 block text-xs text-black" htmlFor="two-factor-code">{t('codeReceived')}</label>
-                  <input
-                    id="two-factor-code"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={twoFactorCode}
-                    onChange={(event) => setTwoFactorCode(event.target.value.replace(/\D/g, ''))}
-                    placeholder="000000"
-                    className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-2.5 font-mono text-black outline-none focus:border-primary-300"
-                  />
+             {lastTransaction.status === 'PENDING' && lastTransaction.failureReason === 'Vérification 2FA requise avant exécution.' && (
+               <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-primary-500/20 pt-4">
+                 <div className="min-w-48 flex-1">
+                   <label className="mb-1 block text-xs text-black" htmlFor="two-factor-code">{t('codeReceived')}</label>
+                   <input
+                     id="two-factor-code"
+                     inputMode="numeric"
+                     maxLength={6}
+                     value={twoFactorCode}
+                     onChange={(event) => setTwoFactorCode(event.target.value.replace(/\D/g, ''))}
+                     placeholder="000000"
+                     className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-2.5 font-mono text-black outline-none focus:border-primary-300"
+                   />
+                   {typeof twoFactorRemainingSeconds === 'number' && (
+                     <p className="mt-1 text-xs text-black">{t('twoFactorExpiresIn', { seconds: twoFactorRemainingSeconds })}</p>
+                   )}
+                 </div>
+                  <Button type="button" size="sm" onClick={() => void confirmTwoFactor()} disabled={twoFactorCode.length !== 6 || confirmingTwoFactor} isLoading={confirmingTwoFactor}>
+                    {t('confirmPayment')}
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => void cancelPayment()} className="rounded-xl border border-gray-300">
+                    {t('cancelPayment')}
+                  </Button>
                 </div>
-                <Button type="button" size="sm" onClick={() => void confirmTwoFactor()} disabled={twoFactorCode.length !== 6 || confirmingTwoFactor} isLoading={confirmingTwoFactor}>
-                  {t('confirmPayment')}
-                </Button>
-              </div>
-            )}
+              )}
           </div>
         )}
 
@@ -241,9 +317,9 @@ export default function PaymentsPage() {
                 id={paymentMode === 'MOBILE_MONEY' ? 'phone-number' : 'recipient-account'}
                 inputMode="numeric"
                 pattern="[0-9]+"
-                value={paymentMode === 'MOBILE_MONEY' ? phoneNumber : recipientWalletNumber}
+                value={paymentMode === 'MOBILE_MONEY' ? formatPhoneNumberInput(phoneNumber) : recipientWalletNumber}
                 onChange={(event) => paymentMode === 'MOBILE_MONEY' ? setPhoneNumber(event.target.value.replace(/\D/g, '')) : setRecipientWalletNumber(event.target.value.replace(/\D/g, ''))}
-                placeholder={paymentMode === 'MOBILE_MONEY' ? '0340000000' : '000000010000'}
+                placeholder={paymentMode === 'MOBILE_MONEY' ? '034 00 000 00' : '000000010000'}
                 className="min-w-0 flex-1 rounded-2xl border border-gray-300 bg-white px-4 py-2.5 text-black outline-none focus:border-primary-500"
               />
               <Button type="button" variant="outline" onClick={() => void findRecipient()} className="rounded-xl border border-gray-300">{t('searchButton')}</Button>
@@ -273,7 +349,7 @@ export default function PaymentsPage() {
                     aria-selected={paymentMode === mode}
                     onClick={() => {
                       setPaymentMode(mode)
-                      if (mode === 'MOBILE_MONEY') setChannel('MVOLA')
+                      if (mode === 'MOBILE_MONEY') setChannel('ORANGE_MONEY')
                       if (mode === 'CARD') setChannel('CARD')
                       if (mode === 'QR') setChannel('QR')
                       if (mode === 'BANK_TRANSFER') setChannel('BANK_TRANSFER')
@@ -285,20 +361,6 @@ export default function PaymentsPage() {
                 ))}
               </div>
             </div>
-            {paymentMode === 'MOBILE_MONEY' && (
-              <div className="mt-4">
-                <p className="mb-2 text-base font-medium text-black">{t('mobileMoneyOperator')}</p>
-                <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label={t('mobileMoneyOperator')}>
-                  {mobileMoneyChannels.map((item) => (
-                     <button key={item.value} type="button" role="radio" aria-checked={channel === item.value} onClick={() => { setChannel(item.value); setError(null) }}                      className={`min-h-14 rounded-xl border px-2 py-3 text-base font-semibold transition-colors ${channel === item.value ? 'border-primary-400 bg-primary-600/20 text-black ring-2 ring-primary-500/40' : 'border-gray-300 bg-white text-black hover:border-primary-500/60 hover:text-black'}`}>
-                      <span className="block">{item.label}</span>
-                       <span className="mt-1 block text-sm font-normal text-black">{t('selectOperator')}</span>
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-2 text-sm text-black">{t('selectedOperator', { label: mobileMoneyChannels.find((item) => item.value === channel)?.label ?? '' })}</p>
-              </div>
-            )}
             <div className="mt-5">
               <div>
                 <label className="mb-2 block text-base font-medium text-black" htmlFor="amount">{t('amountLabel')}</label>
@@ -322,9 +384,12 @@ export default function PaymentsPage() {
                 <p className="mt-2 text-base text-black">{t('sandboxToken')}</p>
               </div>
             )}
-            {paymentMode === 'QR' && (
+            {paymentMode === 'QR' && lastTransaction && lastTransaction.channel === 'QR' && (
               <div className="mt-4 rounded-2xl border border-primary-500/30 bg-primary-500/10 p-4 text-base text-black">
-                {t('qrDynamicReady', { wallet: recipient?.walletNumber || t('recipient') })}
+                <p>{t('qrConfirmationSent')}</p>
+                {lastTransaction.status === 'PROCESSING' && (
+                  <p className="mt-2 text-sm font-semibold text-green-700">{t('qrConfirmedByRecipient', { reference: lastTransaction.externalReference ?? `#${lastTransaction.id}` })}</p>
+                )}
               </div>
             )}
             {paymentMode === 'BANK_TRANSFER' && (
@@ -334,7 +399,7 @@ export default function PaymentsPage() {
                 <input id="bank-reference" value={bankReference} onChange={(event) => setBankReference(event.target.value)} placeholder={t('bankReferencePlaceholder')} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-2.5 text-black outline-none focus:border-primary-500" />
               </div>
             )}
-            <Button type="submit" className="mt-6 w-full rounded-2xl" disabled={!recipient || submitting || (paymentMode === 'MOBILE_MONEY' && !mobileMoneyChannels.some((item) => item.value === channel))} isLoading={submitting}>{t('payNow')}</Button>
+            <Button type="submit" className="mt-6 w-full rounded-2xl" disabled={!recipient || submitting} isLoading={submitting}>{t('payNow')}</Button>
             <p className="mt-3 text-base text-black">{t('paymentAuthorized')}</p>
           </form>
 

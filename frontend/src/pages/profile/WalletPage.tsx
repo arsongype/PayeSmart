@@ -1,22 +1,67 @@
 import { useState, useEffect } from 'react'
-import { Wallet, CreditCard, TrendingUp, AlertCircle } from 'lucide-react'
+import { Wallet, CreditCard, TrendingUp, AlertCircle, ArrowUpRight, ArrowDownLeft, Eye } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { walletService } from '../../services/wallet.service'
+import { paymentService } from '../../services/payment.service'
 import { FullPageLoader } from '../../components/common/Loader'
 import type { Wallet as WalletType } from '../../models/User.model'
+import type { PaymentTransaction } from '../../services/payment.service'
 import { useTranslation } from '../../utils/i18n'
 
 export default function WalletPage() {
   const { user } = useAuth()
   const { t } = useTranslation()
   const [wallet, setWallet] = useState<WalletType | null>(null)
+  const [history, setHistory] = useState<PaymentTransaction[]>([])
   const [loading, setLoading] = useState(true)
+  const [detailTransaction, setDetailTransaction] = useState<PaymentTransaction | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  const loadHistory = async () => {
+    try {
+      const data = await paymentService.history()
+      setHistory(data)
+    } catch {
+      // history loading failed silently
+    }
+  }
 
   useEffect(() => {
     if (user) {
       walletService.getWallet(user.id).then(setWallet).finally(() => setLoading(false))
+      void loadHistory()
     }
   }, [user])
+
+  const openDetail = async (transaction: PaymentTransaction) => {
+    setDetailLoading(true)
+    setDetailTransaction(transaction)
+    try {
+      const updated = await paymentService.get(transaction.id)
+      setDetailTransaction(updated)
+    } catch {
+      // keep basic transaction data if detail fetch fails
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  const downloadReceipt = async (transaction: PaymentTransaction) => {
+    const { jsPDF } = await import('jspdf')
+    const doc = new jsPDF()
+    doc.setFontSize(18)
+    doc.text(t('receiptTitle'), 14, 20)
+    doc.setFontSize(12)
+    const lines = [
+      t('receiptReference', { ref: transaction.externalReference ?? `#${transaction.id}` }),
+      t('receiptAmount', { amount: Number(transaction.amount).toFixed(2), currency: transaction.currency }),
+      t('receiptChannel', { channel: transaction.channel }),
+      t('receiptStatus', { status: transaction.status }),
+      t('receiptDate', { date: new Date(transaction.createdAt).toLocaleString() }),
+    ]
+    doc.text(lines, 14, 32, { maxWidth: 180 })
+    doc.save(`paysmart-recu-${transaction.id}.pdf`)
+  }
 
   if (loading) return <FullPageLoader />
 
@@ -84,7 +129,107 @@ export default function WalletPage() {
             </div>
           </div>
         </div>
+
+        <section className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-black">{t('transactionHistory')}</h2>
+              <p className="mt-1 text-base text-black">{t('viewLastTransactions')}</p>
+            </div>
+            <button type="button" onClick={() => void loadHistory()} className="rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-black hover:bg-gray-100">
+              {t('refresh')}
+            </button>
+          </div>
+          {history.length === 0 ? (
+            <p className="text-base text-black">{t('noTransactions')}</p>
+          ) : (
+            <div className="space-y-3">
+              {history.map((transaction) => {
+                const outgoing = transaction.direction === 'OUTGOING'
+                return (
+                  <div key={transaction.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-300 bg-gray-50 p-4 transition hover:border-gray-400">
+                    <div className="flex items-center gap-3">
+                      <div className={`rounded-xl p-2 ${outgoing ? 'bg-red-500/10 text-black' : 'bg-emerald-500/10 text-black'}`}>
+                        {outgoing ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownLeft className="h-5 w-5" />}
+                      </div>
+                      <div>
+                        <p className="text-base font-medium text-black">{transaction.channel} · {transaction.externalReference || `#${transaction.id}`}</p>
+                          <p className="text-sm text-black">{new Date(transaction.createdAt).toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="font-semibold text-black">{outgoing ? '-' : '+'}{Number(transaction.amount).toFixed(2)} {transaction.currency}</p>
+                        <p className={`text-sm ${transaction.status === 'COMPLETED' ? 'text-black' : transaction.status === 'FAILED' ? 'text-black' : 'text-black'}`}>{transaction.status}</p>
+                      </div>
+                      <button type="button" onClick={() => openDetail(transaction)} className="rounded-xl border border-gray-300 bg-white p-2 text-black hover:bg-gray-100">
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </section>
       </div>
+
+      {detailTransaction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl space-y-6 rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-black">{t('transactionDetails')}</h3>
+              <button type="button" onClick={() => setDetailTransaction(null)} className="rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-black hover:bg-gray-100">
+                {t('closeMenu')}
+              </button>
+            </div>
+            {detailLoading && <p className="text-base text-black">{t('loading')}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <p className="text-sm text-black">Référence</p>
+                <p className="mt-1 text-base font-medium text-black font-mono">{detailTransaction.externalReference || `#${detailTransaction.id}`}</p>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <p className="text-sm text-black">{t('channel')}</p>
+                <p className="mt-1 text-base font-medium text-black">{detailTransaction.channel}</p>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <p className="text-sm text-black">{t('status')}</p>
+                <p className="mt-1 text-base font-medium text-black">{detailTransaction.status}</p>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <p className="text-sm text-black">{t('amount')}</p>
+                <p className="mt-1 text-base font-medium text-black">{Number(detailTransaction.amount).toFixed(2)} {detailTransaction.currency}</p>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <p className="text-sm text-black">Date</p>
+                <p className="mt-1 text-base font-medium text-black">{new Date(detailTransaction.createdAt).toLocaleString()}</p>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <p className="text-sm text-black">Direction</p>
+                <p className="mt-1 text-base font-medium text-black">{detailTransaction.direction || '-'}</p>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+              <p className="text-sm font-semibold text-black">Analyse risque / IA</p>
+              <div className="mt-2 space-y-2 text-sm text-black">
+                <p>Score de risque : {((detailTransaction.metadata as unknown as { riskScore?: number })?.riskScore ?? '-').toString()}</p>
+                <p>Niveau : {((detailTransaction.metadata as unknown as { riskLevel?: string })?.riskLevel ?? '-').toString()}</p>
+                <p>Décision : {((detailTransaction.metadata as unknown as { riskDecision?: string })?.riskDecision ?? '-').toString()}</p>
+                <p>Raison : {((detailTransaction.metadata as unknown as { reason?: string })?.reason ?? '-').toString()}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button type="button" onClick={() => { if (detailTransaction) void downloadReceipt(detailTransaction) }} className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-gray-100">
+                {t('downloadReceipt')}
+              </button>
+              <button type="button" onClick={() => window.print()} className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-gray-100">
+                {t('print')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

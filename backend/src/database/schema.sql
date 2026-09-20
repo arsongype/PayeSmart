@@ -186,7 +186,8 @@ CREATE TABLE notifications (
   title VARCHAR(255) NOT NULL,
   message TEXT NOT NULL,
   is_read BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  link VARCHAR(500)
 );
 
 -- Create indexes

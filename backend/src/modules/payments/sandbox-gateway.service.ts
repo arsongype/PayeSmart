@@ -12,7 +12,7 @@ export class SandboxGatewayService {
     if (transaction.channel === PaymentChannel.CARD && !metadata.cardToken) {
       throw new BadRequestException('Token de carte sandbox manquant')
     }
-    if ([PaymentChannel.MVOLA, PaymentChannel.ORANGE_MONEY, PaymentChannel.AIRTEL_MONEY].includes(transaction.channel) && !metadata.phoneNumber) {
+    if (transaction.channel === PaymentChannel.ORANGE_MONEY && !metadata.phoneNumber) {
       throw new BadRequestException('Numéro Mobile Money manquant')
     }
     return { providerReference: `SANDBOX-${transaction.channel}-${transaction.id}-${Date.now()}` }

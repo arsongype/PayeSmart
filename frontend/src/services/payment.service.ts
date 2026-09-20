@@ -70,4 +70,19 @@ export const paymentService = {
     const { data } = await apiClient.post(`/payments/${transactionId}/confirm-2fa`, { code })
     return data
   },
+
+  async confirmQr(transactionId: number): Promise<PaymentTransaction> {
+    const { data } = await apiClient.post(`/payments/${transactionId}/qr/confirm`)
+    return data
+  },
+
+  async getTwoFactorStatus(transactionId: number) {
+    const { data } = await apiClient.get(`/payments/${transactionId}/two-factor-status`)
+    return data
+  },
+
+  async cancel(transactionId: number): Promise<PaymentTransaction> {
+    const { data } = await apiClient.post(`/payments/${transactionId}/cancel`)
+    return data
+  },
 }

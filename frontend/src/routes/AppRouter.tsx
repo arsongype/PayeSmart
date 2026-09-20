@@ -17,6 +17,7 @@ const ProfilePage = lazy(() => import('../pages/profile/ProfilePage'))
 const WalletPage = lazy(() => import('../pages/profile/WalletPage'))
 const KycPage = lazy(() => import('../pages/profile/KycPage'))
 const PaymentsPage = lazy(() => import('../pages/payments/PaymentsPage'))
+const ConfirmQrPage = lazy(() => import('../pages/payments/ConfirmQrPage'))
 const SettingsPage = lazy(() => import('../pages/profile/SettingsPage'))
 
 const loader = (
@@ -96,6 +97,16 @@ export const router = createBrowserRouter([
       <ProtectedRoute>
         <Suspense fallback={loader}>
           <PaymentsPage />
+        </Suspense>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/payments/confirm/:id',
+    element: (
+      <ProtectedRoute>
+        <Suspense fallback={loader}>
+          <ConfirmQrPage />
         </Suspense>
       </ProtectedRoute>
     ),

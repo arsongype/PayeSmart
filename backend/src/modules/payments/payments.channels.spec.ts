@@ -32,9 +32,9 @@ const buildService = (role: Role = Role.USER, kycStatus = KycStatus.APPROVED, ky
     transactionRepository as never,
     {} as never,
     {} as never,
+    { create: vi.fn() } as never,
     {} as never,
-    {} as never,
-    {} as never,
+    { get: () => 'http://localhost:5173' } as never,
     { encrypt: (value: string) => `enc:${value}` } as never,
   )
   ;(service as unknown as { redisQueue: { add: ReturnType<typeof vi.fn> } }).redisQueue = { add: vi.fn() }
@@ -43,9 +43,7 @@ const buildService = (role: Role = Role.USER, kycStatus = KycStatus.APPROVED, ky
 
 describe('payment channel contracts', () => {
   it.each([
-    [PaymentChannel.MVOLA, { phoneNumber: '0340000000' }],
     [PaymentChannel.ORANGE_MONEY, { phoneNumber: '0340000000' }],
-    [PaymentChannel.AIRTEL_MONEY, { phoneNumber: '0340000000' }],
     [PaymentChannel.CARD, { recipientWalletNumber: '2222222222', cardToken: 'tok_test' }],
     [PaymentChannel.QR, { recipientWalletNumber: '2222222222' }],
     [PaymentChannel.BANK_TRANSFER, { recipientWalletNumber: '2222222222', bankReference: 'REF-001' }],
@@ -58,9 +56,7 @@ describe('payment channel contracts', () => {
   })
 
   it.each([
-    [PaymentChannel.MVOLA, { recipientWalletNumber: '2222222222' }],
     [PaymentChannel.ORANGE_MONEY, {}],
-    [PaymentChannel.AIRTEL_MONEY, {}],
   ])('rejects %s without a phone number', async (channel, fields) => {
     const { service } = buildService()
 

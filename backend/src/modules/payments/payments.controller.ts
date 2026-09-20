@@ -52,6 +52,11 @@ export class PaymentsController {
     return this.paymentsService.processForUser(parseInt(req.user.sub, 10), id)
   }
 
+  @Get(':id/two-factor-status')
+  twoFactorStatus(@Param('id', ParseIntPipe) id: number, @Req() req: RequestWithUser) {
+    return this.paymentsService.getTwoFactorStatus(parseInt(req.user.sub, 10), id)
+  }
+
   @Post(':id/confirm-2fa')
   confirmTwoFactor(
     @Param('id', ParseIntPipe) id: number,
@@ -59,5 +64,15 @@ export class PaymentsController {
     @Req() req: RequestWithUser,
   ) {
     return this.paymentsService.confirmTwoFactor(parseInt(req.user.sub, 10), id, dto.code)
+  }
+
+  @Post(':id/cancel')
+  cancel(@Param('id', ParseIntPipe) id: number, @Req() req: RequestWithUser) {
+    return this.paymentsService.cancel(parseInt(req.user.sub, 10), id)
+  }
+
+  @Post(':id/qr/confirm')
+  confirmQr(@Param('id', ParseIntPipe) id: number, @Req() req: RequestWithUser) {
+    return this.paymentsService.confirmQr(parseInt(req.user.sub, 10), id)
   }
 }

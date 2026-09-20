@@ -19,4 +19,7 @@ export class Notification {
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  link: string | null
 }

@@ -7,8 +7,8 @@ import { Notification } from '../entities/notification.entity.js'
 export class NotificationService {
   constructor(@InjectRepository(Notification) private repository: Repository<Notification>) {}
 
-  create(userId: number, title: string, message: string) {
-    return this.repository.save(this.repository.create({ userId, title, message }))
+  create(userId: number, title: string, message: string, link?: string) {
+    return this.repository.save(this.repository.create({ userId, title, message, link: link ?? null }))
   }
 
   findByUserId(userId: number) {
