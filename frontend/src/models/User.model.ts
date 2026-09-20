@@ -14,6 +14,7 @@ export interface User {
   cin?: string;
   phone?: string;
   dateOfBirth?: string;
+  avatarUrl?: string | null;
   address?: string;
   city?: string;
   country?: string;

@@ -7,6 +7,7 @@ import type { LoginFormData } from '../../utils/validators'
 import { loginSchema } from '../../utils/validators'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTranslation } from '../../utils/i18n'
+import logo from '../../assets/Logo.png'
 
 interface LoginFormProps {
   onSuccess?: () => void
@@ -67,15 +68,11 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-md mx-auto animate-slide-up">
+    <form onSubmit={handleSubmit} className="space-y-5 w-full max-w-sm mx-auto animate-slide-up">
       <div className="space-y-2 text-center">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 shadow-lg shadow-primary-500/30 mb-2 animate-float">
-          <svg className="w-7 h-7 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10M8 6l-4 4 4 4m16-8h-4m4 0l-4-4m4 4l-4 4" />
-          </svg>
-        </div>
-        <h1 className="text-3xl font-bold text-black tracking-tight">{t('login')}</h1>
-         <p className="text-sm text-black">{t('welcomeBack')}</p>
+        <img src={logo} alt={t('paysmart')} className="mx-auto mb-2 h-auto w-40 object-contain" />
+        <h1 className="text-2xl font-bold text-black tracking-tight">{t('login')}</h1>
+        <p className="text-xs text-black">{t('welcomeBack')}</p>
       </div>
 
       {error && (
@@ -86,27 +83,29 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
       <div className="space-y-4">
         <div className="space-y-1.5">
-          <label className="block text-xs font-medium text-black ml-1">{t('emailLabel')}</label>
           <Input
+            label={t('emailLabel')}
             type="email"
             placeholder={t('emailPlaceholder')}
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             error={errors.email}
             className="h-11 rounded-xl"
+            required
           />
         </div>
 
         <div className="space-y-1.5">
-          <label className="block text-xs font-medium text-black ml-1">{t('passwordLabel')}</label>
           <div className="relative">
             <Input
+              label={t('passwordLabel')}
               type={showPassword ? 'text' : 'password'}
               placeholder={t('passwordPlaceholder')}
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               error={errors.password}
               className="h-11 rounded-xl pr-10"
+              required
             />
             <button
               type="button"

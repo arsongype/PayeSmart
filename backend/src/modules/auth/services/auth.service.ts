@@ -6,7 +6,7 @@ import * as argon2 from 'argon2';
 import { User } from '../entities/user.entity.js';
 import { Profile } from '../entities/profile.entity.js';
 import { RefreshToken } from '../entities/refresh-token.entity.js';
-import { RegisterDto, LoginDto } from '../dto/auth.dto.js';
+import { RegisterDto, LoginDto, UpdateMeDto } from '../dto/auth.dto.js';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '../enums/role.enum.js';
 import { KycStatus } from '../enums/kyc-status.enum.js';
@@ -133,6 +133,7 @@ export class AuthService {
       cin: user.cin,
       phone: user.phone,
       dateOfBirth: user.dateOfBirth,
+      avatarUrl: user.avatarUrl,
       address: user.profile?.address,
       city: user.profile?.city,
       country: user.profile?.country,
@@ -198,6 +199,32 @@ export class AuthService {
     }
   }
 
+  async updateMe(userId: number, dto: UpdateMeDto) {
+    const user = await this.userRepository.findOne({ where: { id: userId } })
+    if (!user) {
+      throw new UnauthorizedException('Utilisateur non trouvé')
+    }
+
+    if (dto.email && dto.email !== user.email) {
+      const existingEmail = await this.userRepository.findOne({ where: { email: dto.email } })
+      if (existingEmail && existingEmail.id !== user.id) {
+        throw new ConflictException('Cet email est déjà utilisé')
+      }
+    }
+
+    if (dto.cin && dto.cin !== user.cin) {
+      const existingCin = await this.userRepository.findOne({ where: { cin: dto.cin } })
+      if (existingCin && existingCin.id !== user.id) {
+        throw new ConflictException('Ce numéro CIN est déjà utilisé')
+      }
+    }
+
+    Object.assign(user, dto)
+    await this.userRepository.save(user)
+
+    return this.me(String(user.id))
+  }
+
   private async generateTokens(user: User) {
     const wallet = await this.ensureWallet(user.id)
     const payload = { sub: user.id, email: user.email, role: user.role };
@@ -230,6 +257,7 @@ export class AuthService {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
+        avatarUrl: user.avatarUrl,
         role: user.role,
         kycStatus: user.kycStatus,
         kybStatus: user.kybStatus,

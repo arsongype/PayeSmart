@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { ShieldCheck } from 'lucide-react'
 import { useTranslation } from '../utils/i18n'
+import logo from '../assets/Logo.png'
 
 interface AuthLayoutProps {
   children: ReactNode
@@ -11,12 +12,12 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   return (
     <div className="min-h-screen bg-white flex">
       <div className="flex-1 flex items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md animate-slide-up">
+        <div className="w-full max-w-2xl animate-slide-up">
           {children}
         </div>
       </div>
 
-        <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-gray-100">
+        <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-linear-to-br from-blue-50 via-white to-gray-100">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(59,130,246,0.15),transparent_50%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(59,130,246,0.1),transparent_50%)]" />
 
@@ -45,15 +46,12 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         </div>
 
         <div className="relative z-10 flex flex-col items-center justify-center text-center px-12">
-          <div className="relative mb-8">
-            <div className="absolute inset-0 bg-primary-500/30 rounded-full blur-3xl animate-pulse-slow" />
-            <ShieldCheck
-              className="relative h-32 w-32 text-black drop-shadow-[0_0_30px_rgba(59,130,246,0.5)]"
-              strokeWidth={1}
-            />
+          <div className="relative mb-6">
+            <div className="absolute inset-0 bg-primary-500/20 rounded-full blur-3xl animate-pulse-slow" />
+            <img src={logo} alt={t('paysmart')} className="relative h-auto w-56 object-contain drop-shadow-[0_0_24px_rgba(59,130,246,0.25)]" />
           </div>
-          <h1 className="text-4xl font-bold text-black mb-4 tracking-tight">{t('paysmart')}</h1>
-          <p className="text-lg text-black/80 max-w-md">
+          <h1 className="sr-only">{t('paysmart')}</h1>
+          <p className="text-base text-black/80 max-w-md">
             {t('securePlatform')}
           </p>
           <div className="mt-8 flex items-center gap-6 text-black/70">

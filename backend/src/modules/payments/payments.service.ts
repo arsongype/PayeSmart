@@ -187,6 +187,24 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (!transaction || (transaction.senderWalletId !== wallet.id && transaction.recipientWalletId !== wallet.id)) {
       throw new NotFoundException('Transaction non trouvée')
     }
+
+    const metadata = transaction.metadata ?? {}
+    const hasRiskAnalysis = typeof metadata.riskScore === 'number' && typeof metadata.riskLevel === 'string'
+    if (!hasRiskAnalysis) {
+      try {
+        const risk = await this.evaluateTransactionRisk(userId, transaction)
+        transaction.metadata = {
+          ...metadata,
+          riskScore: risk.riskScore,
+          riskLevel: risk.riskLevel,
+          riskDecision: risk.decision,
+          riskReasons: risk.reasons,
+        }
+        await this.transactionRepository.save(transaction)
+      } catch (error) {
+        console.error(`Risk analysis unavailable for transaction ${transaction.id}:`, error)
+      }
+    }
     return transaction
   }
 

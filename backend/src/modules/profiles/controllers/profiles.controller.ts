@@ -1,7 +1,14 @@
-import { Controller, Post, Body, Get, Patch, Delete, UseGuards, Param } from '@nestjs/common'
+import { Controller, Post, Body, Get, Patch, Delete, UseGuards, Param, Req, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
+import { FileInterceptor } from '@nestjs/platform-express'
+import type { Request } from 'express'
 import { ProfilesService } from '../services/profiles.service.js'
 import { CreateProfileDto } from '../../auth/dto/profile.dto.js'
+import { imageFileFilter, fileFilter, storage } from '../../../storage/storage.config.js'
+
+interface RequestWithUser extends Request {
+  user: { sub: string }
+}
 
 @Controller('profiles')
 @UseGuards(AuthGuard('jwt'))
@@ -21,6 +28,13 @@ export class ProfilesController {
   @Patch(':userId')
   update(@Param('userId') userId: number, @Body() dto: CreateProfileDto) {
     return this.profilesService.update(userId, dto)
+  }
+
+  @Post('avatar')
+  @UseInterceptors(FileInterceptor('avatar', { storage, fileFilter: imageFileFilter }))
+  uploadAvatar(@UploadedFile() file: Express.Multer.File, @Req() req: RequestWithUser) {
+    if (!file) throw new BadRequestException('Une image de profil est requise')
+    return this.profilesService.updateAvatar(parseInt(req.user.sub, 10), file.filename)
   }
 
   @Delete(':userId')

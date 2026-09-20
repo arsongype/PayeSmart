@@ -59,7 +59,7 @@ export default function DashboardPage() {
 
   return (
     <div className="page-enter space-y-8">
-      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-blue-100 p-8 shadow-lg shadow-blue-900/10 sm:p-10">
+      <header className="relative overflow-hidden rounded-3xl bg-linear-to-br from-blue-50 via-white to-blue-100 p-8 shadow-lg shadow-blue-900/10 sm:p-10">
         <div className="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-black">{t('analyticsReporting')}</p>

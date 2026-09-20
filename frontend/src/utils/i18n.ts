@@ -161,6 +161,9 @@ export interface Translations {
     kybStatus: string
     documentsCount: string
     fraudMonitoring: string
+    pagination: string
+    previous: string
+    next: string
     riskLevel: string
     mainReason: string
     senderName: string
@@ -247,6 +250,16 @@ export interface Translations {
     submitCompanyDocs: string
     myProfile: string
     managePersonalInfo: string
+    personalInfoSaved: string
+    personalInfoRequired: string
+    invalidEmail: string
+    savePersonalInfo: string
+    profilePhoto: string
+    profilePhotoHint: string
+    changePhoto: string
+    profileImageTypeError: string
+    profileImageSizeError: string
+    profileImageUploadError: string
     addressSaved: string
     saving: string
     saveAddress: string
@@ -563,6 +576,9 @@ export const translations: Record<Language, Translations> = {
       kybStatus: 'KYB',
       documentsCount: 'Documents',
       fraudMonitoring: 'Suivi des transactions signalées par l\'analyse IA',
+      pagination: 'Pagination des alertes fraude',
+      previous: 'Précédent',
+      next: 'Suivant',
       riskLevel: 'Niveau de risque',
       mainReason: 'Motif principal',
       senderName: 'Expéditeur',
@@ -649,6 +665,16 @@ export const translations: Record<Language, Translations> = {
       submitCompanyDocs: 'Soumettre les documents entreprise',
       myProfile: 'Mon Profil',
       managePersonalInfo: 'Gérez vos informations personnelles et vos documents',
+      personalInfoSaved: 'Informations personnelles enregistrées.',
+      personalInfoRequired: 'Le prénom, le nom et l’email sont obligatoires.',
+      invalidEmail: 'Veuillez saisir une adresse email valide.',
+      savePersonalInfo: 'Enregistrer les informations',
+      profilePhoto: 'Photo de profil',
+      profilePhotoHint: 'JPG, PNG ou WEBP, 5 Mo maximum.',
+      changePhoto: 'Modifier la photo',
+      profileImageTypeError: 'Veuillez choisir une image JPG, PNG ou WEBP.',
+      profileImageSizeError: 'La photo ne doit pas dépasser 5 Mo.',
+      profileImageUploadError: 'Impossible de modifier la photo.',
       addressSaved: 'Adresse enregistrée.',
       saving: 'Enregistrement...',
       saveAddress: 'Enregistrer l\'adresse',
@@ -966,6 +992,9 @@ export const translations: Record<Language, Translations> = {
       kybStatus: 'KYB',
       documentsCount: 'Documents',
       fraudMonitoring: 'Monitoring of transactions flagged by AI analysis',
+      pagination: 'Fraud alerts pagination',
+      previous: 'Previous',
+      next: 'Next',
       riskLevel: 'Risk level',
       mainReason: 'Main reason',
       senderName: 'Sender',
@@ -1052,6 +1081,16 @@ export const translations: Record<Language, Translations> = {
       submitCompanyDocs: 'Submit company documents',
       myProfile: 'My Profile',
       managePersonalInfo: 'Manage your personal information and documents',
+      personalInfoSaved: 'Personal information saved.',
+      personalInfoRequired: 'First name, last name, and email are required.',
+      invalidEmail: 'Please enter a valid email address.',
+      savePersonalInfo: 'Save personal information',
+      profilePhoto: 'Profile photo',
+      profilePhotoHint: 'JPG, PNG or WEBP, maximum 5 MB.',
+      changePhoto: 'Change photo',
+      profileImageTypeError: 'Please choose a JPG, PNG, or WEBP image.',
+      profileImageSizeError: 'The photo must not exceed 5 MB.',
+      profileImageUploadError: 'Unable to update the photo.',
       addressSaved: 'Address saved.',
       saving: 'Saving...',
       saveAddress: 'Save address',

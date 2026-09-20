@@ -20,6 +20,8 @@ import { apiClient } from '../config/axios.config'
 import { ROUTES } from '../utils/constants'
 import { useLocale } from '../hooks/useLocale'
 import { useTranslation } from '../utils/i18n'
+import logo from '../assets/Logo.png'
+import { profileService } from '../services/profile.service'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -100,10 +102,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       >
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-white bg-white px-5">
           <Link to={ROUTES.DASHBOARD} className="flex items-center gap-2" aria-label={t('paysmartHome')}>
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-[#3B78E7] to-[#5B8FF5] shadow-md shadow-primary-500/25">
-              <Shield className="h-5 w-5 text-black" />
-            </span>
-            <span className="font-serif text-xl font-bold tracking-tight">{t('paysmart')}</span>
+            <img src={logo} alt={t('paysmart')} className="h-9 w-auto max-w-36 object-contain" />
           </Link>
           <button
             type="button"
@@ -142,9 +141,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         <div className="shrink-0 border-t border-gray-300 p-4">
           <div className="mb-3 flex items-center gap-3 px-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-600 text-sm font-medium text-black">
-              {initials || '?'}
-            </div>
+            {user?.avatarUrl ? <img src={profileService.assetUrl(user.avatarUrl)} alt={`${user.firstName} ${user.lastName}`} className="h-9 w-9 shrink-0 rounded-full object-cover" /> : <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-600 text-sm font-medium text-black">{initials || '?'}</div>}
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-black">{user?.firstName} {user?.lastName}</p>
                <p className="truncate text-xs text-black">{user?.email}</p>
@@ -181,7 +178,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                  className="w-40 bg-transparent text-sm text-black outline-none placeholder:text-black sm:w-56"
               />
             </div>
-            <p className="truncate text-sm font-medium text-black sm:hidden">{t('paysmart')}</p>
+            <img src={logo} alt={t('paysmart')} className="h-8 w-auto max-w-32 object-contain sm:hidden" />
           </div>
 
           <div className="relative flex items-center gap-2 sm:gap-4">
@@ -220,9 +217,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               <p className="text-sm font-medium text-black">{user?.firstName} {user?.lastName}</p>
                <p className="text-xs capitalize text-black">{user?.role}</p>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-600 text-sm font-medium text-black sm:hidden">
-              {initials || '?'}
-            </div>
+            {user?.avatarUrl ? <img src={profileService.assetUrl(user.avatarUrl)} alt={`${user.firstName} ${user.lastName}`} className="h-9 w-9 rounded-full object-cover sm:hidden" /> : <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-600 text-sm font-medium text-black sm:hidden">{initials || '?'}</div>}
           </div>
         </header>
 

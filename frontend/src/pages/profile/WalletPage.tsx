@@ -227,10 +227,10 @@ export default function WalletPage() {
             <div className="rounded-2xl border border-gray-200 bg-white p-4">
               <p className="text-sm font-semibold text-black">Analyse risque / IA</p>
               <div className="mt-2 space-y-2 text-sm text-black">
-                <p>Score de risque : {((detailTransaction.metadata as unknown as { riskScore?: number })?.riskScore ?? '-').toString()}</p>
-                <p>Niveau : {((detailTransaction.metadata as unknown as { riskLevel?: string })?.riskLevel ?? '-').toString()}</p>
-                <p>Décision : {((detailTransaction.metadata as unknown as { riskDecision?: string })?.riskDecision ?? '-').toString()}</p>
-                <p>Raison : {((detailTransaction.metadata as unknown as { reason?: string })?.reason ?? '-').toString()}</p>
+                <p>Score de risque : {detailTransaction.metadata?.riskScore ?? '-'}</p>
+                <p>Niveau : {detailTransaction.metadata?.riskLevel ?? '-'}</p>
+                <p>Décision : {detailTransaction.metadata?.riskDecision ?? '-'}</p>
+                <p>Raison : {detailTransaction.metadata?.riskReasons?.join(' ') ?? detailTransaction.failureReason ?? '-'}</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-3">

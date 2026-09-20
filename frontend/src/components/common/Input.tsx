@@ -1,7 +1,7 @@
 import React, { type InputHTMLAttributes, ReactNode } from 'react'
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  label?: string
+  label?: ReactNode
   error?: string
   leftIcon?: ReactNode
   rightIcon?: ReactNode
@@ -15,13 +15,15 @@ export function Input({
   rightIcon,
   helperText,
   className = '',
+  required,
   ...props
 }: InputProps) {
   return (
     <div className="w-full space-y-1.5">
       {label && (
-        <label className="block text-xs font-medium text-black ml-1">
+        <label className="ml-1 block text-xs font-medium text-black">
           {label}
+          {required && <span className="ml-1 text-red-500" aria-hidden="true">*</span>}
         </label>
       )}
       <div className="relative">

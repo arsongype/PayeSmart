@@ -1,7 +1,7 @@
 import { Controller, Post, Body, HttpCode, HttpStatus, Get, UseGuards, Req, Param, Patch } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from '../services/auth.service.js';
-import { RegisterDto, LoginDto, RefreshTokenDto, UpdateRoleDto, UpdateKycStatusDto } from '../dto/auth.dto.js';
+import { RegisterDto, LoginDto, RefreshTokenDto, UpdateRoleDto, UpdateKycStatusDto, UpdateMeDto } from '../dto/auth.dto.js';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../../../common/guards/roles.guard.js';
 import { SetMetadata } from '@nestjs/common';
@@ -43,6 +43,12 @@ export class AuthController {
   @Get('me')
   getMe(@Req() req: RequestWithUser) {
     return this.authService.me(req.user.sub)
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Patch('me')
+  updateMe(@Req() req: RequestWithUser, @Body() dto: UpdateMeDto) {
+    return this.authService.updateMe(parseInt(req.user.sub, 10), dto)
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)

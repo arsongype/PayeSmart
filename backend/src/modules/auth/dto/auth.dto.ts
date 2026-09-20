@@ -83,3 +83,29 @@ export class UpdateKycStatusDto {
   @IsEnum(KycStatus)
   kycStatus: KycStatus;
 }
+
+export class UpdateMeDto {
+  @IsString()
+  @IsOptional()
+  firstName?: string;
+
+  @IsString()
+  @IsOptional()
+  lastName?: string;
+
+  @IsEmail()
+  @IsOptional()
+  email?: string;
+
+  @IsString()
+  @IsOptional()
+  cin?: string;
+
+  @IsString()
+  @IsOptional()
+  phone?: string;
+
+  @IsString()
+  @IsOptional()
+  dateOfBirth?: string;
+}

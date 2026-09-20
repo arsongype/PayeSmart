@@ -11,6 +11,7 @@ interface PasswordInputProps {
   placeholder?: string
   id?: string
   className?: string
+  required?: boolean
 }
 
 export function PasswordInput({
@@ -22,6 +23,7 @@ export function PasswordInput({
   placeholder,
   id,
   className = '',
+  required = false,
 }: PasswordInputProps) {
   const [showPassword, setShowPassword] = useState(false)
   const { t } = useTranslation()
@@ -30,8 +32,9 @@ export function PasswordInput({
   return (
     <div className="w-full">
       {label && (
-        <label htmlFor={inputId} className="block text-sm font-medium text-black mb-1.5">
+        <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium text-black">
           {label}
+          {required && <span className="ml-1 text-red-500" aria-hidden="true">*</span>}
         </label>
       )}
       <div className="relative">
@@ -41,6 +44,7 @@ export function PasswordInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
+          required={required}
           className={`
             w-full rounded-lg border bg-gray-50 text-black
             placeholder-dark-500

@@ -110,7 +110,7 @@ export default function PaymentsPage() {
         setSuccess(t('paymentCreated', { reference: pendingTwoFactor.externalReference ?? `#${pendingTwoFactor.id}`, status: statusLabel[pendingTwoFactor.status] }))
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('cannotLoadPayments'))
+      setError(getPaymentErrorMessage(err, t('cannotLoadPayments')))
     } finally {
       setLoading(false)
     }
@@ -290,11 +290,15 @@ export default function PaymentsPage() {
              {lastTransaction.status === 'PENDING' && lastTransaction.failureReason === 'Vérification 2FA requise avant exécution.' && (
                <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-primary-500/20 pt-4">
                  <div className="min-w-48 flex-1">
-                   <label className="mb-1 block text-xs text-black" htmlFor="two-factor-code">{t('codeReceived')}</label>
+                   <label className="mb-1 block text-xs text-black" htmlFor="two-factor-code">
+                  {t('codeReceived')}
+                  <span className="ml-1 text-red-500" aria-hidden="true">*</span>
+                </label>
                    <input
                      id="two-factor-code"
                      inputMode="numeric"
                      maxLength={6}
+                     required
                      value={twoFactorCode}
                      onChange={(event) => setTwoFactorCode(event.target.value.replace(/\D/g, ''))}
                      placeholder="000000"
@@ -325,12 +329,14 @@ export default function PaymentsPage() {
             </div>
             <label className="mb-2 block text-base font-medium text-black" htmlFor={paymentMode === 'MOBILE_MONEY' ? 'phone-number' : 'recipient-account'}>
               {paymentMode === 'MOBILE_MONEY' ? t('recipientPhoneNumber') : t('recipientAccountNumber')}
+              <span className="ml-1 text-red-500" aria-hidden="true">*</span>
             </label>
             <div className="flex gap-2">
               <input
                 id={paymentMode === 'MOBILE_MONEY' ? 'phone-number' : 'recipient-account'}
                 inputMode="numeric"
                 pattern="[0-9]+"
+                required
                 value={paymentMode === 'MOBILE_MONEY' ? formatPhoneNumberInput(phoneNumber) : recipientWalletNumber}
                 onChange={(event) => paymentMode === 'MOBILE_MONEY' ? setPhoneNumber(event.target.value.replace(/\D/g, '')) : setRecipientWalletNumber(event.target.value.replace(/\D/g, ''))}
                 placeholder={paymentMode === 'MOBILE_MONEY' ? '034 00 000 00' : '000000010000'}
@@ -377,7 +383,10 @@ export default function PaymentsPage() {
             </div>
             <div className="mt-5">
               <div>
-                <label className="mb-2 block text-base font-medium text-black" htmlFor="amount">{t('amountLabel')}</label>
+                <label className="mb-2 block text-base font-medium text-black" htmlFor="amount">
+                  {t('amountLabel')}
+                  <span className="ml-1 text-red-500" aria-hidden="true">*</span>
+                </label>
                 <input id="amount" type="number" min="0.01" step="0.01" required value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-2.5 text-black outline-none focus:border-primary-500" />
               </div>
             </div>
@@ -389,7 +398,10 @@ export default function PaymentsPage() {
             {paymentMode === 'CARD' && (
               <div className="mt-4">
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <label className="block text-base font-medium text-black" htmlFor="card-token">{t('cardToken')}</label>
+                  <label className="block text-base font-medium text-black" htmlFor="card-token">
+                    {t('cardToken')}
+                    <span className="ml-1 text-red-500" aria-hidden="true">*</span>
+                  </label>
                   <Button type="button" size="sm" variant="outline" onClick={generateCardToken} className="rounded-xl border border-gray-300">
                     <WandSparkles className="h-4 w-4" /> {t('generateToken')}
                   </Button>

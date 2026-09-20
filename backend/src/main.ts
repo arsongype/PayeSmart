@@ -10,6 +10,7 @@ import net from 'node:net'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { AuditInterceptor } from './security/interceptors/audit.interceptor.js'
+import { join } from 'node:path'
 
 const isPortInUse = (port: number): Promise<boolean> => new Promise((resolve) => {
   const probe = net.createConnection({ host: '127.0.0.1', port })
@@ -43,6 +44,7 @@ async function bootstrap() {
   app.use(rateLimit({ windowMs: rateLimitWindowMs, limit: rateLimitMax, standardHeaders: 'draft-7', legacyHeaders: false }))
 
   app.setGlobalPrefix('api/v1')
+  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' })
 
   app.useGlobalPipes(
     new ValidationPipe({

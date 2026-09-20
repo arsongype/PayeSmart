@@ -6,6 +6,7 @@ import os
 import socket
 import tempfile
 import uuid
+from urllib.request import urlopen
 from dotenv import load_dotenv
 
 from services.ocr_service import OCRService
@@ -298,9 +299,20 @@ async def predict_fraud_risk(request: FraudDetectionRequest):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8101))
+    host = os.getenv("HOST", "0.0.0.0")
+
+    try:
+        with urlopen(f"http://127.0.0.1:{port}/health", timeout=2) as response:
+            if response.status == 200:
+                print(f"Le service IA fonctionne déjà sur http://localhost:{port}")
+                raise SystemExit(0)
+    except Exception:
+        pass
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         port_in_use = probe.connect_ex(("127.0.0.1", port)) == 0
     if port_in_use:
-        print(f"Le service IA est déjà démarré sur http://localhost:{port}")
-    else:
-        uvicorn.run(app, host="0.0.0.0", port=port)
+        raise SystemExit(f"Le port {port} est déjà utilisé par un autre processus. Fermez-le ou choisissez un autre PORT.")
+
+    print(f"Démarrage du service IA sur http://localhost:{port}")
+    uvicorn.run(app, host=host, port=port, log_level="info")

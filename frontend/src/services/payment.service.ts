@@ -21,7 +21,16 @@ export interface PaymentTransaction {
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
   externalReference?: string | null
   failureReason?: string | null
-  metadata?: { qrData?: string; temporaryIban?: string; phoneNumber?: string; bankReference?: string } | null
+  metadata?: {
+    qrData?: string
+    temporaryIban?: string
+    phoneNumber?: string
+    bankReference?: string
+    riskScore?: number
+    riskLevel?: string
+    riskDecision?: string
+    riskReasons?: string[]
+  } | null
   createdAt: string
   updatedAt: string
   direction?: 'OUTGOING' | 'INCOMING'

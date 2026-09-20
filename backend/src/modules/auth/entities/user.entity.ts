@@ -43,6 +43,9 @@ export class User {
   @Column({ type: 'date', nullable: true, name: 'date_of_birth' })
   dateOfBirth: string;
 
+  @Column({ type: 'varchar', nullable: true, name: 'avatar_url' })
+  avatarUrl: string | null;
+
   @Column({
     type: 'enum',
     enum: Role,

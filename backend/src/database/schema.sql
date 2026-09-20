@@ -51,6 +51,7 @@ CREATE TABLE users (
   cin VARCHAR(255) UNIQUE,
   phone VARCHAR(255),
   date_of_birth DATE,
+  avatar_url VARCHAR(500),
   role role_enum NOT NULL DEFAULT 'USER',
   kyc_status kyc_status_enum NOT NULL DEFAULT 'NON_VERIFIE',
   kyb_status kyb_status_enum NOT NULL DEFAULT 'NON_VERIFIE',

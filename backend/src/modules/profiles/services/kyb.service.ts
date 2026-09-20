@@ -40,18 +40,67 @@ export class KybService {
             dto.sirenNif,
             dto.ocrData || '',
           )
-      savedDocument.aiRiskScore = Math.round(analysis.confidenceScore * 100)
-      savedDocument.metadata = { ...savedDocument.metadata, analysis }
+      savedDocument.aiRiskScore = Math.round((analysis.confidenceScore ?? 0) * 100)
+      savedDocument.metadata = { ...(savedDocument.metadata ?? {}), analysis }
       await this.kybRepository.save(savedDocument)
     } catch (error) {
       console.error('AI analysis failed for KYB document:', error)
+      savedDocument.metadata = { ...(savedDocument.metadata ?? {}), analysisUnavailable: true }
+      await this.kybRepository.save(savedDocument)
     }
 
     return savedDocument
   }
 
   async findByUserId(userId: number) {
-    return this.kybRepository.find({ where: { userId } })
+    const documents = await this.kybRepository.find({ where: { userId } })
+    return documents.map((document) => this.normalizeLegacyAnalysis(document))
+  }
+
+  private normalizeLegacyAnalysis(document: KybDocument) {
+    const analysis = document.metadata?.analysis
+    if (!analysis || !this.isSyntheticAnalysis(analysis)) return document
+
+    const score = Number(document.aiRiskScore ?? 0)
+    const metadata = { ...(document.metadata ?? {}) }
+    delete metadata.analysis
+    if (score <= 0) {
+      document.metadata = metadata
+      return document
+    }
+
+    const confidence = Math.max(0.1, Math.min(1, score / 100))
+    const riskScore = Math.round((1 - confidence) * 100)
+    document.metadata = {
+      ...metadata,
+      analysis: {
+        document_type: document.documentType,
+        documentType: document.documentType,
+        is_valid: document.status === KybStatus.APPROVED || document.status === KybStatus.VERIFIE || score >= 70,
+        confidenceScore: confidence,
+        confidence_score: confidence,
+        extractedData: {},
+        extracted_data: {},
+        fraudIndicators: [],
+        fraud_indicators: [],
+        trustScoreImpact: Math.round((confidence - 0.5) * 40),
+        trust_score_impact: Math.round((confidence - 0.5) * 40),
+        riskScore,
+        risk_score: riskScore,
+        riskLevel: riskScore < 30 ? 'LOW' : riskScore < 70 ? 'MEDIUM' : 'HIGH',
+        risk_level: riskScore < 30 ? 'LOW' : riskScore < 70 ? 'MEDIUM' : 'HIGH',
+      },
+    }
+    return document
+  }
+
+  private isSyntheticAnalysis(analysis: Record<string, any>) {
+    const confidence = Number(analysis.confidenceScore ?? analysis.confidence_score)
+    const risk = Number(analysis.riskScore ?? analysis.risk_score)
+    const impact = Number(analysis.trustScoreImpact ?? analysis.trust_score_impact)
+    const extracted = analysis.extractedData ?? analysis.extracted_data ?? {}
+    const indicators = analysis.fraudIndicators ?? analysis.fraud_indicators ?? []
+    return confidence === 0.95 && risk === 20 && impact === 10 && Object.keys(extracted).length === 0 && Array.isArray(indicators) && indicators.length === 0
   }
 
   async findOne(id: number) {

@@ -333,7 +333,12 @@ export default function AdminUserDetailPage() {
                              {doc.status}
                            </span>
                         </div>
-                        <AnalysisResult analysis={doc.metadata?.analysis as DocumentAnalysis | undefined} onRecalculate={recalculateTrustScore} recalculating={recalculating} />
+                        <AnalysisResult
+                          analysis={doc.metadata?.analysis as DocumentAnalysis | undefined}
+                          status={doc.status}
+                          onRecalculate={recalculateTrustScore}
+                          recalculating={recalculating}
+                        />
                       </div>
                     ))}
                   </div>

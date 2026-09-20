@@ -26,6 +26,7 @@ const statements = [
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS reactivation_deadline TIMESTAMP`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS revalidated_at TIMESTAMP`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS security_metadata JSONB`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500)`,
   `CREATE INDEX IF NOT EXISTS idx_users_account_status ON users(account_status)`,
   `ALTER TABLE wallets ADD COLUMN IF NOT EXISTS card_number VARCHAR(19)`,
   `ALTER TABLE wallets ADD COLUMN IF NOT EXISTS card_holder_name VARCHAR(255)`,
@@ -57,10 +58,10 @@ const statements = [
   `ALTER TABLE ledgers ADD COLUMN IF NOT EXISTS direction VARCHAR(10) NOT NULL DEFAULT 'DEBIT'`,
   `ALTER TABLE ledgers ADD COLUMN IF NOT EXISTS entry_reference VARCHAR(120)`,
   `ALTER TABLE ledgers ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW()`,
-  `ALTER TABLE transactions ALTER COLUMN sender_user_id DROP NOT NULL`,
-  `ALTER TABLE transactions ALTER COLUMN payment_method DROP NOT NULL`,
-  `ALTER TABLE transactions ALTER COLUMN recipient_user_id DROP NOT NULL`,
-  `ALTER TABLE ledgers ALTER COLUMN balance_after DROP NOT NULL`,
+  `DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'transactions' AND column_name = 'sender_user_id') THEN ALTER TABLE transactions ALTER COLUMN sender_user_id DROP NOT NULL; END IF; END $$`,
+  `DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'transactions' AND column_name = 'payment_method') THEN ALTER TABLE transactions ALTER COLUMN payment_method DROP NOT NULL; END IF; END $$`,
+  `DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'transactions' AND column_name = 'recipient_user_id') THEN ALTER TABLE transactions ALTER COLUMN recipient_user_id DROP NOT NULL; END IF; END $$`,
+  `DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ledgers' AND column_name = 'balance_after') THEN ALTER TABLE ledgers ALTER COLUMN balance_after DROP NOT NULL; END IF; END $$`,
 ]
 
 async function runMigration() {

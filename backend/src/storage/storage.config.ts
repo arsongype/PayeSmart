@@ -19,3 +19,12 @@ export const fileFilter = (req: Request, file: Express.Multer.File, callback: (e
     callback(new Error('Type de fichier non autorisé'), false)
   }
 }
+
+export const imageFileFilter = (req: Request, file: Express.Multer.File, callback: (error: Error | null, acceptFile: boolean) => void) => {
+  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp']
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    callback(null, true)
+  } else {
+    callback(new Error('La photo doit être au format JPG, PNG ou WEBP'), false)
+  }
+}

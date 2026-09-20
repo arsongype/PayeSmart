@@ -22,27 +22,31 @@ export interface DocumentAnalysis {
 
 interface AnalysisResultProps {
   analysis?: DocumentAnalysis
+  status?: 'NON_VERIFIE' | 'EN_COURS' | 'VERIFIE' | 'REJECTED' | 'APPROVED'
   onRecalculate?: () => void
   recalculating?: boolean
 }
 
 const readableLabel = (key: string) => key.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 
-export function AnalysisResult({ analysis, onRecalculate, recalculating = false }: AnalysisResultProps) {
+export function AnalysisResult({ analysis, status, onRecalculate, recalculating = false }: AnalysisResultProps) {
   const { t } = useTranslation()
-  if (!analysis) {
+
+  const effectiveAnalysis = analysis
+
+  if (!effectiveAnalysis) {
     return <p className="text-sm text-black">{t('analysisNotAvailable')}</p>
   }
 
-  const confidenceValue = analysis.confidenceScore ?? analysis.confidence_score ?? 0
-  const extractedData = analysis.extractedData ?? analysis.extracted_data ?? {}
-  const fraudIndicators = Array.isArray(analysis.fraudIndicators ?? analysis.fraud_indicators)
-    ? (analysis.fraudIndicators ?? analysis.fraud_indicators ?? [])
+  const confidenceValue = effectiveAnalysis.confidenceScore ?? effectiveAnalysis.confidence_score ?? 0
+  const extractedData = effectiveAnalysis.extractedData ?? effectiveAnalysis.extracted_data ?? {}
+  const fraudIndicators = Array.isArray(effectiveAnalysis.fraudIndicators ?? effectiveAnalysis.fraud_indicators)
+    ? (effectiveAnalysis.fraudIndicators ?? effectiveAnalysis.fraud_indicators ?? [])
     : []
-  const trustImpactValue = analysis.trustScoreImpact ?? analysis.trust_score_impact ?? 0
-  const riskScoreValue = analysis.riskScore ?? analysis.risk_score
-  const riskLevel = analysis.riskLevel ?? analysis.risk_level
-  const isValid = analysis.is_valid ?? false
+  const trustImpactValue = effectiveAnalysis.trustScoreImpact ?? effectiveAnalysis.trust_score_impact ?? 0
+  const riskScoreValue = effectiveAnalysis.riskScore ?? effectiveAnalysis.risk_score
+  const riskLevel = effectiveAnalysis.riskLevel ?? effectiveAnalysis.risk_level
+  const isValid = effectiveAnalysis.is_valid ?? false
   const confidencePercent = Number.isFinite(confidenceValue) ? Math.round(confidenceValue * 100) : 0
   const trustImpact = Number.isFinite(trustImpactValue) ? trustImpactValue : 0
   const riskScore = typeof riskScoreValue === 'number' && Number.isFinite(riskScoreValue) ? riskScoreValue : undefined
