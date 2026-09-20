@@ -60,10 +60,12 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
 
     void loadNotifications()
-    intervalId = window.setInterval(loadNotifications, 10000)
+    intervalId = window.setInterval(loadNotifications, 2000)
+    window.addEventListener('focus', loadNotifications)
 
     return () => {
       if (intervalId) window.clearInterval(intervalId)
+      window.removeEventListener('focus', loadNotifications)
     }
   }, [user?.id])
 

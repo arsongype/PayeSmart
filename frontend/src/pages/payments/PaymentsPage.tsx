@@ -49,6 +49,19 @@ export default function PaymentsPage() {
   const [twoFactorCode, setTwoFactorCode] = useState('')
   const [confirmingTwoFactor, setConfirmingTwoFactor] = useState(false)
   const [twoFactorRemainingSeconds, setTwoFactorRemainingSeconds] = useState<number | null>(null)
+  const [historyPage, setHistoryPage] = useState(1)
+  const historyPageSize = 5
+  const historyTotalPages = Math.max(1, Math.ceil(history.length / historyPageSize))
+  const visibleHistory = history.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize)
+
+  useEffect(() => {
+    if (!success && !error) return
+    const timeoutId = window.setTimeout(() => {
+      setSuccess(null)
+      setError(null)
+    }, 10000)
+    return () => window.clearTimeout(timeoutId)
+  }, [success, error])
 
   const statusLabel: Record<PaymentTransaction['status'], string> = {
     PENDING: t('pending'),
@@ -89,6 +102,7 @@ export default function PaymentsPage() {
       setLoading(true)
       const [transactions, virtualCard] = await Promise.all([paymentService.history(), paymentService.getVirtualCard()])
       setHistory(transactions)
+      setHistoryPage(1)
       setCard(virtualCard)
       const pendingTwoFactor = transactions.find((transaction) => transaction.status === 'PENDING' && transaction.failureReason === 'Vérification 2FA requise avant exécution.')
       if (pendingTwoFactor) {
@@ -107,7 +121,7 @@ export default function PaymentsPage() {
   }, [user?.id])
 
   useEffect(() => {
-    if (!lastTransaction || lastTransaction.status !== 'PENDING' || lastTransaction.failureReason !== 'Vérification 2FA requise avant exécution.') {
+    if (!lastTransaction || lastTransaction.status === 'COMPLETED' || lastTransaction.status === 'FAILED') {
       return
     }
     let timeoutId: ReturnType<typeof window.setTimeout> | undefined = undefined
@@ -465,7 +479,7 @@ export default function PaymentsPage() {
            </div>
            {loading ? <p className="text-base text-black">{t('loading')}</p> : history.length === 0 ? <p className="text-base text-black">{t('noTransactions')}</p> : (
              <div className="space-y-3">
-               {history.map((transaction) => {
+               {visibleHistory.map((transaction) => {
                  const outgoing = transaction.direction === 'OUTGOING'
                  return (
                    <div key={transaction.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-300 bg-gray-50 p-4 transition hover:border-gray-400">
@@ -485,6 +499,15 @@ export default function PaymentsPage() {
                    </div>
                  )
                })}
+             </div>
+           )}
+           {history.length > 0 && (
+             <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+               <Button type="button" variant="outline" size="sm" onClick={() => setHistoryPage((page) => Math.max(1, page - 1))} disabled={historyPage === 1}>Précédent</Button>
+               {Array.from({ length: historyTotalPages }, (_, index) => index + 1).map((page) => (
+                 <Button key={page} type="button" variant={page === historyPage ? 'primary' : 'outline'} size="sm" onClick={() => setHistoryPage(page)}>{page}</Button>
+               ))}
+               <Button type="button" variant="outline" size="sm" onClick={() => setHistoryPage((page) => Math.min(historyTotalPages, page + 1))} disabled={historyPage === historyTotalPages}>Suivant</Button>
              </div>
            )}
          </section>

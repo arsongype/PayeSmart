@@ -11,6 +11,15 @@ export default function ConfirmQrPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
+  useEffect(() => {
+    if (!error && !success) return
+    const timeoutId = window.setTimeout(() => {
+      setError('')
+      setSuccess('')
+    }, 10000)
+    return () => window.clearTimeout(timeoutId)
+  }, [error, success])
+
   const transactionId = Number(id)
   const confirmationUrl = typeof window !== 'undefined' ? `${window.location.origin}/payments/confirm/${transactionId}` : ''
 

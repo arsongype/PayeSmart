@@ -176,6 +176,14 @@ class OCRService:
                 if company_match:
                     extracted_data["company_name"] = company_match.group(1)
 
+            trade_register_match = re.search(
+                r"(?:Registre(?:\s+du)?\s+commerce|RCS|RC)[:\s]+([A-Z0-9][A-Z0-9\-\/ ]{2,})",
+                ocr_text,
+                re.IGNORECASE,
+            )
+            if trade_register_match:
+                extracted_data["trade_register"] = trade_register_match.group(1).strip()
+
             address_match = re.search(
                 r"(?:Adresse|Address|Siège)[:\s]+([\d\w\s,]+(?:\s+\d{5})?)",
                 ocr_text,

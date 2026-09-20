@@ -24,6 +24,16 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false)
   const [addressForm, setAddressForm] = useState({ address: '', city: '', country: '', postalCode: '' })
   const mountedRef = useRef(false)
+  const approvedKybData = kybDocs
+    .filter((document) => document.status === 'APPROVED' || document.status === 'VERIFIE')
+    .map((document) => (document.metadata as { analysis?: { extracted_data?: Record<string, unknown> } } | undefined)?.analysis?.extracted_data)
+    .filter((data): data is Record<string, unknown> => Boolean(data))
+    .reduce<Record<string, unknown>>((merged, data) => ({ ...merged, ...data }), {})
+  const companyName = profile?.companyName || (typeof approvedKybData.company_name === 'string' ? approvedKybData.company_name : '')
+  const sirenNif = profile?.sirenNif || (typeof approvedKybData.siren_nif === 'string' ? approvedKybData.siren_nif : '')
+  const tradeRegister = profile?.tradeRegister || (typeof approvedKybData.trade_register === 'string' ? approvedKybData.trade_register : '')
+  const companyRib = profile?.companyRib || (typeof approvedKybData.iban === 'string' ? approvedKybData.iban : '')
+  const companyAddress = profile?.companyAddress || (typeof approvedKybData.address === 'string' ? approvedKybData.address : '')
 
   const loadData = useCallback(async () => {
     if (!user || !mountedRef.current) return
@@ -157,11 +167,11 @@ export default function ProfilePage() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
-                    [t('company'), profile?.companyName || '-'],
-                    [t('sirenNif'), profile?.sirenNif || '-'],
-                    [t('tradeRegister'), profile?.tradeRegister || '-'],
-                    [t('rib'), profile?.companyRib || '-'],
-                    [t('companyAddress'), profile?.companyAddress || '-'],
+                    [t('company'), companyName || '-'],
+                    [t('sirenNif'), sirenNif || '-'],
+                    [t('tradeRegister'), tradeRegister || '-'],
+                    [t('rib'), companyRib || '-'],
+                    [t('companyAddress'), companyAddress || '-'],
                   ].map(([label, value], index) => (
                     <div key={label as string} className={`rounded-2xl border border-gray-200 bg-white p-4 ${index === 4 ? 'sm:col-span-2' : ''}`}>
                       <p className="text-sm text-black">{label as string}</p>

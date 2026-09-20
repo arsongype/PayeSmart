@@ -16,11 +16,16 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(true)
   const [detailTransaction, setDetailTransaction] = useState<PaymentTransaction | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [historyPage, setHistoryPage] = useState(1)
+  const historyPageSize = 5
+  const historyTotalPages = Math.max(1, Math.ceil(history.length / historyPageSize))
+  const visibleHistory = history.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize)
 
   const loadHistory = async () => {
     try {
       const data = await paymentService.history()
       setHistory(data)
+      setHistoryPage(1)
     } catch {
       // history loading failed silently
     }
@@ -144,7 +149,7 @@ export default function WalletPage() {
             <p className="text-base text-black">{t('noTransactions')}</p>
           ) : (
             <div className="space-y-3">
-              {history.map((transaction) => {
+              {visibleHistory.map((transaction) => {
                 const outgoing = transaction.direction === 'OUTGOING'
                 return (
                   <div key={transaction.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-300 bg-gray-50 p-4 transition hover:border-gray-400">
@@ -169,6 +174,15 @@ export default function WalletPage() {
                   </div>
                 )
               })}
+            </div>
+          )}
+          {history.length > 0 && (
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+              <button type="button" onClick={() => setHistoryPage((page) => Math.max(1, page - 1))} disabled={historyPage === 1} className="rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-50">Précédent</button>
+              {Array.from({ length: historyTotalPages }, (_, index) => index + 1).map((page) => (
+                <button key={page} type="button" onClick={() => setHistoryPage(page)} className={`rounded-xl border px-3 py-1.5 text-sm font-medium ${page === historyPage ? 'border-primary-500 bg-primary-500 text-black' : 'border-gray-300 bg-white text-black'}`}>{page}</button>
+              ))}
+              <button type="button" onClick={() => setHistoryPage((page) => Math.min(historyTotalPages, page + 1))} disabled={historyPage === historyTotalPages} className="rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-50">Suivant</button>
             </div>
           )}
         </section>

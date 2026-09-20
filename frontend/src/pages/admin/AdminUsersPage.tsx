@@ -18,12 +18,17 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<number | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 5
+  const totalPages = Math.max(1, Math.ceil(users.length / pageSize))
+  const visibleUsers = users.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   const loadUsers = async () => {
     try {
       setLoading(true)
       const data = await adminService.getUsers()
       setUsers(data)
+      setCurrentPage(1)
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : t('errorLoadingUsers'))
@@ -92,7 +97,7 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10">
-                {users.map((u) => (
+                {visibleUsers.map((u) => (
                   <tr key={u.id} className="transition-colors hover:bg-gray-100">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -172,6 +177,21 @@ export default function AdminUsersPage() {
               </tbody>
             </table>
           </div>
+          {users.length > 0 && (
+            <div className="flex flex-wrap items-center justify-center gap-2 border-t border-gray-300 p-4">
+              <Button type="button" variant="outline" size="sm" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage === 1}>
+                Précédent
+              </Button>
+              {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                <Button key={page} type="button" variant={page === currentPage ? 'primary' : 'outline'} size="sm" onClick={() => setCurrentPage(page)}>
+                  {page}
+                </Button>
+              ))}
+              <Button type="button" variant="outline" size="sm" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage === totalPages}>
+                Suivant
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

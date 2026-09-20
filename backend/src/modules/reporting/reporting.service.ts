@@ -31,7 +31,7 @@ export class ReportingService {
     const successful = transactions.filter((transaction) => transaction.status === 'COMPLETED')
     const totalVolume = successful.reduce((sum, transaction) => sum + Number(transaction.amount), 0)
     const fraudCount = transactions.filter((transaction) => transaction.riskScore >= 40 || transaction.status === 'FAILED').length
-    const aiMetrics = await this.getAiMetrics()
+    const aiMetrics = await this.getAiMetrics(transactions)
     const channels = this.aggregateChannels(successful)
 
     return {
@@ -108,17 +108,36 @@ export class ReportingService {
     return [...grouped.entries()].map(([channel, data]) => ({ channel, amount: Number(data.amount.toFixed(2)), transactions: data.transactions }))
   }
 
-  private async getAiMetrics() {
+  private async getAiMetrics(transactions: ReportRow[]) {
     try {
       const url = this.configService.get<string>('aiService.url', 'http://localhost:8001')
       const apiKey = this.configService.get<string>('aiService.apiKey', '')
-      const { data } = await axios.get<{ precision: number; recall: number; f1Score: number; analyzedTransactions: number }>(`${url}/api/v1/metrics`, {
+      const { data } = await axios.get<{ precision: number | null; recall: number | null; f1Score: number | null; analyzedTransactions: number }>(`${url}/api/v1/metrics`, {
         headers: { 'X-API-Key': apiKey },
         timeout: 3000,
       })
-      return data
+      if (data.precision !== null && data.recall !== null && data.f1Score !== null) return data
+      return this.calculateOperationalAiMetrics(transactions)
     } catch {
-      return { precision: null, recall: null, f1Score: null, analyzedTransactions: 0 }
+      return this.calculateOperationalAiMetrics(transactions)
+    }
+  }
+
+  private calculateOperationalAiMetrics(transactions: ReportRow[]) {
+    const predictedFraud = transactions.filter((transaction) => transaction.riskScore >= 40)
+    const observedFraud = transactions.filter((transaction) => transaction.status === 'FAILED')
+    const truePositive = predictedFraud.filter((transaction) => transaction.status === 'FAILED').length
+    const falsePositive = predictedFraud.length - truePositive
+    const falseNegative = observedFraud.length - truePositive
+    const precision = truePositive + falsePositive > 0 ? truePositive / (truePositive + falsePositive) : 0
+    const recall = truePositive + falseNegative > 0 ? truePositive / (truePositive + falseNegative) : 0
+    const f1Score = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0
+
+    return {
+      precision: Number(precision.toFixed(4)),
+      recall: Number(recall.toFixed(4)),
+      f1Score: Number(f1Score.toFixed(4)),
+      analyzedTransactions: transactions.length,
     }
   }
 
