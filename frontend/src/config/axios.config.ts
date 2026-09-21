@@ -28,6 +28,16 @@ const refreshAccessToken = async (): Promise<string> => {
   return refreshPromise
 }
 
+const tokenExpiresSoon = (token: string, marginSeconds = 30): boolean => {
+  try {
+    const payload = token.split('.')[1]
+    const decoded = JSON.parse(window.atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number }
+    return typeof decoded.exp !== 'number' || decoded.exp <= Math.floor(Date.now() / 1000) + marginSeconds
+  } catch {
+    return true
+  }
+}
+
 export const createApiClient = (): AxiosInstance => {
   const client = axios.create({
     baseURL: API_BASE_URL,
@@ -38,10 +48,19 @@ export const createApiClient = (): AxiosInstance => {
   })
 
   client.interceptors.request.use(
-    (config: InternalAxiosRequestConfig) => {
+    async (config: InternalAxiosRequestConfig) => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-      if (token && config.headers) {
-        config.headers.Authorization = `Bearer ${token}`
+      if (token && !config.url?.includes('/auth/refresh')) {
+        let activeToken = token
+        try {
+          if (tokenExpiresSoon(token)) activeToken = await refreshAccessToken()
+        } catch (refreshError) {
+          clearAuth()
+          throw refreshError
+        }
+        if (config.headers) {
+          config.headers.Authorization = `Bearer ${activeToken}`
+        }
       }
       return config
     },

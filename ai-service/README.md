@@ -2,6 +2,22 @@
 
 Service IA FastAPI pour l'analyse de documents KYC/KYB et le scoring de confiance.
 
+## Algorithme de détection de fraude
+
+Le service utilise une régression logistique locale (`logistic-regression-v1`),
+sauvegardée et rechargée avec Joblib. Si le fichier est absent ou invalide, le
+modèle est réentraîné automatiquement avec les exemples de référence intégrés.
+Il utilise le montant, la fréquence des transactions, l'heure, le canal,
+l'appareil, l'adresse IP et le portefeuille destinataire. Le score est borné entre
+0 et 100 :
+
+- moins de 40 : `APPROVE` ;
+- de 40 à 89 : `REQUIRE_2FA` ;
+- 90 ou plus : `BLOCK`.
+
+Les raisons et les variables utilisées sont renvoyées dans la réponse afin de
+permettre l'audit de chaque décision.
+
 ## Démarrage
 
 ```bash
