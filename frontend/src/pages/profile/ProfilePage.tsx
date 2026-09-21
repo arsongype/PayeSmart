@@ -13,7 +13,7 @@ import { useTranslation } from '../../utils/i18n'
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuth()
-  const { t } = useTranslation()
+  const { t, formatMoney } = useTranslation()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [wallet, setWallet] = useState<WalletType | null>(null)
   const [kycDocs, setKycDocs] = useState<KycDocument[]>([])
@@ -180,7 +180,7 @@ export default function ProfilePage() {
           <div className="lg:col-span-2 space-y-6">
             <div className="flex items-center gap-4 rounded-3xl border border-gray-300 bg-gray-50 p-5 shadow-lg shadow-black/20">
               {profileUser?.avatarUrl ? (
-                <img src={profileService.assetUrl(profileUser.avatarUrl)} alt={`${profileUser.firstName} ${profileUser.lastName}`} className="h-20 w-20 rounded-full object-cover" />
+                <img src={profileService.assetUrl(profileUser.avatarUrl)} alt={`${profileUser.firstName} ${profileUser.lastName}`} onError={() => { void profileService.clearAvatar(); updateUser({ ...profileUser, avatarUrl: null }); setProfileUser((current) => current ? { ...current, avatarUrl: null } : current) }} className="h-20 w-20 rounded-full object-cover" />
               ) : (
                 <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary-600 text-xl font-semibold text-black">
                   {`${profileUser?.firstName?.[0] ?? ''}${profileUser?.lastName?.[0] ?? ''}`.toUpperCase() || '?'}
@@ -328,7 +328,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="rounded-2xl border border-gray-200 bg-white p-4">
                      <p className="text-sm text-black">{t('balance')}</p>
-                    <p className="mt-1 text-2xl font-bold text-black">{Number(wallet.balance).toFixed(2)} {wallet.currency || 'EUR'}</p>
+                    <p className="mt-1 text-2xl font-bold text-black">{formatMoney(Number(wallet.balance), wallet.currency)}</p>
                   </div>
                   <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-4">
                      <span className="text-sm text-black">{t('status')}</span>

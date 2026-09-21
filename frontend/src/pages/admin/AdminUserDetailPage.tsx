@@ -16,7 +16,7 @@ export default function AdminUserDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const locale = useLocale()
-  const { t } = useTranslation()
+  const { t, formatMoney } = useTranslation()
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [kycDocs, setKycDocs] = useState<KycDocument[]>([])
   const [kybDocs, setKybDocs] = useState<KybDocument[]>([])
@@ -233,7 +233,7 @@ export default function AdminUserDetailPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
                     [t('number'), selectedUser.wallet.walletNumber],
-                    [t('balance'), `${Number(selectedUser.wallet.balance).toFixed(2)} ${selectedUser.wallet.currency || 'EUR'}`],
+                    [t('balance'), formatMoney(Number(selectedUser.wallet.balance), selectedUser.wallet.currency)],
                     [t('status'), selectedUser.wallet.status],
                    ].map(([label, value]) => (
                     <div key={label as string} className="rounded-2xl border border-gray-200 bg-white p-4">

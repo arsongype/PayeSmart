@@ -37,6 +37,11 @@ export class ProfilesController {
     return this.profilesService.updateAvatar(parseInt(req.user.sub, 10), file.filename)
   }
 
+  @Delete('avatar')
+  clearAvatar(@Req() req: RequestWithUser) {
+    return this.profilesService.clearAvatar(parseInt(req.user.sub, 10))
+  }
+
   @Delete(':userId')
   delete(@Param('userId') userId: number) {
     return this.profilesService.delete(userId)

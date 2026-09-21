@@ -27,6 +27,10 @@ export const profileService = {
     return data
   },
 
+  async clearAvatar(): Promise<void> {
+    await apiClient.delete('/profiles/avatar')
+  },
+
   async getProfile(userId: number): Promise<Profile> {
     const { data } = await apiClient.get(`/profiles/${userId}`)
     return data

@@ -44,7 +44,12 @@ async function bootstrap() {
   app.use(rateLimit({ windowMs: rateLimitWindowMs, limit: rateLimitMax, standardHeaders: 'draft-7', legacyHeaders: false }))
 
   app.setGlobalPrefix('api/v1')
-  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' })
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
+    prefix: '/uploads/',
+    setHeaders: (response) => {
+      response.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+    },
+  })
 
   app.useGlobalPipes(
     new ValidationPipe({

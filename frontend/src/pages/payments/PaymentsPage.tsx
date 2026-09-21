@@ -7,7 +7,7 @@ import { paymentService, type PaymentChannel, type PaymentTransaction, type Reci
 import { useSettings } from '../../contexts/SettingsContext'
 import { useTranslation } from '../../utils/i18n'
 
-type PaymentMode = 'MOBILE_MONEY' | 'CARD' | 'QR' | 'BANK_TRANSFER'
+type PaymentMode = 'CARD' | 'QR' | 'BANK_TRANSFER'
 
 function getPaymentErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
@@ -18,25 +18,15 @@ function getPaymentErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
 
-function formatPhoneNumberInput(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 10)
-  if (digits.length <= 3) return digits
-  if (digits.length <= 5) return `${digits.slice(0, 3)} ${digits.slice(3)}`
-  if (digits.length <= 8) return `${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5)}`
-  return `${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 8)} ${digits.slice(8)}`
-}
-
 export default function PaymentsPage() {
   const { user } = useAuth()
   const { settings } = useSettings()
-  const { t } = useTranslation()
+  const { t, formatMoney } = useTranslation()
   const locale = settings.language === 'en' ? 'en-US' : 'fr-FR'
   const [recipientWalletNumber, setRecipientWalletNumber] = useState('')
   const [recipient, setRecipient] = useState<RecipientAccount | null>(null)
   const [amount, setAmount] = useState('')
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>('MOBILE_MONEY')
-  const [channel, setChannel] = useState<PaymentChannel>('ORANGE_MONEY')
-  const [phoneNumber, setPhoneNumber] = useState('')
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>('CARD')
   const [cardToken, setCardToken] = useState('')
   const [bankReference, setBankReference] = useState('')
   const [history, setHistory] = useState<PaymentTransaction[]>([])
@@ -53,6 +43,7 @@ export default function PaymentsPage() {
   const historyPageSize = 5
   const historyTotalPages = Math.max(1, Math.ceil(history.length / historyPageSize))
   const visibleHistory = history.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize)
+  const channel: PaymentChannel = paymentMode
 
   useEffect(() => {
     if (!success && !error) return
@@ -145,17 +136,15 @@ export default function PaymentsPage() {
   }, [lastTransaction?.id, lastTransaction?.status, lastTransaction?.failureReason])
 
   const findRecipient = async () => {
-    const lookupValue = paymentMode === 'MOBILE_MONEY' ? phoneNumber.trim() : recipientWalletNumber.trim()
+    const lookupValue = recipientWalletNumber.trim()
     if (!/^\d+$/.test(lookupValue)) {
-      setError(paymentMode === 'MOBILE_MONEY' ? t('phoneDigitsOnly') : t('accountDigitsOnly'))
+      setError(t('accountDigitsOnly'))
       setRecipient(null)
       return
     }
     try {
       setError(null)
-      setRecipient(paymentMode === 'MOBILE_MONEY'
-        ? await paymentService.findRecipientByPhone(lookupValue)
-        : await paymentService.findRecipient(lookupValue))
+      setRecipient(await paymentService.findRecipient(lookupValue))
     } catch (err) {
       setRecipient(null)
       setError(getPaymentErrorMessage(err, t('recipientNotFound')))
@@ -170,11 +159,10 @@ export default function PaymentsPage() {
       setError(null)
       setSuccess(null)
       const transaction = await paymentService.initiate({
-        recipientWalletNumber: paymentMode === 'MOBILE_MONEY' ? undefined : recipient.walletNumber,
+        recipientWalletNumber: recipient.walletNumber,
         amount: Number(amount),
         channel,
         currency: card?.currency || 'EUR',
-        phoneNumber: phoneNumber || undefined,
         cardToken: cardToken || undefined,
         bankReference: bankReference || undefined,
       })
@@ -183,7 +171,6 @@ export default function PaymentsPage() {
       setAmount('')
       setRecipient(null)
       setRecipientWalletNumber('')
-      setPhoneNumber('')
       setCardToken('')
       setBankReference('')
       await load()
@@ -327,19 +314,19 @@ export default function PaymentsPage() {
               </div>
               <h2 className="text-lg font-semibold text-black">{t('sendPayment')}</h2>
             </div>
-            <label className="mb-2 block text-base font-medium text-black" htmlFor={paymentMode === 'MOBILE_MONEY' ? 'phone-number' : 'recipient-account'}>
-              {paymentMode === 'MOBILE_MONEY' ? t('recipientPhoneNumber') : t('recipientAccountNumber')}
+            <label className="mb-2 block text-base font-medium text-black" htmlFor="recipient-account">
+              {t('recipientAccountNumber')}
               <span className="ml-1 text-red-500" aria-hidden="true">*</span>
             </label>
             <div className="flex gap-2">
               <input
-                id={paymentMode === 'MOBILE_MONEY' ? 'phone-number' : 'recipient-account'}
+                id="recipient-account"
                 inputMode="numeric"
                 pattern="[0-9]+"
                 required
-                value={paymentMode === 'MOBILE_MONEY' ? formatPhoneNumberInput(phoneNumber) : recipientWalletNumber}
-                onChange={(event) => paymentMode === 'MOBILE_MONEY' ? setPhoneNumber(event.target.value.replace(/\D/g, '')) : setRecipientWalletNumber(event.target.value.replace(/\D/g, ''))}
-                placeholder={paymentMode === 'MOBILE_MONEY' ? '034 00 000 00' : '000000010000'}
+                value={recipientWalletNumber}
+                onChange={(event) => setRecipientWalletNumber(event.target.value.replace(/\D/g, ''))}
+                placeholder="000000010000"
                 className="min-w-0 flex-1 rounded-2xl border border-gray-300 bg-white px-4 py-2.5 text-black outline-none focus:border-primary-500"
               />
               <Button type="button" variant="outline" onClick={() => void findRecipient()} className="rounded-xl border border-gray-300">{t('searchButton')}</Button>
@@ -355,9 +342,8 @@ export default function PaymentsPage() {
             )}
             <div className="mt-5">
               <p className="mb-2 text-base font-medium text-black">{t('paymentMode')}</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="tablist" aria-label={t('paymentMode')}>
+              <div className="grid grid-cols-3 gap-2" role="tablist" aria-label={t('paymentMode')}>
                 {([
-                  ['MOBILE_MONEY', t('mobileMoney')],
                   ['CARD', t('card')],
                   ['QR', t('qrCode')],
                   ['BANK_TRANSFER', t('bankTransfer')],
@@ -369,10 +355,6 @@ export default function PaymentsPage() {
                     aria-selected={paymentMode === mode}
                     onClick={() => {
                       setPaymentMode(mode)
-                      if (mode === 'MOBILE_MONEY') setChannel('ORANGE_MONEY')
-                      if (mode === 'CARD') setChannel('CARD')
-                      if (mode === 'QR') setChannel('QR')
-                      if (mode === 'BANK_TRANSFER') setChannel('BANK_TRANSFER')
                     }}
                      className={`rounded-xl border px-3 py-2.5 text-base font-semibold transition-colors ${paymentMode === mode ? 'border-primary-500 bg-primary-600/15 text-black' : 'border-gray-300 bg-white text-black hover:border-primary-600/50 hover:text-black'}`}
                   >
@@ -390,11 +372,6 @@ export default function PaymentsPage() {
                 <input id="amount" type="number" min="0.01" step="0.01" required value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-2.5 text-black outline-none focus:border-primary-500" />
               </div>
             </div>
-            {paymentMode === 'MOBILE_MONEY' && (
-              <div className="mt-4">
-                <p className="text-base text-black">{t('recipientSearchHelper')}</p>
-              </div>
-            )}
             {paymentMode === 'CARD' && (
               <div className="mt-4">
                 <div className="mb-2 flex items-center justify-between gap-3">
@@ -505,7 +482,7 @@ export default function PaymentsPage() {
                        </div>
                      </div>
                      <div className="text-right">
-                       <p className="font-semibold text-black">{outgoing ? '-' : '+'}{Number(transaction.amount).toFixed(2)} {transaction.currency}</p>
+                       <p className="font-semibold text-black">{outgoing ? '-' : '+'}{formatMoney(Number(transaction.amount), transaction.currency)}</p>
                        <p className={`text-sm ${transaction.status === 'COMPLETED' ? 'text-black' : transaction.status === 'FAILED' ? 'text-black' : 'text-black'}`}>{statusLabel[transaction.status]}</p>
                      </div>
                    </div>

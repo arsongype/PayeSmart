@@ -118,22 +118,17 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     }
 
     const senderWallet = await this.walletRepository.findOne({ where: { userId: senderUserId } })
-    const isMobileMoney = dto.channel === PaymentChannel.ORANGE_MONEY
-    if (isMobileMoney && !dto.phoneNumber) {
-      throw new BadRequestException('Le numéro de téléphone est requis pour Mobile Money')
+    const isMobileMoney = [PaymentChannel.MVOLA, PaymentChannel.ORANGE_MONEY, PaymentChannel.AIRTEL_MONEY].includes(dto.channel)
+    if (isMobileMoney) {
+      throw new BadRequestException('Les paiements Mobile Money ne sont plus disponibles')
     }
-    if (!isMobileMoney && !dto.recipientWalletNumber) {
+    if (!dto.recipientWalletNumber) {
       throw new BadRequestException('Le numéro du compte destinataire est requis')
     }
     if (dto.channel === PaymentChannel.CARD && !dto.cardToken) {
       throw new BadRequestException('Le token de carte est requis')
     }
-    const recipient = isMobileMoney && dto.phoneNumber
-      ? (await this.userRepository.find()).find((candidate) => normalizePhoneNumber(candidate.phone ?? '') === normalizePhoneNumber(dto.phoneNumber ?? ''))
-      : null
-    const recipientWallet = recipient
-      ? await this.walletRepository.findOne({ where: { userId: recipient.id } })
-      : await this.walletRepository.findOne({ where: { walletNumber: dto.recipientWalletNumber } })
+    const recipientWallet = await this.walletRepository.findOne({ where: { walletNumber: dto.recipientWalletNumber } })
     if (!senderWallet || !recipientWallet) throw new NotFoundException('Compte émetteur ou destinataire introuvable')
     if (senderWallet.id === recipientWallet.id) throw new BadRequestException('Vous ne pouvez pas vous payer vous-même')
     if (senderWallet.status !== 'ACTIVE' || recipientWallet.status !== 'ACTIVE') throw new BadRequestException('Un portefeuille est inactif')

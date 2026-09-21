@@ -15,7 +15,7 @@ const riskStyles: Record<FraudAlert['riskLevel'], string> = {
 
 export default function AdminFraudPage() {
   const locale = useLocale()
-  const { t } = useTranslation()
+  const { t, formatMoney } = useTranslation()
   const [alerts, setAlerts] = useState<FraudAlert[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -93,7 +93,7 @@ export default function AdminFraudPage() {
                     </div>
 
                     <div className="text-lg font-semibold text-black">
-                       {alert.amount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {alert.currency}
+                       {formatMoney(alert.amount, alert.currency)}
                     </div>
                      <p className="mt-1 text-base text-black">
                         {alert.sender?.name ?? t('unknownSender')} → {alert.recipient?.name ?? t('unknownRecipient')}

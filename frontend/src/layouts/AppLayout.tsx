@@ -28,7 +28,7 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { user, logout } = useAuth()
+  const { user, logout, updateUser } = useAuth()
   const { t } = useTranslation()
   const location = useLocation()
   const locale = useLocale()
@@ -141,7 +141,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         <div className="shrink-0 border-t border-gray-300 p-4">
           <div className="mb-3 flex items-center gap-3 px-2">
-            {user?.avatarUrl ? <img src={profileService.assetUrl(user.avatarUrl)} alt={`${user.firstName} ${user.lastName}`} className="h-9 w-9 shrink-0 rounded-full object-cover" /> : <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-600 text-sm font-medium text-black">{initials || '?'}</div>}
+            {user?.avatarUrl ? <img src={profileService.assetUrl(user.avatarUrl)} alt={`${user.firstName} ${user.lastName}`} onError={() => { void profileService.clearAvatar(); updateUser({ ...user, avatarUrl: null }) }} className="h-9 w-9 shrink-0 rounded-full object-cover" /> : <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-600 text-sm font-medium text-black">{initials || '?'}</div>}
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-black">{user?.firstName} {user?.lastName}</p>
                <p className="truncate text-xs text-black">{user?.email}</p>
@@ -217,7 +217,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               <p className="text-sm font-medium text-black">{user?.firstName} {user?.lastName}</p>
                <p className="text-xs capitalize text-black">{user?.role}</p>
             </div>
-            {user?.avatarUrl ? <img src={profileService.assetUrl(user.avatarUrl)} alt={`${user.firstName} ${user.lastName}`} className="h-9 w-9 rounded-full object-cover sm:hidden" /> : <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-600 text-sm font-medium text-black sm:hidden">{initials || '?'}</div>}
+            {user?.avatarUrl ? <img src={profileService.assetUrl(user.avatarUrl)} alt={`${user.firstName} ${user.lastName}`} onError={() => { void profileService.clearAvatar(); updateUser({ ...user, avatarUrl: null }) }} className="h-9 w-9 rounded-full object-cover sm:hidden" /> : <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-600 text-sm font-medium text-black sm:hidden">{initials || '?'}</div>}
           </div>
         </header>
 

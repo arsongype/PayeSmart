@@ -10,7 +10,7 @@ import { useTranslation } from '../../utils/i18n'
 
 export default function WalletPage() {
   const { user } = useAuth()
-  const { t } = useTranslation()
+  const { t, formatMoney } = useTranslation()
   const [wallet, setWallet] = useState<WalletType | null>(null)
   const [history, setHistory] = useState<PaymentTransaction[]>([])
   const [loading, setLoading] = useState(true)
@@ -86,7 +86,7 @@ export default function WalletPage() {
               </div>
                <p className="text-base font-medium text-black">{t('currentBalance')}</p>
             </div>
-            <p className="text-3xl font-bold text-black">{wallet ? Number(wallet.balance).toFixed(2) : '0.00'} {wallet?.currency || 'EUR'}</p>
+            <p className="text-3xl font-bold text-black">{formatMoney(Number(wallet?.balance ?? 0), wallet?.currency)}</p>
           </div>
           <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
             <div className="flex items-center gap-3 mb-4">
@@ -95,7 +95,7 @@ export default function WalletPage() {
               </div>
                <p className="text-base font-medium text-black">{t('dailyLimit')}</p>
             </div>
-            <p className="text-3xl font-bold text-black">{wallet ? Number(wallet.dailyLimit).toFixed(2) : '0.00'} {wallet?.currency || 'EUR'}</p>
+            <p className="text-3xl font-bold text-black">{formatMoney(Number(wallet?.dailyLimit ?? 0), wallet?.currency)}</p>
           </div>
           <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
             <div className="flex items-center gap-3 mb-4">
@@ -104,7 +104,7 @@ export default function WalletPage() {
               </div>
                <p className="text-base font-medium text-black">{t('monthlyLimit')}</p>
             </div>
-            <p className="text-3xl font-bold text-black">{wallet ? Number(wallet.monthlyLimit).toFixed(2) : '0.00'} {wallet?.currency || 'EUR'}</p>
+            <p className="text-3xl font-bold text-black">{formatMoney(Number(wallet?.monthlyLimit ?? 0), wallet?.currency)}</p>
           </div>
         </div>
 
@@ -164,7 +164,7 @@ export default function WalletPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <p className="font-semibold text-black">{outgoing ? '-' : '+'}{Number(transaction.amount).toFixed(2)} {transaction.currency}</p>
+                        <p className="font-semibold text-black">{outgoing ? '-' : '+'}{formatMoney(Number(transaction.amount), transaction.currency)}</p>
                         <p className={`text-sm ${transaction.status === 'COMPLETED' ? 'text-black' : transaction.status === 'FAILED' ? 'text-black' : 'text-black'}`}>{transaction.status}</p>
                       </div>
                       <button type="button" onClick={() => openDetail(transaction)} className="rounded-xl border border-gray-300 bg-white p-2 text-black hover:bg-gray-100">
@@ -213,7 +213,7 @@ export default function WalletPage() {
               </div>
               <div className="rounded-2xl border border-gray-200 bg-white p-4">
                 <p className="text-sm text-black">{t('amount')}</p>
-                <p className="mt-1 text-base font-medium text-black">{Number(detailTransaction.amount).toFixed(2)} {detailTransaction.currency}</p>
+                <p className="mt-1 text-base font-medium text-black">{formatMoney(Number(detailTransaction.amount), detailTransaction.currency)}</p>
               </div>
               <div className="rounded-2xl border border-gray-200 bg-white p-4">
                 <p className="text-sm text-black">Date</p>

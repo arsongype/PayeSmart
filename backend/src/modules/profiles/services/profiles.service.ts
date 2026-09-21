@@ -67,6 +67,14 @@ export class ProfilesService {
     }
   }
 
+  async clearAvatar(userId: number) {
+    const user = await this.userRepository.findOne({ where: { id: userId } })
+    if (!user) throw new NotFoundException('Utilisateur non trouvé')
+    user.avatarUrl = null
+    await this.userRepository.save(user)
+    return { avatarUrl: null }
+  }
+
   async delete(userId: number) {
     const profile = await this.findByUserId(userId)
     await this.profileRepository.remove(profile)

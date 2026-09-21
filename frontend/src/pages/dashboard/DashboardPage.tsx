@@ -12,15 +12,13 @@ import {
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { downloadReport, getDashboardReport, type DashboardReport } from '../../services/reporting.service'
-import { useSettings } from '../../contexts/SettingsContext'
 import { useLocale } from '../../hooks/useLocale'
 import { useTranslation } from '../../utils/i18n'
 
 export default function DashboardPage() {
   const { user } = useAuth()
-  const { settings } = useSettings()
   const locale = useLocale()
-  const { t } = useTranslation()
+  const { t, formatMoney } = useTranslation()
   const [report, setReport] = useState<DashboardReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -46,13 +44,7 @@ export default function DashboardPage() {
 
   const totals = report?.totals ?? { volume: 0, transactions: 0, fraudRate: 0, revenue: 0 }
   const aiMetrics = report?.aiMetrics ?? { precision: null, recall: null, f1Score: null, analyzedTransactions: 0 }
-  const formatMoney = (amount: number) => {
-    try {
-      return new Intl.NumberFormat(locale, { style: 'currency', currency: settings.currency, maximumFractionDigits: 0 }).format(amount)
-    } catch {
-      return `${amount.toLocaleString(locale)} ${settings.currency}`
-    }
-  }
+  const reportCurrency = user?.wallet?.currency || 'EUR'
   const formatMetric = (value: number | null) => value === null ? 'N/D' : `${(value * 100).toFixed(1)}%`
 
   const metricLabels = [t('precision'), t('recall'), t('f1Score'), t('analyzed')]
@@ -84,10 +76,10 @@ export default function DashboardPage() {
 
       <section aria-label={t('overview')} className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: t('volume'), value: formatMoney(totals.volume), icon: FileBarChart, color: 'text-black', bg: 'bg-primary-500/10' },
+          { label: t('volume'), value: formatMoney(totals.volume, reportCurrency), icon: FileBarChart, color: 'text-black', bg: 'bg-primary-500/10' },
            { label: t('transactions'), value: totals.transactions.toLocaleString(locale), icon: CreditCard, color: 'text-black', bg: 'bg-sky-500/10' },
           { label: t('fraudRate'), value: `${totals.fraudRate.toFixed(1)}%`, icon: ShieldCheck, color: 'text-black', bg: 'bg-emerald-500/10' },
-          { label: t('revenue'), value: formatMoney(totals.revenue), icon: BarChart3, color: 'text-black', bg: 'bg-amber-500/10' },
+          { label: t('revenue'), value: formatMoney(totals.revenue, reportCurrency), icon: BarChart3, color: 'text-black', bg: 'bg-amber-500/10' },
         ].map((stat) => {
           const Icon = stat.icon
           return (
@@ -122,7 +114,7 @@ export default function DashboardPage() {
               <XAxis dataKey="channel" tick={{ fontSize: 12, fill: '#000' }} />
               <YAxis tick={{ fontSize: 12, fill: '#000' }} />
               <Tooltip
-                formatter={(value) => [formatMoney(Number(value)), t('volume')]}
+                formatter={(value) => [formatMoney(Number(value), reportCurrency), t('volume')]}
                 labelFormatter={(label) => label}
                 contentStyle={{ borderRadius: 12, border: '1px solid #e5e7eb', backgroundColor: '#fff' }}
               />

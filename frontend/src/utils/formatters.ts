@@ -1,13 +1,33 @@
-export const formatCurrency = (amount: number, currency: string = 'XOF'): string => {
+export type SupportedCurrency = 'EUR' | 'USD' | 'XOF' | 'MGA'
+
+// Approximate rates: one unit of each currency expressed in EUR.
+const currencyToEur: Record<SupportedCurrency, number> = {
+  EUR: 1,
+  USD: 0.92,
+  XOF: 1 / 655.957,
+  MGA: 1 / 4900,
+}
+
+export const convertCurrency = (
+  amount: number,
+  fromCurrency: string = 'EUR',
+  toCurrency: string = 'EUR',
+): number => {
+  const fromRate = currencyToEur[fromCurrency as SupportedCurrency] ?? currencyToEur.EUR
+  const toRate = currencyToEur[toCurrency as SupportedCurrency] ?? currencyToEur.EUR
+  return amount * fromRate / toRate
+}
+
+export const formatCurrency = (amount: number, currency: string = 'XOF', sourceCurrency = currency): string => {
   try {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
-    }).format(amount)
+    }).format(convertCurrency(amount, sourceCurrency, currency))
   } catch {
-    return `${amount.toLocaleString('fr-FR')} ${currency}`
+    return `${convertCurrency(amount, sourceCurrency, currency).toLocaleString('fr-FR')} ${currency}`
   }
 }
 

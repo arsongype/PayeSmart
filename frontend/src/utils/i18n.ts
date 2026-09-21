@@ -1,4 +1,5 @@
 import { useSettings } from '../contexts/SettingsContext'
+import { convertCurrency } from './formatters'
 
 export type Language = 'fr' | 'en'
 
@@ -1253,6 +1254,7 @@ export const translations: Record<Language, Translations> = {
 export function useTranslation() {
   const { settings } = useSettings()
   const lang = settings.language
+  const locale = lang === 'en' ? 'en-US' : 'fr-FR'
 
   const t = (key: string, params?: Record<string, string | number>): string => {
     const keys = key.split('.')
@@ -1279,5 +1281,19 @@ export function useTranslation() {
     return nested !== `common.${key}` ? nested : key
   }
 
-  return { t: tc, lang }
+  const formatMoney = (amount: number, sourceCurrency?: string, targetCurrency = settings.currency) => {
+    const convertedAmount = convertCurrency(amount, sourceCurrency, targetCurrency)
+    try {
+      return new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency: targetCurrency,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      }).format(convertedAmount)
+    } catch {
+      return `${convertedAmount.toLocaleString(locale)} ${targetCurrency}`
+    }
+  }
+
+  return { t: tc, lang, locale, formatMoney }
 }
