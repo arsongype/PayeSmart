@@ -34,6 +34,15 @@ class FraudDetectionServiceTests(unittest.TestCase):
         self.assertEqual(result.risk_level, "HIGH")
         self.assertGreaterEqual(result.risk_score, 90.0)
 
+    def test_ensemble_models_are_supported(self) -> None:
+        for model_name in ("random_forest", "xgboost"):
+            with self.subTest(model=model_name):
+                model = FraudDetectionService(model_type=model_name)
+                result = model.predict(1, 3000, "CARD", transaction_count_24h=7, hour=23)
+                self.assertIn(result.decision, {"APPROVE", "REQUIRE_2FA", "BLOCK"})
+                self.assertGreaterEqual(result.risk_score, 0.0)
+                self.assertLessEqual(result.risk_score, 100.0)
+
 
 if __name__ == "__main__":
     unittest.main()

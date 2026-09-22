@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from services.fraud_ml_service import FraudMLService
+from services.ensemble_fraud_model import EnsembleFraudModel
 
 
 @dataclass
@@ -14,10 +15,16 @@ class FraudPrediction:
 
 
 class FraudDetectionService:
-    """Explainable fraud decisions backed by a local logistic-regression model."""
+    """Explainable fraud decisions backed by a local logistic-regression model and ensemble alternatives."""
 
-    def __init__(self) -> None:
-        self.model = FraudMLService()
+    def __init__(self, model_type: str = "logistic_regression") -> None:
+        self.model_type = model_type.lower()
+        if self.model_type == "logistic_regression":
+            self.model = FraudMLService()
+        elif self.model_type in {"random_forest", "xgboost"}:
+            self.model = EnsembleFraudModel(model_type=self.model_type)
+        else:
+            self.model = FraudMLService()
 
     def predict(
         self,
@@ -90,6 +97,6 @@ class FraudDetectionService:
                 "ip_address": ip_address,
                 "recipient_wallet_id": recipient_wallet_id,
                 **prediction.features,
-                "model": "logistic-regression-v1",
+                "model": getattr(prediction, "model_type", "logistic-regression-v1"),
             },
         )
