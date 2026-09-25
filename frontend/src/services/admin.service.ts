@@ -1,6 +1,11 @@
 import { apiClient } from '../config/axios.config'
+import { API_ORIGIN } from '../config/env'
 
 export const adminService = {
+  assetUrl(path?: string | null): string | undefined {
+    if (!path) return undefined
+    return path.startsWith('http') ? path : `${API_ORIGIN}${path}`
+  },
   async getUsers() {
     const { data } = await apiClient.get('/auth/users')
     return data
@@ -63,6 +68,20 @@ export const adminService = {
 
   async getFraudAlerts() {
     const { data } = await apiClient.get('/admin/fraud-alerts')
+    return data
+  },
+
+  async uploadUserAvatar(userId: number, file: File) {
+    const formData = new FormData()
+    formData.append('avatar', file)
+    const { data } = await apiClient.post(`/admin/users/${userId}/avatar`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return data
+  },
+
+  async clearUserAvatar(userId: number) {
+    const { data } = await apiClient.delete(`/admin/users/${userId}/avatar`)
     return data
   },
 }

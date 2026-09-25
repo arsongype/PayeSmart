@@ -43,35 +43,18 @@ export class ProfilesService {
   }
 
   async updateAvatar(userId: number, filename: string) {
-    const user = await this.userRepository.findOne({ where: { id: userId } })
-    if (!user) throw new NotFoundException('Utilisateur non trouvé')
-
-    user.avatarUrl = `/uploads/${filename}`
-    await this.userRepository.save(user)
-    return {
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      cin: user.cin,
-      phone: user.phone,
-      dateOfBirth: user.dateOfBirth,
-      avatarUrl: user.avatarUrl,
-      role: user.role,
-      kycStatus: user.kycStatus,
-      kybStatus: user.kybStatus,
-      accountStatus: user.accountStatus,
-      suspensionReason: user.suspensionReason,
-      reactivationDeadline: user.reactivationDeadline,
-      isEmailVerified: user.isEmailVerified,
-    }
+    await this.userRepository.update(
+      { id: userId },
+      { avatarUrl: `/uploads/${filename}` }
+    )
+    return this.userRepository.findOneOrFail({ where: { id: userId } })
   }
 
   async clearAvatar(userId: number) {
-    const user = await this.userRepository.findOne({ where: { id: userId } })
-    if (!user) throw new NotFoundException('Utilisateur non trouvé')
-    user.avatarUrl = null
-    await this.userRepository.save(user)
+    await this.userRepository.update(
+      { id: userId },
+      { avatarUrl: null }
+    )
     return { avatarUrl: null }
   }
 

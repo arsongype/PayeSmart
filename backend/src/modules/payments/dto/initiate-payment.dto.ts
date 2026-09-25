@@ -28,4 +28,8 @@ export class InitiatePaymentDto {
   @IsString()
   @IsOptional()
   bankReference?: string
+
+  @IsString()
+  @IsOptional()
+  idempotencyKey?: string
 }

@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common'
+import { Injectable, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 import { User } from '../../modules/auth/entities/user.entity.js'
@@ -180,5 +180,23 @@ export class AccountManagementService {
       })
       .execute()
     return result.affected || 0
+  }
+
+  async updateUserAvatar(userId: number, filename: string): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id: userId } })
+    if (!user) {
+      throw new NotFoundException('Utilisateur non trouvé')
+    }
+    user.avatarUrl = `/uploads/${filename}`
+    return this.userRepository.save(user)
+  }
+
+  async clearUserAvatar(userId: number): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id: userId } })
+    if (!user) {
+      throw new NotFoundException('Utilisateur non trouvé')
+    }
+    user.avatarUrl = null
+    return this.userRepository.save(user)
   }
 }

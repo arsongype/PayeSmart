@@ -120,7 +120,6 @@ export interface Translations {
     nif: string
     rib: string
     front: string
-    back: string
     temporaryIban: string
     qrData: string
     metadata: string
@@ -232,7 +231,6 @@ export interface Translations {
     welcomeBack: string
     contentDeRevoir: string
     firstNameLabel: string
-    lastNameLabel: string
     addressLabel: string
     cityLabel: string
     postalCodeLabel: string
@@ -378,7 +376,6 @@ export interface Translations {
     receiptDate: string
     transactionStatus: string
     transactionDetails: string
-    amount: string
     direction: string
     qrDataLabel: string
     qrScanConfirmed: string
@@ -412,7 +409,34 @@ export interface Translations {
     inProgress: string
     completed: string
     failed: string
+    paymentCancelled: string
+    cannotCancelPayment: string
+    cancelPayment: string
     twoFactorExpiresIn: string
+    twoFactorAuthRequired: string
+    twoFactorAuthRequiredDesc: string
+    twoFactorAuthHint: string
+    otpPlaceholder: string
+    verifyAndLogin: string
+    errorGeneratingSecret: string
+    twoFactorEnabled: string
+    twoFactorDisabled: string
+    twoFactorAuth: string
+    twoFactorDescription: string
+    generateSecret: string
+    scanQrCode: string
+    scanQrDescription: string
+    enableTwoFactor: string
+    disableTwoFactor: string
+    otpCode: string
+    twoFactorActive: string
+    invalidOtp: string
+    openAction: string
+    avatarUploadError: string
+    avatarUploading: string
+    avatarUpdated: string
+    avatarRemoved: string
+    removeAvatar: string
   }
 }
 
@@ -534,9 +558,8 @@ export const translations: Record<Language, Translations> = {
       kbis: 'KBIS',
       nif: 'NIF',
       rib: 'RIB',
-      front: 'Recto',
-      back: 'Verso',
-      temporaryIban: 'IBAN temporaire',
+    front: 'Recto',
+    temporaryIban: 'IBAN temporaire',
       qrData: 'Données QR',
       metadata: 'Métadonnées',
       details: 'Détails',
@@ -646,9 +669,8 @@ export const translations: Record<Language, Translations> = {
       securedBy: 'Sécurisé',
       welcomeBack: 'Content de vous revoir sur Paysmart',
       contentDeRevoir: 'Content de vous revoir sur Paysmart',
-      firstNameLabel: 'Prénom',
-      lastNameLabel: 'Nom',
-      addressLabel: 'Adresse',
+    firstNameLabel: 'Prénom',
+    addressLabel: 'Adresse',
       cityLabel: 'Ville',
       postalCodeLabel: 'Code postal',
       countryLabel: 'Pays',
@@ -792,9 +814,8 @@ export const translations: Record<Language, Translations> = {
       receiptStatus: 'Statut: {{status}}',
       receiptDate: 'Date: {{date}}',
       transactionStatus: 'Transaction {{ref}} : {{status}}',
-      transactionDetails: 'Détails de la transaction',
-      amount: 'Montant',
-      direction: 'Direction',
+    transactionDetails: 'Détails de la transaction',
+    direction: 'Direction',
       qrDataLabel: 'QR : {{data}}',
       temporaryIbanLabel: 'IBAN temporaire : {{iban}}',
       recipientPhoneNumber: 'Numéro de téléphone destinataire',
@@ -828,9 +849,32 @@ export const translations: Record<Language, Translations> = {
       completed: 'Terminé',
       failed: 'Échoué',
       twoFactorExpiresIn: 'Expire dans {{seconds}}s',
+      twoFactorAuthRequired: 'Vérification en deux étapes requise',
+      twoFactorAuthRequiredDesc: 'Un code de vérification a été envoyé à votre application d\'authentification',
+      twoFactorAuthHint: 'Code de connexion pour {{email}}',
+      otpPlaceholder: 'Code à 6 chiffres',
+      verifyAndLogin: 'Vérifier et se connecter',
+      errorGeneratingSecret: 'Erreur lors de la génération du secret 2FA',
+      twoFactorEnabled: '2FA activé avec succès',
+      twoFactorDisabled: '2FA désactivé avec succès',
+      twoFactorAuth: 'Authentification en deux étapes',
+      twoFactorDescription: 'Activez la vérification en deux étapes pour sécuriser votre compte',
+      generateSecret: 'Générer le secret',
+      scanQrCode: 'Scannez le code QR',
+      scanQrDescription: 'Scannez ce code QR avec votre application d\'authentification (Google Authenticator, Authy, etc.)',
+      enableTwoFactor: 'Activer la 2FA',
+      disableTwoFactor: 'Désactiver la 2FA',
+      otpCode: 'Code OTP',
+      twoFactorActive: 'La vérification en deux étapes est activée',
+      invalidOtp: 'Code OTP invalide',
       paymentCancelled: 'Paiement annulé',
       cannotCancelPayment: 'Impossible d’annuler le paiement',
       cancelPayment: 'Annuler le paiement',
+      avatarUploadError: 'Erreur lors du téléchargement de la photo',
+      avatarUploading: 'Téléchargement de la photo...',
+      avatarUpdated: 'Photo de profil mise à jour',
+      avatarRemoved: 'Photo de profil supprimée',
+      removeAvatar: 'Supprimer la photo',
     },
   },
   en: {
@@ -950,9 +994,8 @@ export const translations: Record<Language, Translations> = {
       kbis: 'KBIS',
       nif: 'NIF',
       rib: 'RIB',
-      front: 'Front',
-      back: 'Back',
-      temporaryIban: 'Temporary IBAN',
+    front: 'Front',
+    temporaryIban: 'Temporary IBAN',
       qrData: 'QR data',
       metadata: 'Metadata',
       details: 'Details',
@@ -1062,9 +1105,8 @@ export const translations: Record<Language, Translations> = {
       securedBy: 'Secured',
       welcomeBack: 'Good to see you again on Paysmart',
       contentDeRevoir: 'Good to see you again on Paysmart',
-      firstNameLabel: 'First name',
-      lastNameLabel: 'Last name',
-      addressLabel: 'Address',
+    firstNameLabel: 'First name',
+    addressLabel: 'Address',
       cityLabel: 'City',
       postalCodeLabel: 'Postal code',
       countryLabel: 'Country',
@@ -1208,9 +1250,8 @@ export const translations: Record<Language, Translations> = {
       receiptStatus: 'Status: {{status}}',
       receiptDate: 'Date: {{date}}',
       transactionStatus: 'Transaction {{ref}}: {{status}}',
-      transactionDetails: 'Transaction Details',
-      amount: 'Amount',
-      direction: 'Direction',
+    transactionDetails: 'Transaction Details',
+    direction: 'Direction',
       qrDataLabel: 'QR: {{data}}',
       temporaryIbanLabel: 'Temporary IBAN: {{iban}}',
       recipientPhoneNumber: 'Recipient phone number',
@@ -1244,9 +1285,32 @@ export const translations: Record<Language, Translations> = {
       completed: 'Completed',
       failed: 'Failed',
       twoFactorExpiresIn: 'Expires in {{seconds}}s',
+      twoFactorAuthRequired: 'Two-factor authentication required',
+      twoFactorAuthRequiredDesc: 'A verification code has been sent to your authenticator app',
+      twoFactorAuthHint: 'Login code for {{email}}',
+      otpPlaceholder: '6-digit code',
+      verifyAndLogin: 'Verify and login',
+      errorGeneratingSecret: 'Error generating 2FA secret',
+      twoFactorEnabled: '2FA enabled successfully',
+      twoFactorDisabled: '2FA disabled successfully',
+      twoFactorAuth: 'Two-factor authentication',
+      twoFactorDescription: 'Enable two-factor verification to secure your account',
+      generateSecret: 'Generate secret',
+      scanQrCode: 'Scan the QR code',
+      scanQrDescription: 'Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)',
+      enableTwoFactor: 'Enable 2FA',
+      disableTwoFactor: 'Disable 2FA',
+      otpCode: 'OTP code',
+      twoFactorActive: 'Two-factor authentication is enabled',
+      invalidOtp: 'Invalid OTP code',
       paymentCancelled: 'Payment cancelled',
       cannotCancelPayment: 'Unable to cancel payment',
       cancelPayment: 'Cancel payment',
+      avatarUploadError: 'Error uploading profile photo',
+      avatarUploading: 'Uploading photo...',
+      avatarUpdated: 'Profile photo updated',
+      avatarRemoved: 'Profile photo removed',
+      removeAvatar: 'Remove photo',
     },
   },
 }

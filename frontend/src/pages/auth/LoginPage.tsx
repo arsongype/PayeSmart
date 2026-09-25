@@ -2,11 +2,9 @@ import { Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { LoginForm } from '../../components/auth/LoginForm'
 import { useAuth } from '../../contexts/AuthContext'
 import { FullPageLoader } from '../../components/common/Loader'
-import { useTranslation } from '../../utils/i18n'
 
 export default function LoginPage() {
   const { isAuthenticated, isLoading } = useAuth()
-  const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const successMessage = (location.state as { successMessage?: string } | null)?.successMessage
@@ -22,7 +20,7 @@ export default function LoginPage() {
   return (
     <div>
       {successMessage && (
-        <div className="mb-4 rounded-lg bg-green-500/10 border border-green-500/50 p-3 text-xs text-green-400 text-center max-w-md mx-auto">
+        <div className="mb-3 rounded-lg bg-green-500/10 border border-green-500/50 p-2.5 text-xs text-green-400 text-center">
           {successMessage}
         </div>
       )}
@@ -30,6 +28,3 @@ export default function LoginPage() {
     </div>
   )
 }
-
-
-

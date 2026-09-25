@@ -51,6 +51,15 @@ export class Transaction {
   @Column({ type: 'json', nullable: true })
   metadata: Record<string, unknown> | null
 
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true, name: 'risk_score' })
+  riskScore: number | null
+
+  @Column({ type: 'varchar', length: 20, nullable: true, name: 'risk_level' })
+  riskLevel: string | null
+
+  @Column({ type: 'varchar', length: 120, unique: true, nullable: true, name: 'idempotency_key' })
+  idempotencyKey: string | null
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date
 

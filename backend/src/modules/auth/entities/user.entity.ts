@@ -12,6 +12,9 @@ import type { Profile } from './profile.entity.js'
 import type { Wallet } from './wallet.entity.js'
 import type { KycDocument } from './kyc-document.entity.js'
 import type { KybDocument } from './kyb-document.entity.js'
+import type { PasswordResetToken } from './password-reset-token.entity.js'
+import type { PaymentMethod } from './payment-method.entity.js'
+import type { DeviceFingerprint } from './device-fingerprint.entity.js'
 import { Role } from '../enums/role.enum.js'
 import { KycStatus } from '../enums/kyc-status.enum.js'
 import { KybStatus } from '../enums/kyb-status.enum.js'
@@ -106,6 +109,15 @@ export class User {
 
   @OneToMany('RefreshToken', (token: RefreshToken) => token.user)
   refreshTokens: RefreshToken[];
+
+  @OneToMany('PasswordResetToken', (token: PasswordResetToken) => token.user)
+  passwordResetTokens: PasswordResetToken[];
+
+  @OneToMany('PaymentMethod', (method: PaymentMethod) => method.user)
+  paymentMethods: PaymentMethod[];
+
+  @OneToMany('DeviceFingerprint', (fingerprint: DeviceFingerprint) => fingerprint.user)
+  deviceFingerprints: DeviceFingerprint[];
 
   @OneToOne('Profile', (profile: Profile) => profile.user)
   profile: Profile;

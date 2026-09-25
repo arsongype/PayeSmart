@@ -77,10 +77,10 @@ export class KycService {
       const scoredDocument = document as KycDocument & { aiRiskScore?: number }
       const aiTrustScoreValue = Number(scoredDocument.aiTrustScore ?? scoredDocument.aiRiskScore ?? 0)
       const hasApprovedStatus = status === 'APPROVED' || status === 'VERIFIE'
-      const hasTrustValue = Number.isFinite(aiTrustScoreValue) && aiTrustScoreValue > 0
+      const hasTrustValue = (Number.isFinite(aiTrustScoreValue) && aiTrustScoreValue > 0) || hasApprovedStatus
 
       if (hasTrustValue) {
-        const trustScoreValue = aiTrustScoreValue
+        const trustScoreValue = aiTrustScoreValue > 0 ? aiTrustScoreValue : 100
         const confidence = Math.max(0.1, Math.min(1, trustScoreValue / 100))
         const indicators: string[] = []
         const riskScore = Math.max(0, Math.min(100, Math.round((1 - confidence) * 100 + (hasApprovedStatus ? 0 : 10))))
@@ -141,9 +141,20 @@ export class KycService {
 
   private normalizeLegacyAnalysis(document: KycDocument) {
     const analysis = document.metadata?.analysis
-    if (!analysis || !this.isSyntheticAnalysis(analysis)) return document
-
     const score = Number(document.aiTrustScore ?? 0)
+    const hasApprovedStatus = document.status === KycStatus.APPROVED || document.status === KycStatus.VERIFIE
+    if (!analysis) {
+      if (score <= 0 && !hasApprovedStatus) return document
+      return {
+        ...document,
+        metadata: {
+          ...(document.metadata ?? {}),
+          analysis: this.buildStoredAnalysis(document, score > 0 ? score : 100),
+        },
+      }
+    }
+    if (!this.isSyntheticAnalysis(analysis)) return document
+
     const metadata = { ...(document.metadata ?? {}) }
     delete metadata.analysis
     document.metadata = score > 0 ? { ...metadata, analysis: this.buildStoredAnalysis(document, score) } : metadata

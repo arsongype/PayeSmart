@@ -1,24 +1,29 @@
-/* eslint-disable react-refresh/only-export-components */
 import { lazy, Suspense } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { FullPageLoader } from '../components/common/Loader'
 import { AuthLayout } from '../layouts/AuthLayout'
 import ProtectedRoute from './ProtectedRoute'
+import { AdminRoute } from './AdminRoute'
 
 const LoginPage = lazy(() => import('../pages/auth/LoginPage'))
 const RegisterPage = lazy(() => import('../pages/auth/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('../pages/auth/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('../pages/auth/ResetPasswordPage'))
+const OtpVerificationPage = lazy(() => import('../pages/auth/OtpVerificationPage'))
+const TwoFactorSetupPage = lazy(() => import('../pages/auth/TwoFactorSetupPage'))
 const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage'))
+const AdminDashboardPage = lazy(() => import('../pages/admin/AdminDashboardPage'))
 const AdminUsersPage = lazy(() => import('../pages/admin/AdminUsersPage'))
 const AdminUserDetailPage = lazy(() => import('../pages/admin/AdminUserDetailPage'))
 const AdminFraudPage = lazy(() => import('../pages/admin/AdminFraudPage'))
+const AdminTransactionsPage = lazy(() => import('../pages/admin/AdminTransactionsPage'))
 const ProfilePage = lazy(() => import('../pages/profile/ProfilePage'))
 const WalletPage = lazy(() => import('../pages/profile/WalletPage'))
 const KycPage = lazy(() => import('../pages/profile/KycPage'))
 const PaymentsPage = lazy(() => import('../pages/payments/PaymentsPage'))
 const ConfirmQrPage = lazy(() => import('../pages/payments/ConfirmQrPage'))
 const SettingsPage = lazy(() => import('../pages/profile/SettingsPage'))
+const NotificationsPage = lazy(() => import('../pages/profile/NotificationsPage'))
 
 const loader = (
   <div className="min-h-screen flex items-center justify-center bg-white">
@@ -68,6 +73,26 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: '/otp-verification',
+    element: (
+      <Suspense fallback={loader}>
+        <AuthLayout>
+          <OtpVerificationPage />
+        </AuthLayout>
+      </Suspense>
+    ),
+  },
+  {
+    path: '/two-factor/setup',
+    element: (
+      <ProtectedRoute>
+        <Suspense fallback={loader}>
+          <TwoFactorSetupPage />
+        </Suspense>
+      </ProtectedRoute>
+    ),
+  },
+  {
     path: '/',
     element: <Navigate to="/dashboard" replace />,
   },
@@ -82,13 +107,33 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: '/admin',
+    element: (
+      <AdminRoute>
+        <Suspense fallback={loader}>
+          <AdminDashboardPage />
+        </Suspense>
+      </AdminRoute>
+    ),
+  },
+  {
     path: '/admin/users',
     element: (
-      <ProtectedRoute>
+      <AdminRoute>
         <Suspense fallback={loader}>
           <AdminUsersPage />
         </Suspense>
-      </ProtectedRoute>
+      </AdminRoute>
+    ),
+  },
+  {
+    path: '/admin/transactions',
+    element: (
+      <AdminRoute>
+        <Suspense fallback={loader}>
+          <AdminTransactionsPage />
+        </Suspense>
+      </AdminRoute>
     ),
   },
   {
@@ -152,27 +197,37 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: '/notifications',
+    element: (
+      <ProtectedRoute>
+        <Suspense fallback={loader}>
+          <NotificationsPage />
+        </Suspense>
+      </ProtectedRoute>
+    ),
+  },
+  {
     path: '/kyb',
     element: <Navigate to="/kyc" replace />,
   },
   {
     path: '/admin/users/:id',
     element: (
-      <ProtectedRoute>
+      <AdminRoute>
         <Suspense fallback={loader}>
           <AdminUserDetailPage />
         </Suspense>
-      </ProtectedRoute>
+      </AdminRoute>
     ),
   },
   {
     path: '/admin/fraud',
     element: (
-      <ProtectedRoute>
+      <AdminRoute>
         <Suspense fallback={loader}>
           <AdminFraudPage />
         </Suspense>
-      </ProtectedRoute>
+      </AdminRoute>
     ),
   },
   {
@@ -180,7 +235,3 @@ export const router = createBrowserRouter([
     element: <Navigate to="/dashboard" replace />,
   },
 ])
-
-
-
-

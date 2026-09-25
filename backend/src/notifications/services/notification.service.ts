@@ -16,9 +16,18 @@ export class NotificationService {
   }
 
   async markAsRead(userId: number, notificationId: number) {
-    const notification = await this.repository.findOne({ where: { id: notificationId, userId } })
-    if (!notification) return null
-    notification.isRead = true
-    return this.repository.save(notification)
+    await this.repository.update(
+      { id: notificationId, userId },
+      { isRead: true }
+    )
+    return this.findByUserId(userId)
+  }
+
+  async markAllAsRead(userId: number) {
+    await this.repository.update(
+      { userId, isRead: false },
+      { isRead: true }
+    )
+    return this.findByUserId(userId)
   }
 }

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useSettings } from '../contexts/SettingsContext'
-import { translations, type Language } from '../utils/i18n'
+import { translations } from '../utils/i18n'
 import { convertCurrency } from '../utils/formatters'
 
 type TranslationKey = keyof typeof translations.fr.common

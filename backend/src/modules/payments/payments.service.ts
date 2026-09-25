@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm'
 import axios from 'axios'
@@ -7,6 +7,7 @@ import { User } from '../auth/entities/user.entity.js'
 import { Wallet } from '../auth/entities/wallet.entity.js'
 import { Transaction } from '../auth/entities/transaction.entity.js'
 import { Ledger } from '../auth/entities/ledger.entity.js'
+import { FraudAlert } from '../auth/entities/fraud-alert.entity.js'
 import { KycStatus } from '../auth/enums/kyc-status.enum.js'
 import { KybStatus } from '../auth/enums/kyb-status.enum.js'
 import { PaymentChannel } from '../auth/enums/payment-channel.enum.js'
@@ -15,6 +16,7 @@ import { InitiatePaymentDto } from './dto/initiate-payment.dto.js'
 import { NotificationService } from '../../notifications/services/notification.service.js'
 import { SandboxGatewayService } from './sandbox-gateway.service.js'
 import { Queue, Worker } from 'bullmq'
+import { Redis } from 'ioredis'
 import { createHash, randomInt } from 'node:crypto'
 import { CryptoService } from '../../security/services/crypto.service.js'
 
@@ -35,6 +37,7 @@ export function evaluateRiskDecision(score: number): FraudRiskDecision {
 
 @Injectable()
 export class PaymentsService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(PaymentsService.name)
   private readonly paymentQueue: number[] = []
   private queueRunning = false
   private redisQueue?: Queue<{ transactionId: number }>
@@ -44,6 +47,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(Wallet) private walletRepository: Repository<Wallet>,
     @InjectRepository(Transaction) private transactionRepository: Repository<Transaction>,
     @InjectRepository(Ledger) private ledgerRepository: Repository<Ledger>,
+    @InjectRepository(FraudAlert) private fraudAlertRepository: Repository<FraudAlert>,
     @InjectDataSource() private dataSource: DataSource,
     private notificationService: NotificationService,
     private sandboxGateway: SandboxGatewayService,
@@ -51,9 +55,27 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     private cryptoService: CryptoService,
   ) {}
 
-  onModuleInit() {
+  async onModuleInit() {
     const redisUrl = this.configService.get<string>('redis.url')
     if (!redisUrl) return
+
+    const redisProbe = new Redis(redisUrl, {
+      lazyConnect: true,
+      connectTimeout: 1000,
+      maxRetriesPerRequest: 1,
+    })
+    redisProbe.on('error', () => undefined)
+
+    try {
+      await redisProbe.connect()
+      await redisProbe.ping()
+    } catch {
+      this.logger.warn('Redis is unavailable; using the in-memory payment queue')
+      return
+    } finally {
+      redisProbe.disconnect()
+    }
+
     const connection = { url: redisUrl }
     this.redisQueue = new Queue<{ transactionId: number }>('paysmart-payments', { connection })
     this.redisWorker = new Worker<{ transactionId: number }>('paysmart-payments', async (job) => {
@@ -117,6 +139,11 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Vérification KYC/KYB requise avant un paiement')
     }
 
+    if (dto.idempotencyKey) {
+      const existing = await this.transactionRepository.findOne({ where: { idempotencyKey: dto.idempotencyKey } })
+      if (existing) return existing
+    }
+
     const senderWallet = await this.walletRepository.findOne({ where: { userId: senderUserId } })
     const isMobileMoney = [PaymentChannel.MVOLA, PaymentChannel.ORANGE_MONEY, PaymentChannel.AIRTEL_MONEY].includes(dto.channel)
     if (isMobileMoney) {
@@ -152,6 +179,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       channel: dto.channel,
       status: TransactionStatus.PENDING,
       externalReference: `PAY-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      idempotencyKey: dto.idempotencyKey ?? null,
       metadata,
     }))
 
@@ -298,7 +326,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       riskScore,
       riskLevel: response.data.risk_level ?? (riskScore < 40 ? 'LOW' : riskScore < 75 ? 'MEDIUM' : 'HIGH'),
       decision,
-      reasons: response.data.reasons ?? ['Transaction analysée par l’IA de fraude.'],
+      reasons: response.data.reasons ?? ['Transaction analysée par l\'IA de fraude.'],
       reason: response.data.reasons?.[0] ?? 'Vérification de fraude terminée.',
     }
   }
@@ -310,18 +338,31 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     try {
       if (!skipRiskEvaluation) {
         const risk = await this.evaluateTransactionRisk(transaction.senderWalletId, transaction)
-        const metadata = { ...(transaction.metadata ?? {}), riskScore: risk.riskScore, riskLevel: risk.riskLevel, riskDecision: risk.decision, riskReasons: risk.reasons }
-        transaction.metadata = metadata
+        transaction.metadata = { ...(transaction.metadata ?? {}), riskScore: risk.riskScore, riskLevel: risk.riskLevel, riskDecision: risk.decision, riskReasons: risk.reasons }
+        transaction.riskScore = risk.riskScore
+        transaction.riskLevel = risk.riskLevel
+        await this.transactionRepository.save(transaction)
+
         if (risk.decision === 'BLOCK') {
           transaction.status = TransactionStatus.FAILED
           transaction.failureReason = `Transaction bloquée par la détection de fraude : ${risk.reason}`
           await this.transactionRepository.save(transaction)
+          await this.fraudAlertRepository.save(
+            this.fraudAlertRepository.create({
+              transactionId: transaction.id,
+              userId: (await this.walletRepository.findOne({ where: { id: transaction.senderWalletId } }))?.userId ?? transaction.senderWalletId,
+              riskScore: risk.riskScore,
+              riskLevel: risk.riskLevel,
+              reasons: risk.reasons.join(', '),
+              status: 'OPEN',
+            }),
+          )
           return transaction
         }
         if (risk.decision === 'REQUIRE_2FA') {
           const code = String(randomInt(0, 1_000_000)).padStart(6, '0')
           transaction.metadata = {
-            ...metadata,
+            ...transaction.metadata,
             twoFactorCodeHash: createHash('sha256').update(code).digest('hex'),
             twoFactorExpiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
           }
@@ -374,7 +415,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
 
     const senderWallet = await this.walletRepository.findOne({ where: { id: transaction.senderWalletId } })
     if (!senderWallet || senderWallet.userId !== userId) {
-      throw new BadRequestException('Seul l’émetteur peut confirmer ce paiement')
+      throw new BadRequestException('Seul l\'émetteur peut confirmer ce paiement')
     }
 
     const metadata = (transaction.metadata ?? {}) as Record<string, unknown>
@@ -435,7 +476,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Seul un paiement en attente peut être annulé')
     }
     transaction.status = TransactionStatus.FAILED
-    transaction.failureReason = 'Paiement annulé par l’utilisateur'
+    transaction.failureReason = 'Paiement annulé par l\'utilisateur'
     await this.transactionRepository.save(transaction)
     return transaction
   }

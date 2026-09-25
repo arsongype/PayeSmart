@@ -12,6 +12,11 @@ export class NotificationsController {
     return this.service.findByUserId(parseInt(request.user.sub, 10))
   }
 
+  @Patch('read-all')
+  markAllAsRead(@Req() request: { user: { sub: string } }) {
+    return this.service.markAllAsRead(parseInt(request.user.sub, 10))
+  }
+
   @Patch(':id/read')
   markAsRead(@Param('id', ParseIntPipe) id: number, @Req() request: { user: { sub: string } }) {
     return this.service.markAsRead(parseInt(request.user.sub, 10), id)

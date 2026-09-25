@@ -1,8 +1,7 @@
 import { useState, useEffect, type ReactNode, type FC } from 'react'
-import axios from 'axios'
 import { apiClient } from '../config/axios.config'
 import { AuthContext } from './AuthContext'
-import type { User } from '../models/User.model'
+import type { User, AuthResponse } from '../models/User.model'
 
 interface AuthProviderProps {
   children: ReactNode
@@ -11,6 +10,8 @@ interface AuthProviderProps {
 export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [twoFactorRequired, setTwoFactorRequired] = useState(false)
+  const [twoFactorEmail, setTwoFactorEmail] = useState('')
 
   useEffect(() => {
     let isMounted = true
@@ -45,12 +46,35 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
   }, [])
 
   const login = async (credentials: { email: string; password: string }) => {
-    const response = await apiClient.post('/auth/login', credentials)
+    try {
+      const response = await apiClient.post('/auth/login', credentials)
+      const data: { accessToken: string; refreshToken: string; user: User } = response.data
+      localStorage.setItem('access_token', data.accessToken)
+      localStorage.setItem('refresh_token', data.refreshToken)
+      localStorage.setItem('user', JSON.stringify(data.user))
+      setUser(data.user)
+    } catch (error) {
+      const err = error as { message?: string }
+      if (err.message === '2FA_REQUIRED') {
+        setTwoFactorRequired(true)
+        setTwoFactorEmail(credentials.email)
+      }
+      throw error
+    }
+  }
+
+  const verifyTwoFactor = async (code: string) => {
+    const response = await apiClient.post<AuthResponse>('/auth/two-factor/verify', {
+      email: twoFactorEmail,
+      code,
+    })
     const data: { accessToken: string; refreshToken: string; user: User } = response.data
     localStorage.setItem('access_token', data.accessToken)
     localStorage.setItem('refresh_token', data.refreshToken)
     localStorage.setItem('user', JSON.stringify(data.user))
     setUser(data.user)
+    setTwoFactorRequired(false)
+    setTwoFactorEmail('')
   }
 
   const register = async (data: {
@@ -75,15 +99,9 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
         ...payload,
         role: payload.role ?? 'USER',
       }
-      console.log('AuthProvider register payload', body)
       const response = await apiClient.post('/auth/register', body)
-      console.log('AuthProvider register response', response.data)
       return response.data
     } catch (error) {
-      console.error('AuthProvider register error', error)
-      if (axios.isAxiosError(error)) {
-        console.error('AuthProvider register error data', error.response?.data)
-      }
       throw error
     }
   }
@@ -113,7 +131,10 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
         user,
         isAuthenticated: !!user,
         isLoading,
+        twoFactorRequired,
+        twoFactorEmail,
         login,
+        verifyTwoFactor,
         register,
         logout,
         refreshUser,

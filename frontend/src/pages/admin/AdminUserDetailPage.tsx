@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Shield, User as UserIcon, Wallet, FileText, CheckCircle2, XCircle, Ban, Trash2, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Shield, User as UserIcon, Wallet, FileText, CheckCircle2, XCircle, Ban, Trash2, RotateCcw, Camera } from 'lucide-react'
 import { adminService } from '../../services/admin.service'
 import { kycService } from '../../services/kyc.service'
 import { kybService } from '../../services/kyb.service'
@@ -24,6 +24,8 @@ export default function AdminUserDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [trustScore, setTrustScore] = useState<TrustScoreData | null>(null)
   const [recalculating, setRecalculating] = useState(false)
+  const [avatarSaving, setAvatarSaving] = useState(false)
+  const [avatarError, setAvatarError] = useState('')
   const mountedRef = useRef(false)
 
   const loadUserDetail = useCallback(async () => {
@@ -92,6 +94,40 @@ export default function AdminUserDetailPage() {
     }
   }
 
+  const handleAvatarUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setAvatarError(t('profileImageTypeError'))
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError(t('profileImageSizeError'))
+      return
+    }
+    setAvatarSaving(true)
+    setAvatarError('')
+    try {
+      const updated = await adminService.uploadUserAvatar(selectedUser.id, file)
+      setSelectedUser(updated)
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : t('avatarUploadError'))
+    } finally {
+      setAvatarSaving(false)
+    }
+  }
+
+  const handleClearAvatar = async () => {
+    setAvatarSaving(true)
+    setAvatarError('')
+    try {
+      await adminService.clearUserAvatar(selectedUser.id)
+      setSelectedUser((prev) => prev ? { ...prev, avatarUrl: null } : prev)
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : t('avatarUploadError'))
+    } finally {
+      setAvatarSaving(false)
+    }
+  }
+
   const updateAccount = async (action: 'suspend' | 'delete' | 'reactivate' | 'cancelDeletion' | 'permanentDelete') => {
     if (!selectedUser) return
     try {
@@ -137,9 +173,25 @@ export default function AdminUserDetailPage() {
             {t('backToList')}
           </Button>
           <div className="flex items-center gap-3 mb-2">
-            <div className="h-12 w-12 rounded-full bg-primary-600 flex items-center justify-center text-black font-medium text-lg">
-              {selectedUser.firstName?.[0]}{selectedUser.lastName?.[0]}
-            </div>
+            {selectedUser.avatarUrl ? (
+              <div className="relative h-12 w-12 rounded-full">
+                <img src={adminService.assetUrl(selectedUser.avatarUrl)} alt={`${selectedUser.firstName} ${selectedUser.lastName}`} onError={() => setSelectedUser((prev) => prev ? { ...prev, avatarUrl: null } : prev)} className="h-12 w-12 rounded-full object-cover" />
+                <label className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/30 opacity-0 hover:opacity-100">
+                  <Camera size={16} className="text-white" />
+                  <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" disabled={avatarSaving} onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleAvatarUpload(file); event.currentTarget.value = '' }} />
+                </label>
+              </div>
+            ) : (
+              <div className="relative h-12 w-12">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-600 font-medium text-lg text-black">
+                  {selectedUser.firstName?.[0]}{selectedUser.lastName?.[0]}
+                </div>
+                <label className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/30 opacity-0 hover:opacity-100">
+                  <Camera size={16} className="text-white" />
+                  <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" disabled={avatarSaving} onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleAvatarUpload(file); event.currentTarget.value = '' }} />
+                </label>
+              </div>
+            )}
             <div>
               <h1 className="text-3xl font-bold text-black">{selectedUser.firstName} {selectedUser.lastName}</h1>
               <p className="text-base text-black">{selectedUser.email}</p>
@@ -185,12 +237,22 @@ export default function AdminUserDetailPage() {
                 )}
               </>
             )}
-          </div>
-        </div>
+            {selectedUser.avatarUrl && selectedUser.accountStatus !== 'DELETED' && (
+              <Button size="sm" variant="outline" onClick={() => void handleClearAvatar()} disabled={avatarSaving} className="rounded-xl border border-gray-300">
+                <Trash2 className="h-3 w-3 mr-1" /> {t('removeAvatar')}
+              </Button>
+            )}
+           </div>
+         </div>
 
           {error && (
             <div className="rounded-2xl bg-red-500/10 border border-red-500/50 p-4 text-base text-black">
               {error}
+            </div>
+          )}
+          {avatarError && (
+            <div className="rounded-2xl bg-red-500/10 border border-red-500/50 p-4 text-base text-black">
+              {avatarError}
             </div>
           )}
 

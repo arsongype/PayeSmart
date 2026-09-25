@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Mail } from 'lucide-react'
 import { Input } from '../../components/common/Input'
 import { Button } from '../../components/common/Button'
 import { forgotPasswordSchema } from '../../utils/validators'
 import { useTranslation } from '../../utils/i18n'
+import { apiClient } from '../../config/axios.config'
 
 export default function ForgotPasswordPage() {
   const { t } = useTranslation()
@@ -25,66 +27,58 @@ export default function ForgotPasswordPage() {
 
     setIsLoading(true)
     try {
-      const response = await fetch('http://localhost:3000/api/v1/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      })
-
-      if (!response.ok) {
-        throw new Error(t('cannotSendResetLink'))
-      }
-
+      await apiClient.post('/auth/forgot-password', { email })
       setMessage(t('tokenSent'))
       setEmail('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('unknownError'))
+      setError(err instanceof Error ? err.message : t('cannotSendResetLink'))
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <div className="w-full max-w-md rounded-2xl border border-gray-300 bg-white p-6 shadow-2xl shadow-dark-950/50">
-      <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-black">{t('forgotPassword')}</h1>
-        <p className="mt-2 text-sm text-black">{t('enterEmailForReset')}</p>
+    <div className="w-full max-w-sm mx-auto">
+      <div className="text-center mb-4">
+        <div className="mx-auto mb-2 h-10 w-10 rounded-xl bg-primary-500/10 text-black flex items-center justify-center">
+          <Mail size={20} />
+        </div>
+        <h1 className="text-xl font-bold text-black">{t('forgotPassword')}</h1>
+        <p className="text-xs text-black mt-1">{t('enterEmailForReset')}</p>
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-500/50 bg-red-500/10 p-3 text-xs text-black">
+        <div className="mb-3 rounded-lg border border-red-500/50 bg-red-500/10 p-2.5 text-xs text-black">
           {error}
         </div>
       )}
 
       {message && (
-        <div className="mb-4 rounded-lg border border-emerald-500/50 bg-emerald-500/10 p-3 text-xs text-black">
+        <div className="mb-3 rounded-lg border border-emerald-500/50 bg-emerald-500/10 p-2.5 text-xs text-black">
           {message}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-3">
         <Input
-          label={t('emailLabel')}
           type="email"
-          placeholder={t('emailPlaceholder')}
+          placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          className="h-10 rounded-lg text-sm"
+          required
         />
 
-        <Button type="submit" size="lg" className="w-full" isLoading={isLoading}>
+        <Button type="submit" className="w-full h-10 rounded-lg text-sm font-semibold" isLoading={isLoading}>
           {t('sendLink')}
         </Button>
       </form>
 
-      <div className="mt-5 text-center text-xs text-black">
-        <Link to="/login" className="text-black hover:text-black">
+      <p className="text-center text-xs text-black mt-3">
+        <Link to="/login" className="font-medium text-black hover:text-black transition-colors">
           {t('backToLogin')}
         </Link>
-      </div>
+      </p>
     </div>
   )
 }
-
-
-

@@ -6,9 +6,11 @@ export type Currency = 'EUR' | 'USD' | 'XOF' | 'MGA'
 export interface Settings {
   language: Language
   currency: Currency
+  emailNotifications: boolean
+  fraudAlerts: boolean
 }
 
-const defaultSettings: Settings = { language: 'fr', currency: 'EUR' }
+const defaultSettings: Settings = { language: 'fr', currency: 'EUR', emailNotifications: true, fraudAlerts: true }
 
 interface SettingsContextValue {
   settings: Settings

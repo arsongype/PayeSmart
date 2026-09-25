@@ -29,7 +29,7 @@ interface AnalysisResultProps {
 
 const readableLabel = (key: string) => key.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 
-export function AnalysisResult({ analysis, status, onRecalculate, recalculating = false }: AnalysisResultProps) {
+export function AnalysisResult({ analysis, onRecalculate, recalculating = false }: AnalysisResultProps) {
   const { t } = useTranslation()
 
   const effectiveAnalysis = analysis

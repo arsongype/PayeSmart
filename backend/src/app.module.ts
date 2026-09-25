@@ -21,6 +21,13 @@ import { Transaction } from './modules/auth/entities/transaction.entity.js'
 import { User } from './modules/auth/entities/user.entity.js'
 import { Wallet } from './modules/auth/entities/wallet.entity.js'
 import { AuditLog } from './security/entities/audit-log.entity.js'
+import { PasswordResetToken } from './modules/auth/entities/password-reset-token.entity.js'
+import { LoginAttempt } from './modules/auth/entities/login-attempt.entity.js'
+import { PaymentMethod } from './modules/auth/entities/payment-method.entity.js'
+import { FraudAlert } from './modules/auth/entities/fraud-alert.entity.js'
+import { DeviceFingerprint } from './modules/auth/entities/device-fingerprint.entity.js'
+import { OtpCode } from './modules/auth/entities/otp-code.entity.js'
+import { SecurityRule } from './modules/auth/entities/security-rule.entity.js'
 import { SecurityModule } from './security/security.module.js'
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js'
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js'
@@ -74,7 +81,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
         database: configService.get<string>('database.database'),
-        entities: [AuditLog, Notification, KybDocument, Ledger, KycDocument, Profile, RefreshToken, Transaction, User, Wallet],
+        entities: [AuditLog, Notification, KybDocument, Ledger, KycDocument, Profile, RefreshToken, Transaction, User, Wallet, PasswordResetToken, LoginAttempt, PaymentMethod, FraudAlert, DeviceFingerprint, OtpCode, SecurityRule],
         synchronize: false,
         logging: process.env.NODE_ENV === 'development',
       }),

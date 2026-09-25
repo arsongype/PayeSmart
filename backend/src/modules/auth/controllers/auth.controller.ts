@@ -1,7 +1,7 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Get, UseGuards, Req, Param, Patch } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Get, UseGuards, Req, Param, Patch, Delete } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from '../services/auth.service.js';
-import { RegisterDto, LoginDto, RefreshTokenDto, UpdateRoleDto, UpdateKycStatusDto, UpdateMeDto } from '../dto/auth.dto.js';
+import { RegisterDto, LoginDto, RefreshTokenDto, UpdateRoleDto, UpdateKycStatusDto, UpdateMeDto, ForgotPasswordDto, ResetPasswordDto, VerifyEmailDto, EnableTwoFactorDto, ConfirmTwoFactorSetupDto, CreatePaymentMethodDto, TwoFactorVerifyDto } from '../dto/auth.dto.js';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../../../common/guards/roles.guard.js';
 import { SetMetadata } from '@nestjs/common';
@@ -81,19 +81,90 @@ export class AuthController {
 
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
-  forgotPassword(@Body() body: { email: string }) {
-    return {
-      message: 'Si un compte existe pour cet email, un lien de réinitialisation a été envoyé.',
-      email: body.email,
-    }
+  forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
+    return this.authService.forgotPassword(dto, {
+      ipAddress: req.ip ?? req.socket.remoteAddress ?? 'unknown',
+      userAgent: req.get('user-agent') ?? 'unknown',
+    })
   }
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  resetPassword(@Body() body: { token: string; password: string; email?: string }) {
-    return {
-      message: 'Mot de passe réinitialisé avec succès.',
-      email: body.email ?? null,
-    }
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto)
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.authService.verifyEmail(dto)
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('verify-email/request')
+  @HttpCode(HttpStatus.OK)
+  requestEmailVerification(@Req() req: RequestWithUser) {
+    return this.authService.generateEmailVerificationToken(parseInt(req.user.sub, 10))
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('two-factor/status')
+  getTwoFactorStatus(@Req() req: RequestWithUser) {
+    return this.authService.getTwoFactorStatus(parseInt(req.user.sub, 10))
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('two-factor/setup')
+  @HttpCode(HttpStatus.OK)
+  setupTwoFactor(@Req() req: RequestWithUser) {
+    return this.authService.generateTwoFactorSecret(parseInt(req.user.sub, 10))
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('two-factor/enable')
+  @HttpCode(HttpStatus.OK)
+  enableTwoFactor(@Req() req: RequestWithUser, @Body() dto: ConfirmTwoFactorSetupDto) {
+    return this.authService.enableTwoFactor(parseInt(req.user.sub, 10), dto)
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('two-factor/disable')
+  @HttpCode(HttpStatus.OK)
+  disableTwoFactor(@Req() req: RequestWithUser, @Body() dto: EnableTwoFactorDto) {
+    return this.authService.disableTwoFactor(parseInt(req.user.sub, 10), dto)
+  }
+
+  @Post('two-factor/verify')
+  @HttpCode(HttpStatus.OK)
+  verifyTwoFactor(@Body() dto: TwoFactorVerifyDto, @Req() req: Request) {
+    return this.authService.verifyTwoFactor(dto.email, dto.code, {
+      ipAddress: req.ip ?? req.socket.remoteAddress ?? 'unknown',
+      userAgent: req.get('user-agent') ?? 'unknown',
+    })
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('payment-methods')
+  createPaymentMethod(@Req() req: RequestWithUser, @Body() dto: CreatePaymentMethodDto) {
+    return this.authService.createPaymentMethod(parseInt(req.user.sub, 10), dto)
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('payment-methods')
+  getPaymentMethods(@Req() req: RequestWithUser) {
+    return this.authService.getPaymentMethods(parseInt(req.user.sub, 10))
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Delete('payment-methods/:id')
+  deletePaymentMethod(@Req() req: RequestWithUser, @Param('id') id: string) {
+    return this.authService.deletePaymentMethod(parseInt(req.user.sub, 10), parseInt(id))
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('devices')
+  getDevices(@Req() req: RequestWithUser) {
+    return this.authService.getDeviceFingerprints(parseInt(req.user.sub, 10))
   }
 }

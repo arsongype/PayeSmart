@@ -30,29 +30,63 @@ export const authService = {
     await apiClient.post('/auth/reset-password', payload)
   },
 
-  async verifyOtp(payload: { email: string; otp: string }): Promise<void> {
-    await apiClient.post('/auth/verify-otp', payload)
+  async verifyEmail(payload: { token: string }): Promise<void> {
+    await apiClient.post('/auth/verify-email', payload)
   },
 
-  async enableTwoFactor(): Promise<{ secret: string; otpauth_url: string }> {
-    const { data } = await apiClient.post('/auth/2fa/enable')
+  async requestEmailVerification(): Promise<{ token: string }> {
+    const { data } = await apiClient.post('/auth/verify-email/request')
     return data
   },
 
-  async confirmTwoFactor(payload: { otp: string }): Promise<void> {
-    await apiClient.post('/auth/2fa/confirm', payload)
+  async getTwoFactorStatus(): Promise<{ isTwoFactorEnabled: boolean }> {
+    const { data } = await apiClient.get('/auth/two-factor/status')
+    return data
   },
 
-  async disableTwoFactor(payload: { otp: string }): Promise<void> {
-    await apiClient.post('/auth/2fa/disable', payload)
+  async setupTwoFactor(): Promise<{ secret: string; otpauthUrl: string }> {
+    const { data } = await apiClient.post('/auth/two-factor/setup')
+    return data
   },
 
-  async changePassword(payload: { currentPassword: string; newPassword: string }): Promise<void> {
-    await apiClient.post('/auth/change-password', payload)
+  async verifyTwoFactor(payload: { email: string; code: string }): Promise<AuthResponse> {
+    const { data } = await apiClient.post<AuthResponse>('/auth/two-factor/verify', payload)
+    return data
+  },
+
+  async enableTwoFactor(payload: { code: string }): Promise<void> {
+    await apiClient.post('/auth/two-factor/enable', payload)
+  },
+
+  async disableTwoFactor(payload: { code: string }): Promise<void> {
+    await apiClient.post('/auth/two-factor/disable', payload)
+  },
+
+  async getPaymentMethods() {
+    const { data } = await apiClient.get('/auth/payment-methods')
+    return data
+  },
+
+  async createPaymentMethod(payload: { methodType: string; lastFourDigits?: string; brand?: string; expiryDate?: string }) {
+    const { data } = await apiClient.post('/auth/payment-methods', payload)
+    return data
+  },
+
+  async deletePaymentMethod(id: number) {
+    await apiClient.delete(`/auth/payment-methods/${id}`)
+  },
+
+  async getDevices() {
+    const { data } = await apiClient.get('/auth/devices')
+    return data
   },
 
   async getMe(): Promise<{ user: import('../models/User.model').User }> {
     const { data } = await apiClient.get('/auth/me')
     return data
+  },
+
+  async verifyOtp(payload: { email: string; otp: string }): Promise<void> {
+    await apiClient.post('/auth/verify-otp', payload)
   },
 }

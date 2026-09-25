@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from '../../utils/i18n'
 
@@ -12,6 +12,7 @@ interface PasswordInputProps {
   id?: string
   className?: string
   required?: boolean
+  leftIcon?: ReactNode
 }
 
 export function PasswordInput({
@@ -24,6 +25,7 @@ export function PasswordInput({
   id,
   className = '',
   required = false,
+  leftIcon,
 }: PasswordInputProps) {
   const [showPassword, setShowPassword] = useState(false)
   const { t } = useTranslation()
@@ -38,6 +40,11 @@ export function PasswordInput({
         </label>
       )}
       <div className="relative">
+        {leftIcon && (
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            {leftIcon}
+          </div>
+        )}
         <input
           id={inputId}
           type={showPassword ? 'text' : 'password'}
@@ -51,7 +58,7 @@ export function PasswordInput({
             transition-all duration-200 ease-in-out
             focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
             disabled:opacity-50 disabled:cursor-not-allowed
-            pl-4 pr-12 py-2.5 text-sm
+            ${leftIcon ? 'pl-10' : 'pl-4'} pr-12 py-2.5 text-sm
             ${error ? 'border-red-500 focus:ring-red-500' : 'border-gray-300'}
             ${className}
           `}

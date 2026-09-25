@@ -10,6 +10,17 @@ const clearAuth = () => {
   window.dispatchEvent(new Event('auth:logout'))
 }
 
+const extractApiMessage = (data: unknown): string | null => {
+  if (!data || typeof data !== 'object') return null
+  const payload = data as { message?: unknown; error?: unknown }
+  if (typeof payload.message === 'string') return payload.message
+  if (Array.isArray(payload.message)) {
+    const messages = payload.message.filter((message): message is string => typeof message === 'string')
+    if (messages.length > 0) return messages.join(', ')
+  }
+  return typeof payload.error === 'string' ? payload.error : null
+}
+
 const refreshAccessToken = async (): Promise<string> => {
   if (!refreshPromise) {
     const refreshToken = localStorage.getItem('refresh_token')
@@ -70,6 +81,8 @@ export const createApiClient = (): AxiosInstance => {
   client.interceptors.response.use(
     (response) => response,
     async (error: AxiosError<{ message?: string }>) => {
+      const apiMessage = extractApiMessage(error.response?.data)
+      if (apiMessage) error.message = apiMessage
       const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
       if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/auth/refresh')) {

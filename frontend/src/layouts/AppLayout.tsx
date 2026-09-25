@@ -41,7 +41,9 @@ export function AppLayout({ children }: AppLayoutProps) {
     setNotificationsOpen((open) => !open)
     if (unreadNotifications === 0) return
     const unread = notifications.filter((notification) => !notification.isRead)
-    await Promise.all(unread.map((notification) => apiClient.patch(`/notifications/${notification.id}/read`).catch(() => undefined)))
+    if (unread.length === 0) return
+    
+    await apiClient.patch('/notifications/read-all')
     setNotifications((current) => current.map((notification) => ({ ...notification, isRead: true })))
     setUnreadNotifications(0)
   }
@@ -50,19 +52,22 @@ export function AppLayout({ children }: AppLayoutProps) {
     if (!user?.id) return
 
     let intervalId: ReturnType<typeof setInterval> | undefined = undefined
+    let loading = false
 
     const loadNotifications = async () => {
+      if (loading) return
+      loading = true
       try {
         const { data } = await apiClient.get<Array<{ id: number; title: string; message: string; isRead: boolean; createdAt: string; link: string | null }>>('/notifications')
         setNotifications(data)
         setUnreadNotifications(data.filter((notification) => !notification.isRead).length)
-      } catch {
-        // ignore notification polling errors
+      } finally {
+        loading = false
       }
     }
 
     void loadNotifications()
-    intervalId = window.setInterval(loadNotifications, 2000)
+    intervalId = window.setInterval(loadNotifications, 120000)
     window.addEventListener('focus', loadNotifications)
 
     return () => {

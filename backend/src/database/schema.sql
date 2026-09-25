@@ -166,6 +166,9 @@ CREATE TABLE transactions (
   external_reference VARCHAR(120),
   failure_reason TEXT,
   metadata JSONB,
+  risk_score DECIMAL(5,2),
+  risk_level VARCHAR(20),
+  idempotency_key VARCHAR(120) UNIQUE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -191,6 +194,97 @@ CREATE TABLE notifications (
   link VARCHAR(500)
 );
 
+CREATE TABLE password_reset_tokens (
+  id SERIAL PRIMARY KEY,
+  token_hash VARCHAR(255) NOT NULL,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMP NOT NULL,
+  is_used BOOLEAN NOT NULL DEFAULT FALSE,
+  used_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE login_attempts (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) NOT NULL,
+  ip_address VARCHAR(64),
+  user_agent TEXT,
+  attempts INTEGER NOT NULL DEFAULT 1,
+  is_locked BOOLEAN NOT NULL DEFAULT FALSE,
+  locked_until TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE payment_methods (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  method_type VARCHAR(50) NOT NULL,
+  last_four_digits VARCHAR(120),
+  brand VARCHAR(120),
+  expiry_date VARCHAR(255),
+  metadata JSONB,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE fraud_alerts (
+  id SERIAL PRIMARY KEY,
+  transaction_id INTEGER NOT NULL UNIQUE REFERENCES transactions(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  risk_level VARCHAR(20) NOT NULL,
+  risk_score DECIMAL(5,2) NOT NULL,
+  reasons TEXT,
+  status VARCHAR(50) NOT NULL DEFAULT 'OPEN',
+  admin_notes TEXT,
+  reviewed_at TIMESTAMP,
+  reviewed_by INTEGER,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE device_fingerprints (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  fingerprint_hash VARCHAR(255) NOT NULL,
+  device_name VARCHAR(120),
+  browser VARCHAR(120),
+  os VARCHAR(120),
+  ip_address VARCHAR(64),
+  metadata JSONB,
+  is_trusted BOOLEAN NOT NULL DEFAULT TRUE,
+  last_seen_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE otp_codes (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER,
+  transaction_id INTEGER,
+  code_hash VARCHAR(255) NOT NULL,
+  purpose VARCHAR(50) NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  is_used BOOLEAN NOT NULL DEFAULT FALSE,
+  used_at TIMESTAMP,
+  ip_address VARCHAR(64),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE security_rules (
+  id SERIAL PRIMARY KEY,
+  rule_name VARCHAR(120) NOT NULL,
+  rule_type VARCHAR(50) NOT NULL,
+  conditions JSONB NOT NULL,
+  actions JSONB NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  priority INTEGER NOT NULL DEFAULT 0,
+  description TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- Create indexes
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
@@ -202,3 +296,11 @@ CREATE INDEX idx_wallets_user_id ON wallets(user_id);
 CREATE INDEX idx_kyc_documents_user_id ON kyc_documents(user_id);
 CREATE INDEX idx_kyb_documents_user_id ON kyb_documents(user_id);
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+CREATE INDEX idx_login_attempts_email ON login_attempts(email);
+CREATE INDEX idx_fraud_alerts_user_id ON fraud_alerts(user_id);
+CREATE INDEX idx_device_fingerprints_user_id ON device_fingerprints(user_id);
+CREATE INDEX idx_otp_codes_user_id ON otp_codes(user_id);
+CREATE INDEX idx_security_rules_rule_type ON security_rules(rule_type);
+CREATE INDEX idx_transactions_risk_score ON transactions(risk_score);
+CREATE INDEX idx_transactions_idempotency_key ON transactions(idempotency_key);

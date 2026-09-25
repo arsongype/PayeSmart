@@ -61,11 +61,15 @@ export class RegisterDto {
 
 export class LoginDto {
   @IsEmail()
-  email: string;
+  email: string
 
   @IsString()
   @IsNotEmpty()
-  password: string;
+  password: string
+
+  @IsString()
+  @IsOptional()
+  otpCode?: string
 }
 
 export class RefreshTokenDto {
@@ -108,4 +112,64 @@ export class UpdateMeDto {
   @IsString()
   @IsOptional()
   dateOfBirth?: string;
+}
+
+export class ForgotPasswordDto {
+  @IsEmail()
+  email: string;
+}
+
+export class ResetPasswordDto {
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+
+  @IsString()
+  @MinLength(8, { message: 'Le mot de passe doit contenir au moins 8 caractères' })
+  password: string;
+}
+
+export class VerifyEmailDto {
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+}
+
+export class EnableTwoFactorDto {
+  @IsString()
+  @IsNotEmpty()
+  code: string;
+}
+
+export class ConfirmTwoFactorSetupDto {
+  @IsString()
+  @IsNotEmpty()
+  code: string;
+}
+
+export class TwoFactorVerifyDto {
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @IsNotEmpty()
+  code: string;
+}
+
+export class CreatePaymentMethodDto {
+  @IsString()
+  @IsNotEmpty()
+  methodType: string;
+
+  @IsString()
+  @IsOptional()
+  lastFourDigits?: string;
+
+  @IsString()
+  @IsOptional()
+  brand?: string;
+
+  @IsString()
+  @IsOptional()
+  expiryDate?: string;
 }
