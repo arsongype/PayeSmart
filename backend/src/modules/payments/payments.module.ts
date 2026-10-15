@@ -11,10 +11,11 @@ import { OtpCode } from '../auth/entities/otp-code.entity.js'
 import { NotificationsModule } from '../../notifications/notifications.module.js'
 import { SandboxGatewayService } from './sandbox-gateway.service.js'
 import { SecurityModule } from '../../security/security.module.js'
+import { SecurityRule } from '../auth/entities/security-rule.entity.js'
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Wallet, Transaction, Ledger, FraudAlert, OtpCode]),
+    TypeOrmModule.forFeature([User, Wallet, Transaction, Ledger, FraudAlert, OtpCode, SecurityRule]),
     NotificationsModule,
     SecurityModule,
   ],

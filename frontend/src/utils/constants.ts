@@ -17,6 +17,7 @@ export const ROUTES = {
   ADMIN_USER_DETAIL: '/admin/users/:id',
   ADMIN_TRANSACTIONS: '/admin/transactions',
   ADMIN_FRAUD: '/admin/fraud',
+  ADMIN_SECURITY_RULES: '/admin/security-rules',
 } as const
 
 export const USER_ROLES = {

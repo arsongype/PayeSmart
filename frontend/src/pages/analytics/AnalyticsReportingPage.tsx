@@ -50,7 +50,7 @@ export default function AnalyticsReportingPage() {
         </div>
         <div className="mt-5 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
           <Server size={17} />
-          <span>Workflow prêt côté interface. Les endpoints Reporting et Export NestJS restent à connecter.</span>
+          <span>Les indicateurs sont consolidés par NestJS et exportables au format PDF.</span>
         </div>
       </header>
 
@@ -95,9 +95,8 @@ export default function AnalyticsReportingPage() {
             <Download className="text-emerald-400" size={20} />
             <h2 className="font-semibold text-dark-50">Export de rapports</h2>
           </div>
-          <p className="mt-3 text-sm leading-6 text-dark-400">Le Service Export préparera un téléchargement sécurisé au format CSV ou PDF.</p>
+            <p className="mt-3 text-sm leading-6 text-dark-400">Le Service Export prépare un rapport PDF sécurisé, lisible et adapté à l’archivage.</p>
           <div className="mt-5 flex gap-3">
-            <button type="button" disabled className="rounded-lg border border-dark-600 px-4 py-2 text-sm text-dark-500">Exporter CSV</button>
             <button type="button" disabled className="rounded-lg border border-dark-600 px-4 py-2 text-sm text-dark-500">Exporter PDF</button>
           </div>
         </article>

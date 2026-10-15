@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   BarChart3,
   CreditCard,
-  Download,
   FileBarChart,
   FileText,
   ShieldCheck,
@@ -22,7 +21,7 @@ export default function DashboardPage() {
   const [report, setReport] = useState<DashboardReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [exporting, setExporting] = useState<'csv' | 'pdf' | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     getDashboardReport()
@@ -31,14 +30,14 @@ export default function DashboardPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const handleExport = async (format: 'csv' | 'pdf') => {
-    setExporting(format)
+  const handleExport = async () => {
+    setExporting(true)
     try {
-      await downloadReport(format)
-    } catch {
-      setError(t('exportUnavailable', { format: format.toUpperCase() }))
+      await downloadReport()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : t('exportUnavailable', { format: 'PDF' }))
     } finally {
-      setExporting(null)
+      setExporting(false)
     }
   }
 
@@ -50,19 +49,16 @@ export default function DashboardPage() {
   const metricLabels = [t('precision'), t('recall'), t('f1Score'), t('analyzed')]
 
   return (
-    <div className="page-enter space-y-8">
-      <header className="relative overflow-hidden rounded-3xl bg-linear-to-br from-blue-50 via-white to-blue-100 p-8 shadow-lg shadow-blue-900/10 sm:p-10">
-        <div className="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-2">
+    <div className="page-enter min-w-0 space-y-8">
+      <header className="relative min-w-0 overflow-hidden rounded-3xl bg-linear-to-br from-blue-50 via-white to-blue-100 p-5 shadow-lg shadow-blue-900/10 sm:p-8 lg:p-10">
+        <div className="relative z-10 flex min-w-0 flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 space-y-2">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-black">{t('analyticsReporting')}</p>
-            <h1 className="font-serif text-4xl font-bold tracking-tight text-black">{t('overview')}</h1>
-            <p className="text-lg text-black">{t('welcomeMessage', { name: user?.firstName ?? '' })}</p>
+            <h1 className="wrap-break-word font-serif text-3xl font-bold tracking-tight text-black sm:text-4xl">{t('overview')}</h1>
+            <p className="wrap-break-word text-base text-black sm:text-lg">{t('welcomeMessage', { name: user?.firstName ?? '' })}</p>
           </div>
-          <div className="flex gap-3">
-             <button type="button" onClick={() => void handleExport('csv')} disabled={exporting !== null} className="flex items-center gap-2 rounded-2xl border border-gray-400 bg-white px-5 py-2.5 text-sm font-semibold text-black shadow-sm transition hover:bg-blue-50 disabled:cursor-wait disabled:opacity-50">
-              <Download size={16} /> {t('exportCSV')}
-            </button>
-            <button type="button" onClick={() => void handleExport('pdf')} disabled={exporting !== null} className="flex items-center gap-2 rounded-2xl border border-gray-400 bg-white px-5 py-2.5 text-sm font-semibold text-black shadow-sm transition hover:bg-blue-50 disabled:cursor-wait disabled:opacity-50">
+          <div className="flex w-full shrink-0 sm:w-auto">
+            <button type="button" onClick={() => void handleExport()} disabled={exporting} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-400 bg-white px-4 py-2.5 text-sm font-semibold text-black shadow-sm transition hover:bg-blue-50 disabled:cursor-wait disabled:opacity-50 sm:w-auto sm:px-5">
               <FileText size={16} /> {t('exportPDF')}
             </button>
           </div>
@@ -83,33 +79,34 @@ export default function DashboardPage() {
         ].map((stat) => {
           const Icon = stat.icon
           return (
-            <article key={stat.label} className="group relative overflow-hidden rounded-3xl border border-gray-300 bg-white p-6 shadow-lg shadow-black/20 transition duration-300 hover:-translate-y-1 hover:border-gray-400 hover:shadow-xl">
+            <article key={stat.label} className="group relative min-w-0 overflow-hidden rounded-3xl border border-gray-300 bg-white p-5 shadow-lg shadow-black/20 transition duration-300 hover:-translate-y-1 hover:border-gray-400 hover:shadow-xl sm:p-6">
               <div className="flex items-center justify-between">
                 <p className="text-base font-medium text-black">{stat.label}</p>
                 <div className={`rounded-2xl p-2.5 ${stat.bg}`}>
                   <Icon size={22} className={stat.color} />
                 </div>
               </div>
-              <p className="mt-4 text-3xl font-bold text-black">{stat.value}</p>
-              <p className="mt-2 text-sm text-black">{t('realTimeConsolidatedData')}</p>
+              <p className="mt-4 wrap-break-word text-2xl font-bold text-black sm:text-3xl">{stat.value}</p>
+              <p className="mt-2 wrap-break-word text-sm text-black">{t('realTimeConsolidatedData')}</p>
             </article>
           )
         })}
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-        <article className="rounded-3xl border border-gray-300 bg-white p-6 shadow-lg shadow-black/20">
-          <div className="mb-8 flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-black">{t('volumesByPaymentMethod')}</h2>
-              <p className="mt-1 text-base text-black">{t('channelsDescription')}</p>
+      <section className="grid min-w-0 gap-6 xl:grid-cols-[1.5fr_1fr]">
+        <article className="min-w-0 rounded-3xl border border-gray-300 bg-white p-5 shadow-lg shadow-black/20 sm:p-6">
+          <div className="mb-6 flex min-w-0 items-start justify-between gap-3 sm:mb-8">
+            <div className="min-w-0">
+              <h2 className="wrap-break-word text-lg font-semibold text-black sm:text-xl">{t('volumesByPaymentMethod')}</h2>
+              <p className="mt-1 wrap-break-word text-sm text-black sm:text-base">{t('channelsDescription')}</p>
             </div>
             <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
               <BarChart3 size={22} />
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={(report?.channels ?? [])}>
+          <div className="h-64 min-w-0 sm:h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={(report?.channels ?? [])} margin={{ top: 8, right: 4, left: -16, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="channel" tick={{ fontSize: 12, fill: '#000' }} />
               <YAxis tick={{ fontSize: 12, fill: '#000' }} />
@@ -119,24 +116,25 @@ export default function DashboardPage() {
                 contentStyle={{ borderRadius: 12, border: '1px solid #e5e7eb', backgroundColor: '#fff' }}
               />
               <Bar dataKey="amount" fill="#4d85ee" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </article>
 
-        <article className="rounded-3xl border border-gray-300 bg-white p-6 shadow-lg shadow-black/20">
+        <article className="min-w-0 rounded-3xl border border-gray-300 bg-white p-5 shadow-lg shadow-black/20 sm:p-6">
           <div className="mb-6 flex items-center gap-3">
             <div className="rounded-2xl bg-emerald-500/10 p-2.5 text-black">
               <ShieldCheck size={22} />
             </div>
-            <div>
-              <h2 className="text-xl font-semibold text-black">{t('performance')}</h2>
-                <p className="text-sm text-black">{t('apiMetricsEndpoint')}</p>
+            <div className="min-w-0">
+              <h2 className="wrap-break-word text-lg font-semibold text-black sm:text-xl">{t('performance')}</h2>
+                <p className="wrap-break-word text-sm text-black">{t('apiMetricsEndpoint')}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {metricLabels.map((label, index) => (
-               <div key={label} className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                  <p className="text-sm text-black">{label}</p>
+              <div key={label} className="min-w-0 rounded-2xl border border-gray-200 bg-gray-50 p-3 sm:p-4">
+                  <p className="wrap-break-word text-sm text-black">{label}</p>
                   <p className="mt-2 text-2xl font-bold text-black">{index === 0 ? formatMetric(aiMetrics.precision) : index === 1 ? formatMetric(aiMetrics.recall) : index === 2 ? formatMetric(aiMetrics.f1Score) : aiMetrics.analyzedTransactions.toLocaleString(locale)}</p>
                </div>
             ))}
@@ -145,14 +143,14 @@ export default function DashboardPage() {
       </section>
 
       {user?.role === 'ADMIN' && (
-        <section aria-labelledby="admin-panel" className="rounded-3xl border border-gray-300 bg-white p-6 shadow-lg shadow-black/20">
+        <section aria-labelledby="admin-panel" className="min-w-0 rounded-3xl border border-gray-300 bg-white p-5 shadow-lg shadow-black/20 sm:p-6">
           <div className="mb-6 flex items-center gap-3">
             <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
               <Users size={22} />
             </div>
-            <div>
-              <h2 id="admin-panel" className="text-xl font-semibold text-black">{t('adminPanel')}</h2>
-               <p className="text-base text-black">{t('adminDescription')}</p>
+            <div className="min-w-0">
+              <h2 id="admin-panel" className="wrap-break-word text-lg font-semibold text-black sm:text-xl">{t('adminPanel')}</h2>
+               <p className="wrap-break-word text-sm text-black sm:text-base">{t('adminDescription')}</p>
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
@@ -162,7 +160,7 @@ export default function DashboardPage() {
               [t('aiAlerts'), report?.admin?.aiAlerts ?? 0, AlertTriangle],
             ].map(([label, value, Icon]) => {
               const ItemIcon = Icon as typeof Users
-                 return <div key={label as string} className="flex items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 p-5 transition hover:border-gray-300"><div><p className="text-base text-black">{label as string}</p><p className="mt-2 text-3xl font-bold text-black">{(value as number).toLocaleString(locale)}</p></div><div className="rounded-2xl bg-amber-500/10 p-2.5 text-black"><ItemIcon size={22} /></div></div>
+                 return <div key={label as string} className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 transition hover:border-gray-300 sm:p-5"><div className="min-w-0"><p className="wrap-break-word text-sm text-black sm:text-base">{label as string}</p><p className="mt-2 text-2xl font-bold text-black sm:text-3xl">{(value as number).toLocaleString(locale)}</p></div><div className="shrink-0 rounded-2xl bg-amber-500/10 p-2.5 text-black"><ItemIcon size={22} /></div></div>
             })}
           </div>
         </section>

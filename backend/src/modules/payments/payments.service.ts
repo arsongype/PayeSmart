@@ -13,12 +13,14 @@ import { KybStatus } from '../auth/enums/kyb-status.enum.js'
 import { PaymentChannel } from '../auth/enums/payment-channel.enum.js'
 import { TransactionStatus } from '../auth/enums/transaction-status.enum.js'
 import { InitiatePaymentDto } from './dto/initiate-payment.dto.js'
+import { QuotePaymentDto } from './dto/quote-payment.dto.js'
 import { NotificationService } from '../../notifications/services/notification.service.js'
 import { SandboxGatewayService } from './sandbox-gateway.service.js'
 import { Queue, Worker } from 'bullmq'
 import { Redis } from 'ioredis'
 import { createHash, randomInt } from 'node:crypto'
 import { CryptoService } from '../../security/services/crypto.service.js'
+import { SecurityRule } from '../auth/entities/security-rule.entity.js'
 
 export type FraudRiskDecision = 'APPROVE' | 'REQUIRE_2FA' | 'BLOCK'
 
@@ -48,6 +50,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(Transaction) private transactionRepository: Repository<Transaction>,
     @InjectRepository(Ledger) private ledgerRepository: Repository<Ledger>,
     @InjectRepository(FraudAlert) private fraudAlertRepository: Repository<FraudAlert>,
+    @InjectRepository(SecurityRule) private securityRuleRepository: Repository<SecurityRule>,
     @InjectDataSource() private dataSource: DataSource,
     private notificationService: NotificationService,
     private sandboxGateway: SandboxGatewayService,
@@ -132,6 +135,34 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async calculateFee(amount: number) {
+    const rule = await this.securityRuleRepository.findOne({
+      where: { ruleType: 'TRANSACTION_FEE', isActive: true },
+      order: { priority: 'DESC', updatedAt: 'DESC' },
+    })
+    const conditions = (rule?.conditions ?? {}) as Record<string, unknown>
+    const percentage = typeof conditions.percentage === 'number' ? conditions.percentage : 1
+    const fixedAmount = typeof conditions.fixedAmount === 'number' ? conditions.fixedAmount : 0
+    const minimumFee = typeof conditions.minimumFee === 'number' ? conditions.minimumFee : 0
+    const maximumFee = typeof conditions.maximumFee === 'number' ? conditions.maximumFee : Number.POSITIVE_INFINITY
+    const calculated = amount * (Math.max(0, percentage) / 100) + Math.max(0, fixedAmount)
+    return Math.round(Math.min(maximumFee, Math.max(minimumFee, calculated)) * 100) / 100
+  }
+
+  async quote(senderUserId: number, dto: QuotePaymentDto) {
+    const wallet = await this.walletRepository.findOne({ where: { userId: senderUserId } })
+    if (!wallet) throw new NotFoundException('Portefeuille non trouvé')
+
+    const amount = Math.round(Number(dto.amount) * 100) / 100
+    const feeAmount = await this.calculateFee(amount)
+    return {
+      amount,
+      feeAmount,
+      totalAmount: Math.round((amount + feeAmount) * 100) / 100,
+      currency: wallet.currency || 'EUR',
+    }
+  }
+
   async initiate(senderUserId: number, dto: InitiatePaymentDto, securityContext?: { ipAddress: string; deviceFingerprint: string }) {
     const sender = await this.userRepository.findOne({ where: { id: senderUserId } })
     if (!sender) throw new NotFoundException('Utilisateur émetteur introuvable')
@@ -161,6 +192,38 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (senderWallet.status !== 'ACTIVE' || recipientWallet.status !== 'ACTIVE') throw new BadRequestException('Un portefeuille est inactif')
     if (dto.currency && dto.currency !== (senderWallet.currency || 'EUR')) throw new BadRequestException('Devise non supportée')
 
+    const feeAmount = await this.calculateFee(Number(dto.amount))
+    const totalAmount = Math.round((Number(dto.amount) + feeAmount) * 100) / 100
+    const now = new Date()
+    const dayStart = new Date(now)
+    dayStart.setHours(0, 0, 0, 0)
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const completedTransactions = await this.transactionRepository.find({
+      where: { senderWalletId: senderWallet.id, status: TransactionStatus.COMPLETED, createdAt: MoreThanOrEqual(monthStart) },
+    })
+    const spentThisMonth = completedTransactions.reduce((sum, transaction) => sum + (Number(transaction.totalAmount) > 0 ? Number(transaction.totalAmount) : Number(transaction.amount)), 0)
+    const spentToday = completedTransactions
+      .filter((transaction) => transaction.createdAt >= dayStart)
+      .reduce((sum, transaction) => sum + (Number(transaction.totalAmount) > 0 ? Number(transaction.totalAmount) : Number(transaction.amount)), 0)
+    const transactionRule = await this.securityRuleRepository.findOne({ where: { ruleType: 'TRANSACTION_LIMIT', isActive: true }, order: { priority: 'DESC', updatedAt: 'DESC' } })
+    const conditions = transactionRule?.conditions ?? {}
+    const transactionLimit = this.getNumericCondition(conditions.transactionLimit) ?? Number.POSITIVE_INFINITY
+    const paymentAttempts = this.getNumericCondition(conditions.paymentAttempts) ?? Number.POSITIVE_INFINITY
+    const dailyLimitRule = this.getNumericCondition(conditions.dailyLimit)
+    const monthlyLimitRule = this.getNumericCondition(conditions.monthlyLimit)
+    if (Number(dto.amount) > transactionLimit) throw new BadRequestException('Le plafond de transaction est dépassé')
+    const since = new Date(Date.now() - 60 * 60 * 1000)
+    const recentAttempts = await this.transactionRepository.count({ where: { senderWalletId: senderWallet.id, createdAt: MoreThanOrEqual(since) } })
+    if (recentAttempts >= paymentAttempts) throw new BadRequestException('Le nombre maximal de tentatives de paiement par heure est atteint')
+    const effectiveDailyLimit = dailyLimitRule ?? this.getPositiveNumber(senderWallet.dailyLimit)
+    const effectiveMonthlyLimit = monthlyLimitRule ?? this.getPositiveNumber(senderWallet.monthlyLimit)
+    if (effectiveDailyLimit !== null && spentToday + totalAmount > effectiveDailyLimit) {
+      throw new BadRequestException(dailyLimitRule !== null ? 'Le plafond journalier global est dépassé' : 'Le plafond journalier du portefeuille est dépassé')
+    }
+    if (effectiveMonthlyLimit !== null && spentThisMonth + totalAmount > effectiveMonthlyLimit) {
+      throw new BadRequestException(monthlyLimitRule !== null ? 'Le plafond mensuel global est dépassé' : 'Le plafond mensuel du portefeuille est dépassé')
+    }
+
     const metadata = {
       phoneNumber: dto.phoneNumber ? this.cryptoService.encrypt(dto.phoneNumber) : undefined,
       cardToken: dto.cardToken ? this.cryptoService.encrypt(dto.cardToken) : undefined,
@@ -175,6 +238,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       senderWalletId: senderWallet.id,
       recipientWalletId: recipientWallet.id,
       amount: dto.amount,
+      feeAmount,
+      totalAmount,
       currency: dto.currency || senderWallet.currency || 'EUR',
       channel: dto.channel,
       status: TransactionStatus.PENDING,
@@ -258,13 +323,14 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         const senderWallet = await manager.findOne(Wallet, { where: { id: transaction.senderWalletId }, lock: { mode: 'pessimistic_write' } })
         const recipientWallet = await manager.findOne(Wallet, { where: { id: transaction.recipientWalletId }, lock: { mode: 'pessimistic_write' } })
         if (!senderWallet || !recipientWallet) throw new BadRequestException('Portefeuille indisponible')
-        if (Number(senderWallet.balance) < Number(transaction.amount)) throw new BadRequestException('Solde insuffisant')
+        const debitAmount = Number(transaction.totalAmount) > 0 ? Number(transaction.totalAmount) : Number(transaction.amount)
+        if (Number(senderWallet.balance) < debitAmount) throw new BadRequestException('Solde insuffisant')
 
-        senderWallet.balance = Number(senderWallet.balance) - Number(transaction.amount)
+        senderWallet.balance = Number(senderWallet.balance) - debitAmount
         recipientWallet.balance = Number(recipientWallet.balance) + Number(transaction.amount)
         await manager.save([senderWallet, recipientWallet])
         await manager.save(Ledger, [
-          manager.create(Ledger, { transactionId: transaction.id, walletId: senderWallet.id, amount: transaction.amount, currency: transaction.currency, direction: 'DEBIT', entryReference: `${transaction.externalReference}-D` }),
+          manager.create(Ledger, { transactionId: transaction.id, walletId: senderWallet.id, amount: debitAmount, currency: transaction.currency, direction: 'DEBIT', entryReference: `${transaction.externalReference}-D` }),
           manager.create(Ledger, { transactionId: transaction.id, walletId: recipientWallet.id, amount: transaction.amount, currency: transaction.currency, direction: 'CREDIT', entryReference: `${transaction.externalReference}-C` }),
         ])
       })
@@ -321,14 +387,41 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       { headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' } },
     )
     const riskScore = Number(response.data.risk_score ?? 0)
-    const decision = response.data.decision ?? evaluateRiskDecision(riskScore)
+    const thresholdRule = await this.securityRuleRepository.findOne({ where: { ruleType: 'AI_THRESHOLDS', isActive: true }, order: { priority: 'DESC', updatedAt: 'DESC' } })
+    const thresholdConditions = thresholdRule?.conditions ?? {}
+    const lowThreshold = (this.getNumericCondition(thresholdConditions.lowRiskThreshold) ?? 0.3) * 100
+    const mediumThreshold = (this.getNumericCondition(thresholdConditions.mediumRiskThreshold) ?? 0.7) * 100
+    const decision: FraudRiskDecision = riskScore < lowThreshold ? 'APPROVE' : riskScore < mediumThreshold ? 'REQUIRE_2FA' : 'BLOCK'
     return {
       riskScore,
       riskLevel: response.data.risk_level ?? (riskScore < 40 ? 'LOW' : riskScore < 75 ? 'MEDIUM' : 'HIGH'),
       decision,
-      reasons: response.data.reasons ?? ['Transaction analysée par l\'IA de fraude.'],
-      reason: response.data.reasons?.[0] ?? 'Vérification de fraude terminée.',
+      reasons: response.data.reasons?.length ? response.data.reasons : [
+        decision === 'APPROVE'
+          ? `Risque faible : montant de ${Number(transaction.amount).toFixed(2)} ${transaction.currency}, validation automatique.`
+          : decision === 'REQUIRE_2FA'
+            ? `Risque intermédiaire : score de ${riskScore.toFixed(1)}/100, confirmation OTP requise.`
+            : `Risque élevé : score de ${riskScore.toFixed(1)}/100, transaction bloquée pour vérification.`,
+      ],
+      reason: response.data.reasons?.[0] ?? (
+        decision === 'APPROVE'
+          ? `Risque faible : montant de ${Number(transaction.amount).toFixed(2)} ${transaction.currency}, validation automatique.`
+          : decision === 'REQUIRE_2FA'
+            ? `Risque intermédiaire : score de ${riskScore.toFixed(1)}/100, confirmation OTP requise.`
+            : `Risque élevé : score de ${riskScore.toFixed(1)}/100, transaction bloquée pour vérification.`
+      ),
     }
+
+  }
+
+  private getNumericCondition(value: unknown): number | null {
+    const numericValue = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN
+    return Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : null
+  }
+
+  private getPositiveNumber(value: unknown): number | null {
+    const numericValue = this.getNumericCondition(value)
+    return numericValue !== null && numericValue > 0 ? numericValue : null
   }
 
   async process(transactionId: number, skipRiskEvaluation = false) {
@@ -338,12 +431,15 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     try {
       if (!skipRiskEvaluation) {
         const risk = await this.evaluateTransactionRisk(transaction.senderWalletId, transaction)
-        transaction.metadata = { ...(transaction.metadata ?? {}), riskScore: risk.riskScore, riskLevel: risk.riskLevel, riskDecision: risk.decision, riskReasons: risk.reasons }
+        const transactionRule = await this.securityRuleRepository.findOne({ where: { ruleType: 'TRANSACTION_LIMIT', isActive: true }, order: { priority: 'DESC', updatedAt: 'DESC' } })
+        const requirePaymentTwoFactor = transactionRule?.actions?.twoFactorEnabled === true
+        const effectiveDecision: FraudRiskDecision = requirePaymentTwoFactor && risk.decision === 'APPROVE' ? 'REQUIRE_2FA' : risk.decision
+        transaction.metadata = { ...(transaction.metadata ?? {}), riskScore: risk.riskScore, riskLevel: risk.riskLevel, riskDecision: effectiveDecision, riskReasons: risk.reasons }
         transaction.riskScore = risk.riskScore
         transaction.riskLevel = risk.riskLevel
         await this.transactionRepository.save(transaction)
 
-        if (risk.decision === 'BLOCK') {
+        if (effectiveDecision === 'BLOCK') {
           transaction.status = TransactionStatus.FAILED
           transaction.failureReason = `Transaction bloquée par la détection de fraude : ${risk.reason}`
           await this.transactionRepository.save(transaction)
@@ -359,7 +455,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           )
           return transaction
         }
-        if (risk.decision === 'REQUIRE_2FA') {
+        if (effectiveDecision === 'REQUIRE_2FA') {
           const code = String(randomInt(0, 1_000_000)).padStart(6, '0')
           transaction.metadata = {
             ...transaction.metadata,

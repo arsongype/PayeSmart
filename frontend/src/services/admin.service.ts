@@ -2,6 +2,31 @@ import { apiClient } from '../config/axios.config'
 import { API_ORIGIN } from '../config/env'
 
 export const adminService = {
+  async getSecurityRules() {
+    const { data } = await apiClient.get('/admin/security-rules')
+    return data
+  },
+
+  async getAuditLogs() {
+    const { data } = await apiClient.get('/admin/audit-logs?limit=20')
+    return data
+  },
+
+  async createSecurityRule(payload: Record<string, unknown>) {
+    const { data } = await apiClient.post('/admin/security-rules', payload)
+    return data
+  },
+
+  async updateSecurityRule(id: number, payload: Record<string, unknown>) {
+    const { data } = await apiClient.patch(`/admin/security-rules/${id}`, payload)
+    return data
+  },
+
+  async deleteSecurityRule(id: number) {
+    const { data } = await apiClient.delete(`/admin/security-rules/${id}`)
+    return data
+  },
+
   assetUrl(path?: string | null): string | undefined {
     if (!path) return undefined
     return path.startsWith('http') ? path : `${API_ORIGIN}${path}`

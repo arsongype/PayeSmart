@@ -14,6 +14,8 @@ const buildService = (role: Role = Role.USER, kycStatus = KycStatus.APPROVED, ky
   const transactionRepository = {
     create: vi.fn((value) => value),
     save: vi.fn(async (value) => ({ id: 100, ...value })),
+    count: vi.fn(async () => 0),
+    find: vi.fn(async () => []),
   }
   const userRepository = {
     findOne: vi.fn(async () => sender),
@@ -26,14 +28,19 @@ const buildService = (role: Role = Role.USER, kycStatus = KycStatus.APPROVED, ky
       return null
     }),
   }
+  const securityRuleRepository = {
+    findOne: vi.fn(async () => null),
+  }
   const service = new PaymentsService(
     userRepository as never,
     walletRepository as never,
     transactionRepository as never,
     {} as never,
     {} as never,
-    { create: vi.fn() } as never,
+    securityRuleRepository as never,
     {} as never,
+    { create: vi.fn() } as never,
+    { authorize: vi.fn() } as never,
     { get: () => 'http://localhost:5173' } as never,
     { encrypt: (value: string) => `enc:${value}` } as never,
   )
@@ -43,7 +50,6 @@ const buildService = (role: Role = Role.USER, kycStatus = KycStatus.APPROVED, ky
 
 describe('payment channel contracts', () => {
   it.each([
-    [PaymentChannel.ORANGE_MONEY, { phoneNumber: '0340000000' }],
     [PaymentChannel.CARD, { recipientWalletNumber: '2222222222', cardToken: 'tok_test' }],
     [PaymentChannel.QR, { recipientWalletNumber: '2222222222' }],
     [PaymentChannel.BANK_TRANSFER, { recipientWalletNumber: '2222222222', bankReference: 'REF-001' }],
@@ -92,5 +98,18 @@ describe('payment channel contracts', () => {
       channel: PaymentChannel.BANK_TRANSFER,
       recipientWalletNumber: '2222222222',
     } as never)).rejects.toThrow('Vérification KYC/KYB requise')
+  })
+
+  it('adds the default sender fee to the total debit', async () => {
+    const { service, transactionRepository } = buildService()
+
+    await service.initiate(1, {
+      amount: 25,
+      channel: PaymentChannel.CARD,
+      recipientWalletNumber: '2222222222',
+      cardToken: 'tok_test',
+    } as never)
+
+    expect(transactionRepository.create).toHaveBeenCalledWith(expect.objectContaining({ feeAmount: 0.25, totalAmount: 25.25 }))
   })
 })

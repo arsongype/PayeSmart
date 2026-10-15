@@ -16,6 +16,8 @@ export interface PaymentTransaction {
   senderWalletId: number
   recipientWalletId: number
   amount: number
+  feeAmount: number
+  totalAmount: number
   currency: string
   channel: PaymentChannel
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
@@ -34,6 +36,13 @@ export interface PaymentTransaction {
   createdAt: string
   updatedAt: string
   direction?: 'OUTGOING' | 'INCOMING'
+}
+
+export interface PaymentQuote {
+  amount: number
+  feeAmount: number
+  totalAmount: number
+  currency: string
 }
 
 export interface VirtualCard {
@@ -62,6 +71,11 @@ export const paymentService = {
 
   async initiate(payload: { recipientWalletNumber?: string; amount: number; channel: PaymentChannel; currency?: string; phoneNumber?: string; cardToken?: string; bankReference?: string }): Promise<PaymentTransaction> {
     const { data } = await apiClient.post('/payments/initiate', payload)
+    return data
+  },
+
+  async quote(amount: number): Promise<PaymentQuote> {
+    const { data } = await apiClient.post('/payments/quote', { amount })
     return data
   },
 

@@ -83,6 +83,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { icon: WalletIcon, label: t('wallet'), href: ROUTES.WALLET },
     { icon: Shield, label: user?.role === 'MERCHANT' ? t('verificationKycKyb') : t('verificationKyc'), href: ROUTES.KYC },
     ...(user?.role === 'ADMIN' ? [{ icon: AlertTriangle, label: t('fraudAlerts'), href: ROUTES.ADMIN_FRAUD }] : []),
+    ...(user?.role === 'ADMIN' ? [{ icon: Shield, label: t('securityRules'), href: ROUTES.ADMIN_SECURITY_RULES }] : []),
     { icon: Settings, label: t('settings'), href: '/settings' },
     ...(user?.role === 'ADMIN' ? [{ icon: UsersIcon, label: t('users'), href: ROUTES.ADMIN_USERS }] : []),
   ]

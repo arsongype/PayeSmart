@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Patch, Delete, UseGuards, Param } from '@nestjs/common'
+import { Controller, Post, Body, Get, Patch, Delete, UseGuards, Param, Query, ParseIntPipe } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { WalletsService } from '../services/wallets.service.js'
 import { CreateWalletDto, UpdateWalletDto } from '../../auth/dto/wallet.dto.js'
@@ -14,7 +14,8 @@ export class WalletsController {
   }
 
   @Get(':userId')
-  findByUserId(@Param('userId') userId: number) {
+  findByUserId(@Param('userId', ParseIntPipe) userId: number, @Query('withEffectiveLimits') withEffectiveLimits?: string) {
+    if (withEffectiveLimits === 'true') return this.walletsService.findByUserIdWithEffectiveLimits(userId)
     return this.walletsService.findByUserId(userId)
   }
 

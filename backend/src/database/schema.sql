@@ -160,6 +160,8 @@ CREATE TABLE transactions (
   sender_wallet_id INTEGER NOT NULL REFERENCES wallets(id),
   recipient_wallet_id INTEGER NOT NULL REFERENCES wallets(id),
   amount DECIMAL(15,2) NOT NULL,
+  fee_amount DECIMAL(15,2) NOT NULL DEFAULT 0,
+  total_amount DECIMAL(15,2) NOT NULL DEFAULT 0,
   currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
   channel payment_channel_enum NOT NULL,
   status transaction_status_enum NOT NULL DEFAULT 'PENDING',

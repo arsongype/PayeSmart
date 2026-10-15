@@ -101,9 +101,7 @@ export default function AdminUsersPage() {
                   <tr key={u.id} className="transition-colors hover:bg-gray-100">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-primary-600 flex items-center justify-center text-black font-medium text-sm">
-                          {u.firstName?.[0]}{u.lastName?.[0]}
-                        </div>
+                        {u.avatarUrl ? <img src={adminService.assetUrl(u.avatarUrl)} alt={`${u.firstName} ${u.lastName}`} className="h-10 w-10 rounded-full object-cover" /> : <div className="h-10 w-10 rounded-full bg-primary-600 flex items-center justify-center text-black font-medium text-sm">{u.firstName?.[0]}{u.lastName?.[0]}</div>}
                         <div>
                           <p className="text-base font-medium text-black">
                             {u.firstName} {u.lastName}

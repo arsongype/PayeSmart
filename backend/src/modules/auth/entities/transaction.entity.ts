@@ -33,6 +33,12 @@ export class Transaction {
   @Column({ type: 'decimal', precision: 15, scale: 2 })
   amount: number
 
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0, name: 'fee_amount' })
+  feeAmount: number
+
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0, name: 'total_amount' })
+  totalAmount: number
+
   @Column({ type: 'varchar', length: 3, default: 'EUR' })
   currency: string
 

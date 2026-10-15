@@ -4,6 +4,7 @@ import type { Request } from 'express'
 import { PaymentsService } from './payments.service.js'
 import { InitiatePaymentDto } from './dto/initiate-payment.dto.js'
 import { ConfirmTwoFactorDto } from './dto/confirm-2fa.dto.js'
+import { QuotePaymentDto } from './dto/quote-payment.dto.js'
 
 interface RequestWithUser extends Request {
   user: { sub: string }
@@ -35,6 +36,11 @@ export class PaymentsController {
       ipAddress: req.ip ?? req.socket.remoteAddress ?? 'unknown',
       deviceFingerprint: req.get('x-device-fingerprint') ?? req.get('user-agent') ?? 'unknown',
     })
+  }
+
+  @Post('quote')
+  quote(@Body() dto: QuotePaymentDto, @Req() req: RequestWithUser) {
+    return this.paymentsService.quote(parseInt(req.user.sub, 10), dto)
   }
 
   @Get('history')

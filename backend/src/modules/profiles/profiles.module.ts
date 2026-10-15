@@ -21,11 +21,13 @@ import { AuthModule } from '../auth/auth.module.js'
 import { UsersModule } from '../../users/users.module.js'
 import { StorageModule } from '../../storage/storage.module.js'
 import { NotificationsModule } from '../../notifications/notifications.module.js'
+import { SecurityRule } from '../auth/entities/security-rule.entity.js'
+import { AuditLog } from '../../security/entities/audit-log.entity.js'
 
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([User, Profile, Wallet, KycDocument, KybDocument, Transaction]),
+    TypeOrmModule.forFeature([User, Profile, Wallet, KycDocument, KybDocument, Transaction, SecurityRule, AuditLog]),
     AuthModule,
     UsersModule,
     StorageModule,

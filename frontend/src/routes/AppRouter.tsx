@@ -17,6 +17,7 @@ const AdminUsersPage = lazy(() => import('../pages/admin/AdminUsersPage'))
 const AdminUserDetailPage = lazy(() => import('../pages/admin/AdminUserDetailPage'))
 const AdminFraudPage = lazy(() => import('../pages/admin/AdminFraudPage'))
 const AdminTransactionsPage = lazy(() => import('../pages/admin/AdminTransactionsPage'))
+const AdminSecurityRulesPage = lazy(() => import('../pages/admin/AdminSecurityRulesPage'))
 const ProfilePage = lazy(() => import('../pages/profile/ProfilePage'))
 const WalletPage = lazy(() => import('../pages/profile/WalletPage'))
 const KycPage = lazy(() => import('../pages/profile/KycPage'))
@@ -226,6 +227,16 @@ export const router = createBrowserRouter([
       <AdminRoute>
         <Suspense fallback={loader}>
           <AdminFraudPage />
+        </Suspense>
+      </AdminRoute>
+    ),
+  },
+  {
+    path: '/admin/security-rules',
+    element: (
+      <AdminRoute>
+        <Suspense fallback={loader}>
+          <AdminSecurityRulesPage />
         </Suspense>
       </AdminRoute>
     ),

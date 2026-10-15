@@ -19,7 +19,7 @@ export class ReportingController {
 
   @Get('export')
   async exportReport(
-    @Query('format') format: string,
+    @Query('format') format = 'pdf',
     @Req() request: RequestWithUser,
     @Res() response: Response,
   ) {

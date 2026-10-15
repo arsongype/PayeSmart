@@ -54,7 +54,7 @@ export default function ProfilePage() {
       const [userRes, profileRes, walletRes, kycRes, kybRes] = await Promise.all([
         profileService.getMe().catch(() => user),
         profileService.getProfile(user.id).catch(() => user.profile ?? null),
-        walletService.getWallet(user.id).catch(() => null),
+        walletService.getWalletWithEffectiveLimits(user.id).catch(() => null),
         kycService.getDocuments(user.id).catch(() => []),
         kybService.getDocuments(user.id).catch(() => []),
       ])
@@ -388,6 +388,5 @@ export default function ProfilePage() {
     </div>
   )
 }
-
 
 

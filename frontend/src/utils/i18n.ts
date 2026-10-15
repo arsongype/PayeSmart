@@ -26,7 +26,6 @@ export interface Translations {
     fraudAlerts: string
     logout: string
     status: string
-    actions: string
     amount: string
     date: string
     description: string
@@ -59,7 +58,6 @@ export interface Translations {
     expiry: string
     search: string
     refresh: string
-    exportCSV: string
     exportPDF: string
     print: string
     downloadReceipt: string
@@ -137,6 +135,9 @@ export interface Translations {
     cardToken: string
     generateToken: string
     payNow: string
+    paymentFeePreview: string
+    calculatingFee: string
+    cannotCalculateFee: string
     paymentAuthorized: string
     sandboxToken: string
     performance: string
@@ -168,6 +169,23 @@ export interface Translations {
     mainReason: string
     senderName: string
     recipientName: string
+    transactionAmount: string
+    transactionFee: string
+    transactionTotal: string
+    receiptFee: string
+    receiptTotal: string
+    profileImageUploaded: string
+    securityRules: string
+    securityRulesDescription: string
+    addRule: string
+    saveRule: string
+    deleteRule: string
+    ruleName: string
+    ruleType: string
+    conditions: string
+    actions: string
+    priority: string
+    active: string
     trustScoreRecalculated: string
     ocrData: string
     controlAlerts: string
@@ -498,7 +516,6 @@ export const translations: Record<Language, Translations> = {
       expiry: 'Expiration',
       search: 'Rechercher',
       refresh: 'Actualiser',
-      exportCSV: 'Export CSV',
       exportPDF: 'Export PDF',
       print: 'Imprimer',
       downloadReceipt: 'Télécharger le reçu',
@@ -576,6 +593,9 @@ export const translations: Record<Language, Translations> = {
       cardToken: 'Token de carte bancaire',
       generateToken: 'Générer',
       payNow: 'Payer maintenant',
+      paymentFeePreview: 'Récapitulatif avant paiement',
+      calculatingFee: 'Calcul des frais...',
+      cannotCalculateFee: 'Impossible de calculer les frais de transaction',
       paymentAuthorized: 'Paiement autorisé uniquement vers un compte existant et vérifié',
       sandboxToken: 'Un token sandbox unique sera créé automatiquement pour ce paiement',
       performance: 'Performance IA',
@@ -607,6 +627,22 @@ export const translations: Record<Language, Translations> = {
       mainReason: 'Motif principal',
       senderName: 'Expéditeur',
       recipientName: 'Destinataire',
+      transactionAmount: 'Montant',
+      transactionFee: 'Frais',
+      transactionTotal: 'Total débité',
+      receiptFee: 'Frais',
+      receiptTotal: 'Total débité',
+      profileImageUploaded: 'Photo de profil mise à jour',
+      securityRules: 'Règles de sécurité',
+      securityRulesDescription: 'Modifiez les règles de contrôle et de tarification à tout moment.',
+      addRule: 'Ajouter une règle',
+      saveRule: 'Enregistrer',
+      deleteRule: 'Supprimer',
+      ruleName: 'Nom de la règle',
+      ruleType: 'Type',
+      conditions: 'Conditions JSON',
+      priority: 'Priorité',
+      active: 'Active',
       trustScoreRecalculated: 'Score recalculé à partir des contrôles disponibles',
       ocrData: 'Données extraites par OCR',
       controlAlerts: 'Alertes de contrôle',
@@ -934,7 +970,6 @@ export const translations: Record<Language, Translations> = {
       expiry: 'Expiry',
       search: 'Search',
       refresh: 'Refresh',
-      exportCSV: 'Export CSV',
       exportPDF: 'Export PDF',
       print: 'Print',
       downloadReceipt: 'Download receipt',
@@ -1012,6 +1047,9 @@ export const translations: Record<Language, Translations> = {
       cardToken: 'Card token',
       generateToken: 'Generate',
       payNow: 'Pay now',
+      paymentFeePreview: 'Payment summary',
+      calculatingFee: 'Calculating fees...',
+      cannotCalculateFee: 'Unable to calculate transaction fees',
       paymentAuthorized: 'Payment is only authorized to an existing and verified account',
       sandboxToken: 'A unique sandbox token will be automatically created for this payment',
       performance: 'AI performance',
@@ -1043,6 +1081,22 @@ export const translations: Record<Language, Translations> = {
       mainReason: 'Main reason',
       senderName: 'Sender',
       recipientName: 'Recipient',
+      transactionAmount: 'Amount',
+      transactionFee: 'Fee',
+      transactionTotal: 'Total debited',
+      receiptFee: 'Fee',
+      receiptTotal: 'Total debited',
+      profileImageUploaded: 'Profile photo updated',
+      securityRules: 'Security rules',
+      securityRulesDescription: 'Edit control and pricing rules at any time.',
+      addRule: 'Add rule',
+      saveRule: 'Save',
+      deleteRule: 'Delete',
+      ruleName: 'Rule name',
+      ruleType: 'Type',
+      conditions: 'Conditions JSON',
+      priority: 'Priority',
+      active: 'Active',
       trustScoreRecalculated: 'Score recalculated from available checks',
       ocrData: 'Data extracted by OCR',
       controlAlerts: 'Control alerts',

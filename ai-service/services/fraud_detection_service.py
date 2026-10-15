@@ -81,7 +81,12 @@ class FraudDetectionService:
             decision, risk_level = "BLOCK", "HIGH"
 
         if not reasons:
-            reasons.append("Aucun motif de fraude majeur détecté.")
+            if decision == "APPROVE":
+                reasons.append(f"Risque faible : montant de {normalized_amount:.2f} et activité habituelle, validation automatique.")
+            elif decision == "REQUIRE_2FA":
+                reasons.append(f"Risque intermédiaire : score de {risk_score:.1f}/100, confirmation OTP requise.")
+            else:
+                reasons.append(f"Risque élevé : score de {risk_score:.1f}/100, transaction bloquée pour vérification.")
 
         return FraudPrediction(
             risk_score=risk_score,

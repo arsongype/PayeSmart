@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react'
-import { Bell, Globe, Lock, Save, WalletCards, Shield } from 'lucide-react'
+import { Bell, Camera, Globe, Lock, Save, WalletCards, Shield } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useSettings } from '../../contexts/SettingsContext'
+import { useAuth } from '../../contexts/AuthContext'
+import { profileService } from '../../services/profile.service'
 import { useTranslation } from '../../utils/i18n'
 import { authService } from '../../services/auth.service'
 import { Button } from '../../components/common/Button'
 
 export default function SettingsPage() {
   const { settings, update, save } = useSettings()
+  const { user, updateUser } = useAuth()
   const { t } = useTranslation()
   const [saved, setSaved] = useState(false)
   const [twoFactorStatus, setTwoFactorStatus] = useState<{ isTwoFactorEnabled: boolean } | null>(null)
@@ -16,6 +19,26 @@ export default function SettingsPage() {
   const [twoFactorCode, setTwoFactorCode] = useState('')
   const [twoFactorSecret, setTwoFactorSecret] = useState<string | null>(null)
   const [twoFactorOtpauthUrl, setTwoFactorOtpauthUrl] = useState<string | null>(null)
+  const [avatarSaving, setAvatarSaving] = useState(false)
+  const [avatarMessage, setAvatarMessage] = useState<string | null>(null)
+
+  const uploadAvatar = async (file: File) => {
+    if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
+      setAvatarMessage(t('profileImageTypeError'))
+      return
+    }
+    try {
+      setAvatarSaving(true)
+      setAvatarMessage(null)
+      const updated = await profileService.uploadAvatar(file)
+      updateUser(updated)
+      setAvatarMessage(t('profileImageUploaded'))
+    } catch (err) {
+      setAvatarMessage(err instanceof Error ? err.message : t('profileImageUploadError'))
+    } finally {
+      setAvatarSaving(false)
+    }
+  }
 
   const loadStatus = async () => {
     try {
@@ -143,6 +166,15 @@ export default function SettingsPage() {
             <option value="MGA">{t('mga')}</option>
           </select>
         </label>
+      </section>
+
+      <section className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+        <div className="flex items-center gap-4">
+          {user?.avatarUrl ? <img src={profileService.assetUrl(user.avatarUrl)} alt="Photo de profil" className="h-16 w-16 rounded-full object-cover" /> : <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-600 text-xl font-semibold text-black">{user?.firstName?.[0]}{user?.lastName?.[0]}</div>}
+          <div className="flex-1"><h2 className="text-xl font-semibold text-black">Photo de profil</h2><p className="text-sm text-black">JPG, PNG ou WEBP, 5 Mo maximum.</p></div>
+          <label className="cursor-pointer rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-gray-100"><Camera className="mr-2 inline h-4 w-4" />Modifier<input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={avatarSaving} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAvatar(file); event.currentTarget.value = '' }} /></label>
+        </div>
+        {avatarMessage && <p className="mt-3 text-sm text-black">{avatarMessage}</p>}
       </section>
 
       <section className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">

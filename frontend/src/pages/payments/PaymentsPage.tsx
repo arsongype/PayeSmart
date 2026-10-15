@@ -3,7 +3,7 @@ import axios from 'axios'
 import { ArrowDownLeft, ArrowUpRight, CreditCard, Printer, RefreshCw, Send, UserRound, WandSparkles } from 'lucide-react'
 import { Button } from '../../components/common/Button'
 import { useAuth } from '../../contexts/AuthContext'
-import { paymentService, type PaymentChannel, type PaymentTransaction, type RecipientAccount, type VirtualCard } from '../../services/payment.service'
+import { paymentService, type PaymentChannel, type PaymentQuote, type PaymentTransaction, type RecipientAccount, type VirtualCard } from '../../services/payment.service'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useTranslation } from '../../utils/i18n'
 
@@ -29,6 +29,8 @@ export default function PaymentsPage() {
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('CARD')
   const [cardToken, setCardToken] = useState('')
   const [bankReference, setBankReference] = useState('')
+  const [paymentQuote, setPaymentQuote] = useState<PaymentQuote | null>(null)
+  const [loadingQuote, setLoadingQuote] = useState(false)
   const [history, setHistory] = useState<PaymentTransaction[]>([])
   const [card, setCard] = useState<VirtualCard | null>(null)
   const [loading, setLoading] = useState(true)
@@ -44,6 +46,36 @@ export default function PaymentsPage() {
   const historyTotalPages = Math.max(1, Math.ceil(history.length / historyPageSize))
   const visibleHistory = history.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize)
   const channel: PaymentChannel = paymentMode
+
+  useEffect(() => {
+    const parsedAmount = Number(amount)
+    if (!amount || !Number.isFinite(parsedAmount) || parsedAmount < 0.01) {
+      setPaymentQuote(null)
+      setLoadingQuote(false)
+      return
+    }
+
+    let cancelled = false
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setLoadingQuote(true)
+        const quote = await paymentService.quote(parsedAmount)
+        if (!cancelled) setPaymentQuote(quote)
+      } catch (err) {
+        if (!cancelled) {
+          setPaymentQuote(null)
+          setError(getPaymentErrorMessage(err, t('cannotCalculateFee')))
+        }
+      } finally {
+        if (!cancelled) setLoadingQuote(false)
+      }
+    }, 250)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeoutId)
+    }
+  }, [amount, t])
 
   useEffect(() => {
     if (!success && !error) return
@@ -169,6 +201,7 @@ export default function PaymentsPage() {
       setLastTransaction(transaction)
       setSuccess(t('paymentCreated', { reference: transaction.externalReference ?? `#${transaction.id}`, status: statusLabel[transaction.status] }))
       setAmount('')
+      setPaymentQuote(null)
       setRecipient(null)
       setRecipientWalletNumber('')
       setCardToken('')
@@ -237,17 +270,29 @@ export default function PaymentsPage() {
     if (!lastTransaction) return
     const { jsPDF } = await import('jspdf')
     const doc = new jsPDF()
-    doc.setFontSize(18)
-    doc.text(t('receiptTitle'), 14, 20)
+    doc.setFillColor(8, 123, 128)
+    doc.roundedRect(12, 12, 186, 30, 4, 4, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(20)
+    doc.text(t('receiptTitle'), 20, 31)
+    doc.setTextColor(62, 58, 54)
+    doc.setFontSize(10)
+    doc.text(t('receiptReference', { ref: lastTransaction.externalReference ?? `#${lastTransaction.id}` }), 16, 54)
+    doc.text(t('receiptDate', { date: new Date(lastTransaction.createdAt).toLocaleString(locale) }), 16, 62)
+    doc.setDrawColor(220, 218, 212)
+    doc.line(16, 68, 194, 68)
     doc.setFontSize(12)
-    const lines = [
-      t('receiptReference', { ref: lastTransaction.externalReference ?? `#${lastTransaction.id}` }),
-      t('receiptAmount', { amount: Number(lastTransaction.amount).toFixed(2), currency: lastTransaction.currency }),
-      t('receiptChannel', { channel: lastTransaction.channel }),
-      t('receiptStatus', { status: statusLabel[lastTransaction.status] }),
-      t('receiptDate', { date: new Date(lastTransaction.createdAt).toLocaleString(locale) }),
-    ]
-    doc.text(lines, 14, 32, { maxWidth: 180 })
+    doc.text(t('receiptAmount', { amount: Number(lastTransaction.amount).toFixed(2), currency: lastTransaction.currency }), 20, 84)
+    doc.text(t('receiptFee', { amount: Number(lastTransaction.feeAmount ?? 0).toFixed(2), currency: lastTransaction.currency }), 20, 96)
+    doc.setFillColor(232, 247, 246)
+    doc.roundedRect(16, 106, 178, 20, 3, 3, 'F')
+    doc.setFontSize(14)
+    doc.setTextColor(8, 123, 128)
+    doc.text(t('receiptTotal', { amount: Number(lastTransaction.totalAmount ?? lastTransaction.amount).toFixed(2), currency: lastTransaction.currency }), 22, 119)
+    doc.setTextColor(62, 58, 54)
+    doc.setFontSize(11)
+    doc.text(t('receiptChannel', { channel: lastTransaction.channel }), 20, 145)
+    doc.text(t('receiptStatus', { status: statusLabel[lastTransaction.status] }), 20, 155)
     doc.save(`paysmart-recu-${lastTransaction.id}.pdf`)
   }
 
@@ -274,6 +319,11 @@ export default function PaymentsPage() {
             </div>
             {lastTransaction.metadata?.qrData && <p className="mt-2 font-mono text-sm">{t('qrDataLabel', { data: lastTransaction.metadata.qrData })}</p>}
             {lastTransaction.metadata?.temporaryIban && <p className="mt-2 font-mono text-sm">{t('temporaryIbanLabel', { iban: lastTransaction.metadata.temporaryIban })}</p>}
+            <div className="mt-3 grid gap-2 border-t border-primary-500/20 pt-3 text-sm sm:grid-cols-3">
+              <p>{t('transactionAmount')}: <strong>{formatMoney(Number(lastTransaction.amount), lastTransaction.currency)}</strong></p>
+              <p>{t('transactionFee')}: <strong>{formatMoney(Number(lastTransaction.feeAmount ?? 0), lastTransaction.currency)}</strong></p>
+              <p>{t('transactionTotal')}: <strong>{formatMoney(Number(lastTransaction.totalAmount ?? lastTransaction.amount), lastTransaction.currency)}</strong></p>
+            </div>
              {lastTransaction.status === 'PENDING' && lastTransaction.failureReason === 'Vérification 2FA requise avant exécution.' && (
                <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-primary-500/20 pt-4">
                  <div className="min-w-48 flex-1">
@@ -369,9 +419,32 @@ export default function PaymentsPage() {
                   {t('amountLabel')}
                   <span className="ml-1 text-red-500" aria-hidden="true">*</span>
                 </label>
-                <input id="amount" type="number" min="0.01" step="0.01" required value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-2.5 text-black outline-none focus:border-primary-500" />
+                <input id="amount" type="number" min="0.01" step="0.01" required value={amount} onChange={(event) => {
+                  setAmount(event.target.value)
+                  setPaymentQuote(null)
+                }} placeholder="0.00" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-2.5 text-black outline-none focus:border-primary-500" />
               </div>
             </div>
+            {paymentQuote && (
+              <div className="mt-4 rounded-2xl border border-primary-500/30 bg-primary-500/10 p-4 text-black" aria-live="polite">
+                <p className="mb-3 text-base font-semibold">{t('paymentFeePreview')}</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <span>{t('transactionAmount')}</span>
+                    <strong>{formatMoney(paymentQuote.amount, paymentQuote.currency)}</strong>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span>{t('transactionFee')}</span>
+                    <strong>{formatMoney(paymentQuote.feeAmount, paymentQuote.currency)}</strong>
+                  </div>
+                  <div className="flex justify-between gap-4 border-t border-primary-500/20 pt-2 text-base">
+                    <span>{t('transactionTotal')}</span>
+                    <strong>{formatMoney(paymentQuote.totalAmount, paymentQuote.currency)}</strong>
+                  </div>
+                </div>
+              </div>
+            )}
+            {loadingQuote && <p className="mt-2 text-sm text-black" aria-live="polite">{t('calculatingFee')}</p>}
             {paymentMode === 'CARD' && (
               <div className="mt-4">
                 <div className="mb-2 flex items-center justify-between gap-3">
@@ -482,7 +555,8 @@ export default function PaymentsPage() {
                        </div>
                      </div>
                      <div className="text-right">
-                       <p className="font-semibold text-black">{outgoing ? '-' : '+'}{formatMoney(Number(transaction.amount), transaction.currency)}</p>
+                       <p className="font-semibold text-black">{outgoing ? '-' : '+'}{formatMoney(Number(outgoing && Number(transaction.totalAmount) > 0 ? transaction.totalAmount : transaction.amount), transaction.currency)}</p>
+                       {outgoing && <p className="text-xs text-black">{t('transactionFee')}: {formatMoney(Number(transaction.feeAmount ?? 0), transaction.currency)}</p>}
                        <p className={`text-sm ${transaction.status === 'COMPLETED' ? 'text-black' : transaction.status === 'FAILED' ? 'text-black' : 'text-black'}`}>{statusLabel[transaction.status]}</p>
                      </div>
                    </div>
@@ -504,6 +578,4 @@ export default function PaymentsPage() {
      </div>
    )
  }
-
-
 

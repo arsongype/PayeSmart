@@ -33,7 +33,7 @@ export default function WalletPage() {
 
   useEffect(() => {
     if (user) {
-      walletService.getWallet(user.id).then(setWallet).finally(() => setLoading(false))
+      walletService.getWalletWithEffectiveLimits(user.id).then(setWallet).finally(() => setLoading(false))
       void loadHistory()
     }
   }, [user])
@@ -54,17 +54,29 @@ export default function WalletPage() {
   const downloadReceipt = async (transaction: PaymentTransaction) => {
     const { jsPDF } = await import('jspdf')
     const doc = new jsPDF()
-    doc.setFontSize(18)
-    doc.text(t('receiptTitle'), 14, 20)
+    doc.setFillColor(8, 123, 128)
+    doc.roundedRect(12, 12, 186, 30, 4, 4, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(20)
+    doc.text(t('receiptTitle'), 20, 31)
+    doc.setTextColor(62, 58, 54)
+    doc.setFontSize(10)
+    doc.text(t('receiptReference', { ref: transaction.externalReference ?? `#${transaction.id}` }), 16, 54)
+    doc.text(t('receiptDate', { date: new Date(transaction.createdAt).toLocaleString() }), 16, 62)
+    doc.setDrawColor(220, 218, 212)
+    doc.line(16, 68, 194, 68)
     doc.setFontSize(12)
-    const lines = [
-      t('receiptReference', { ref: transaction.externalReference ?? `#${transaction.id}` }),
-      t('receiptAmount', { amount: Number(transaction.amount).toFixed(2), currency: transaction.currency }),
-      t('receiptChannel', { channel: transaction.channel }),
-      t('receiptStatus', { status: transaction.status }),
-      t('receiptDate', { date: new Date(transaction.createdAt).toLocaleString() }),
-    ]
-    doc.text(lines, 14, 32, { maxWidth: 180 })
+    doc.text(t('receiptAmount', { amount: Number(transaction.amount).toFixed(2), currency: transaction.currency }), 20, 84)
+    doc.text(t('receiptFee', { amount: Number(transaction.feeAmount ?? 0).toFixed(2), currency: transaction.currency }), 20, 96)
+    doc.setFillColor(232, 247, 246)
+    doc.roundedRect(16, 106, 178, 20, 3, 3, 'F')
+    doc.setFontSize(14)
+    doc.setTextColor(8, 123, 128)
+    doc.text(t('receiptTotal', { amount: Number(transaction.totalAmount ?? transaction.amount).toFixed(2), currency: transaction.currency }), 22, 119)
+    doc.setTextColor(62, 58, 54)
+    doc.setFontSize(11)
+    doc.text(t('receiptChannel', { channel: transaction.channel }), 20, 145)
+    doc.text(t('receiptStatus', { status: transaction.status }), 20, 155)
     doc.save(`paysmart-recu-${transaction.id}.pdf`)
   }
 
@@ -247,6 +259,5 @@ export default function WalletPage() {
     </div>
   )
 }
-
 
 

@@ -7,12 +7,12 @@ flowchart TD
     actor[Administrateur / Client<br/>React]
 
     actor -->|1. Demande d'affichage du dashboard| reporting[Backend NestJS<br/>Reporting Module]
-    actor -->|2. Demande d'export CSV / PDF| export[Backend NestJS<br/>Service Export]
+    actor -->|2. Demande d'export PDF| export[Backend NestJS<br/>Service Export]
 
     reporting -->|Agrégations SQL| database[(BDD PostgreSQL)]
     reporting -->|REST: GET /api/v1/metrics| ai[Microservice FastAPI]
     export -->|3. Requête SQL d'extraction| database
-    export --> formatter[Formateur CSV / PDF Engine<br/>json2csv / PDFKit]
+    export --> formatter[Formateur PDF sécurisé]
 
     database -->|Volumes, fraudes,<br/>méthodes de paiement| aggregate[4. Agrégation des résultats]
     ai -->|Précision, rappel,<br/>F1-score, transactions analysées| aggregate
@@ -66,14 +66,14 @@ flowchart TD
 - Les graphiques présentent l'évolution temporelle des flux, la répartition par canal et les alertes d'anomalies.
 - L'interface affiche un état de chargement et un état d'erreur si PostgreSQL ou FastAPI ne répond pas.
 
-### 4. Demande d'exportation d'un rapport CSV ou PDF
+### 4. Demande d'exportation d'un rapport PDF
 
 **Objectif :** permettre l'export de l'historique d'un client ou des registres globaux.
 
-- L'utilisateur sélectionne la période, le périmètre et le format de sortie.
+- L'utilisateur demande un rapport PDF sur son périmètre autorisé.
 - Le contrôleur du Service Export valide les paramètres et les droits d'accès.
 - NestJS exécute la requête SQL correspondant au sous-ensemble demandé.
-- Le moteur `json2csv` génère le CSV ou `PDFKit` génère le PDF à la volée.
+- NestJS génère le PDF à la volée.
 
 ### 5. Distribution du fichier téléchargeable
 
@@ -91,5 +91,5 @@ flowchart TD
 | Analytics backend | Créer le module Reporting et les agrégations PostgreSQL indexées | Les KPIs par canal et statut sont retournés par une API NestJS |
 | Intégration IA | Connecter NestJS à `GET /api/v1/metrics` | Les métriques précision, rappel, F1-score et volume sont visibles |
 | Dashboard React | Brancher le contrôleur dashboard aux données consolidées | Les KPIs et graphiques se mettent à jour avec des états de chargement/erreur |
-| Export | Ajouter l'extraction et la génération json2csv / PDFKit | Un utilisateur autorisé télécharge un CSV ou un PDF valide |
+| Export | Ajouter l'extraction et la génération PDF | Un utilisateur autorisé télécharge un PDF valide |
 | Sécurité et validation | Contrôler les rôles, paramètres, MIME et erreurs de service | Aucun export n'est accessible hors du périmètre autorisé |

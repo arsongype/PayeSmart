@@ -23,6 +23,7 @@ import { createHash, randomBytes, randomInt } from 'node:crypto'
 import { NotificationService } from '../../../notifications/services/notification.service.js'
 import { AuditService } from '../../../security/services/audit.service.js'
 import { getCurrencyForCountry, INITIAL_WALLET_BALANCE } from './wallet-defaults.js'
+import { SecurityRule } from '../entities/security-rule.entity.js'
 
 const totp = new TOTP({
   crypto: new NobleCryptoPlugin(),
@@ -52,6 +53,8 @@ export class AuthService {
     private deviceFingerprintRepository: Repository<DeviceFingerprint>,
     @InjectRepository(OtpCode)
     private otpCodeRepository: Repository<OtpCode>,
+    @InjectRepository(SecurityRule)
+    private securityRuleRepository: Repository<SecurityRule>,
     private jwtService: JwtService,
     private configService: ConfigService,
     private notificationService: NotificationService,
@@ -204,6 +207,7 @@ export class AuthService {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
+      avatarUrl: user.avatarUrl,
       role: user.role,
       kycStatus: user.kycStatus,
       kybStatus: user.kybStatus,
@@ -486,7 +490,8 @@ export class AuthService {
       return
     }
 
-    const maxAttempts = 3
+    const rule = await this.getActiveSecurityRule('TRANSACTION_LIMIT')
+    const maxAttempts = this.getNumberCondition(rule, 'loginAttempts', 3)
     const lockDurationMinutes = 15
 
     if (attempt && attempt.attempts + 1 >= maxAttempts) {
@@ -615,9 +620,11 @@ export class AuthService {
     const wallet = await this.ensureWallet(user.id)
     const payload = { sub: user.id, email: user.email, role: user.role };
 
+    const sessionRule = await this.getActiveSecurityRule('TRANSACTION_LIMIT')
+    const sessionMinutes = this.getNumberCondition(sessionRule, 'sessionMinutes', 30)
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('jwt.secret'),
-      expiresIn: this.configService.get<string>('jwt.expiresIn') as any,
+      expiresIn: `${sessionMinutes}m`,
     });
 
     const refreshToken = this.jwtService.sign(payload, {
@@ -655,6 +662,15 @@ export class AuthService {
         isTwoFactorEnabled: user.isTwoFactorEnabled,
       },
     };
+  }
+
+  private async getActiveSecurityRule(ruleType: string) {
+    return this.securityRuleRepository.findOne({ where: { ruleType, isActive: true }, order: { priority: 'DESC', updatedAt: 'DESC' } })
+  }
+
+  private getNumberCondition(rule: SecurityRule | null, key: string, fallback: number) {
+    const value = rule?.conditions?.[key]
+    return typeof value === 'number' && value > 0 ? value : fallback
   }
 
   private async ensureWallet(userId: number): Promise<Wallet> {

@@ -15,6 +15,8 @@ import { AccountManagementService } from '../../../users/services/account-manage
 import { imageFileFilter, storage } from '../../../storage/storage.config.js'
 import { Transaction } from '../../auth/entities/transaction.entity.js'
 import { FraudAlert } from '../../auth/entities/fraud-alert.entity.js'
+import { SecurityRule } from '../../auth/entities/security-rule.entity.js'
+import { AuditLog } from '../../../security/entities/audit-log.entity.js'
 
 interface RequestWithUser {
   user: { sub: string; email: string; role: string }
@@ -31,7 +33,50 @@ export class AdminController {
     private accountManagementService: AccountManagementService,
     @InjectRepository(Transaction) private transactionRepository: Repository<Transaction>,
     @InjectRepository(FraudAlert) private fraudAlertRepository: Repository<FraudAlert>,
+    @InjectRepository(SecurityRule) private securityRuleRepository: Repository<SecurityRule>,
+    @InjectRepository(AuditLog) private auditLogRepository: Repository<AuditLog>,
   ) {}
+
+  @Get('security-rules')
+  getSecurityRules() {
+    return this.securityRuleRepository.find({ order: { priority: 'DESC', updatedAt: 'DESC' } })
+  }
+
+  @Get('audit-logs')
+  async getAuditLogs(@Query('limit') limit = '20') {
+    const logs = await this.auditLogRepository.find({ order: { createdAt: 'DESC' }, take: Math.min(100, Math.max(1, parseInt(limit, 10) || 20)) })
+    return Promise.all(logs.map(async (log) => ({
+      ...log,
+      user: log.userId ? await this.usersService.findById(log.userId).catch(() => null) : null,
+    })))
+  }
+
+  @Post('security-rules')
+  createSecurityRule(@Body() body: Partial<SecurityRule>) {
+    return this.securityRuleRepository.save(this.securityRuleRepository.create({
+      ruleName: body.ruleName ?? 'Nouvelle règle',
+      ruleType: body.ruleType ?? 'FRAUD',
+      conditions: body.conditions ?? {},
+      actions: body.actions ?? {},
+      isActive: body.isActive ?? true,
+      priority: body.priority ?? 0,
+      description: body.description ?? null,
+    }))
+  }
+
+  @Patch('security-rules/:id')
+  async updateSecurityRule(@Param('id') id: string, @Body() body: Partial<SecurityRule>) {
+    const rule = await this.securityRuleRepository.findOneBy({ id: parseInt(id, 10) })
+    if (!rule) throw new BadRequestException('Règle de sécurité introuvable')
+    Object.assign(rule, body)
+    return this.securityRuleRepository.save(rule)
+  }
+
+  @Delete('security-rules/:id')
+  async deleteSecurityRule(@Param('id') id: string) {
+    await this.securityRuleRepository.delete(parseInt(id, 10))
+    return { success: true }
+  }
 
   @Get('users/:id')
   async getUserDetail(@Param('id') id: string) {
@@ -147,6 +192,13 @@ export class AdminController {
           const riskReasons = Array.isArray(metadata.riskReasons)
             ? metadata.riskReasons.filter((reason): reason is string => typeof reason === 'string')
             : []
+          const contextualReason = riskReasons[0]
+            ?? transaction.failureReason
+            ?? (riskScore >= 70
+              ? `Risque élevé : score de ${riskScore.toFixed(1)}/100, transaction bloquée ou soumise à vérification.`
+              : riskScore >= 30
+                ? `Risque intermédiaire : score de ${riskScore.toFixed(1)}/100, confirmation supplémentaire recommandée.`
+                : `Risque faible : montant de ${Number(transaction.amount).toFixed(2)} ${transaction.currency}, aucun signal anormal détecté.`)
 
           return {
             id: transaction.id,
@@ -159,7 +211,7 @@ export class AdminController {
             riskLevel: riskLevel === 'LOW' || riskLevel === 'MEDIUM' || riskLevel === 'HIGH' || riskLevel === 'CRITICAL'
               ? riskLevel.toLowerCase()
               : 'medium',
-            reason: riskReasons[0] ?? transaction.failureReason ?? 'Signal d\'alerte détecté par l\'IA de fraude.',
+            reason: contextualReason,
             sender: senderUser ? { id: senderUser.id, name: `${senderUser.firstName} ${senderUser.lastName}`.trim() } : null,
             recipient: recipientUser ? { id: recipientUser.id, name: `${recipientUser.firstName} ${recipientUser.lastName}`.trim() } : null,
             createdAt: transaction.createdAt,

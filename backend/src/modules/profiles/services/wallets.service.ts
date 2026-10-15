@@ -7,6 +7,7 @@ import { WalletStatus } from '../../auth/enums/wallet-status.enum.js'
 import { User } from '../../auth/entities/user.entity.js'
 import { KycStatus } from '../../auth/enums/kyc-status.enum.js'
 import { KybStatus } from '../../auth/enums/kyb-status.enum.js'
+import { SecurityRule } from '../../auth/entities/security-rule.entity.js'
 
 @Injectable()
 export class WalletsService {
@@ -15,6 +16,8 @@ export class WalletsService {
     private walletRepository: Repository<Wallet>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(SecurityRule)
+    private securityRuleRepository: Repository<SecurityRule>,
   ) {}
 
   async create(userId: number, dto: CreateWalletDto) {
@@ -37,6 +40,21 @@ export class WalletsService {
       throw new NotFoundException('Portefeuille non trouvé')
     }
     return wallet
+  }
+
+  async findByUserIdWithEffectiveLimits(userId: number) {
+    const wallet = await this.findByUserId(userId)
+    const transactionRule = await this.securityRuleRepository.findOne({
+      where: { ruleType: 'TRANSACTION_LIMIT', isActive: true },
+      order: { priority: 'DESC', updatedAt: 'DESC' },
+    })
+    const dailyLimitFromRule = this.getNumberCondition(transactionRule, 'dailyLimit')
+    const monthlyLimitFromRule = this.getNumberCondition(transactionRule, 'monthlyLimit')
+    return {
+      ...wallet,
+      dailyLimit: dailyLimitFromRule ?? Number(wallet.dailyLimit),
+      monthlyLimit: monthlyLimitFromRule ?? Number(wallet.monthlyLimit),
+    }
   }
 
   async update(userId: number, dto: UpdateWalletDto) {
@@ -68,5 +86,11 @@ export class WalletsService {
     const wallet = await this.findByUserId(userId)
     await this.walletRepository.remove(wallet)
     return { message: 'Portefeuille supprimé' }
+  }
+
+  private getNumberCondition(rule: SecurityRule | null, key: string) {
+    const value = rule?.conditions?.[key]
+    const numericValue = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN
+    return Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : null
   }
 }

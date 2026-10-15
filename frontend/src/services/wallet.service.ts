@@ -6,6 +6,10 @@ export const walletService = {
     const { data } = await apiClient.get(`/wallets/${userId}`)
     return data
   },
+  async getWalletWithEffectiveLimits(userId: number): Promise<Wallet> {
+    const { data } = await apiClient.get(`/wallets/${userId}?withEffectiveLimits=true`)
+    return data
+  },
 
   async createWallet(userId: number, wallet: Partial<Wallet>) {
     const { data } = await apiClient.post(`/wallets?userId=${userId}`, wallet)

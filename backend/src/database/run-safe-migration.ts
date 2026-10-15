@@ -64,6 +64,8 @@ const statements = [
   `DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ledgers' AND column_name = 'balance_after') THEN ALTER TABLE ledgers ALTER COLUMN balance_after DROP NOT NULL; END IF; END $$`,
   `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS risk_score DECIMAL(5,2)`,
   `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS risk_level VARCHAR(20)`,
+  `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS fee_amount DECIMAL(15,2) NOT NULL DEFAULT 0`,
+  `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS total_amount DECIMAL(15,2) NOT NULL DEFAULT 0`,
   `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(120)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_idempotency_key ON transactions(idempotency_key)`,
   `CREATE TABLE IF NOT EXISTS password_reset_tokens (id SERIAL PRIMARY KEY, token_hash VARCHAR(255) NOT NULL, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at TIMESTAMP NOT NULL, is_used BOOLEAN NOT NULL DEFAULT FALSE, used_at TIMESTAMP, created_at TIMESTAMP NOT NULL DEFAULT NOW())`,

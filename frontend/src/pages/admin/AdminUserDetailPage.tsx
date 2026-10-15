@@ -95,6 +95,7 @@ export default function AdminUserDetailPage() {
   }
 
   const handleAvatarUpload = async (file: File) => {
+    if (!selectedUser) return
     if (!file.type.startsWith('image/')) {
       setAvatarError(t('profileImageTypeError'))
       return
@@ -116,6 +117,7 @@ export default function AdminUserDetailPage() {
   }
 
   const handleClearAvatar = async () => {
+    if (!selectedUser) return
     setAvatarSaving(true)
     setAvatarError('')
     try {
