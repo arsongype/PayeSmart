@@ -81,6 +81,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
         database: configService.get<string>('database.database'),
+        ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
         entities: [AuditLog, Notification, KybDocument, Ledger, KycDocument, Profile, RefreshToken, Transaction, User, Wallet, PasswordResetToken, LoginAttempt, PaymentMethod, FraudAlert, DeviceFingerprint, OtpCode, SecurityRule],
         synchronize: false,
         logging: process.env.NODE_ENV === 'development',

@@ -16,6 +16,7 @@ const dataSource = new DataSource({
   username: process.env.DB_USERNAME || 'postgres',
   password: process.env.DB_PASSWORD || 'arson',
   database: process.env.DB_NAME || 'paysmart_db',
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
   entities: [User, RefreshToken],
   synchronize: false,
 })

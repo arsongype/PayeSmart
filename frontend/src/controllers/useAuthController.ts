@@ -2,8 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import type { AxiosError } from 'axios';
 import type { AuthResponse } from '../models/User.model';
-
-const API_URL = 'http://localhost:3000/api/v1';
+import { API_BASE_URL } from '../config/env';
 
 export const useAuthController = () => {
   const [loading, setLoading] = useState(false);
@@ -13,7 +12,7 @@ export const useAuthController = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.post<AuthResponse>(`${API_URL}/auth/login`, { email, password });
+      const response = await axios.post<AuthResponse>(`${API_BASE_URL}/auth/login`, { email, password });
       localStorage.setItem('access_token', response.data.accessToken);
       localStorage.setItem('refresh_token', response.data.refreshToken);
       return response.data;
