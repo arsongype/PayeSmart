@@ -1,33 +1,34 @@
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { FullPageLoader } from '../components/common/Loader'
 import { AuthLayout } from '../layouts/AuthLayout'
 import ProtectedRoute from './ProtectedRoute'
 import { AdminRoute } from './AdminRoute'
-
-const LoginPage = lazy(() => import('../pages/auth/LoginPage'))
-const RegisterPage = lazy(() => import('../pages/auth/RegisterPage'))
-const ForgotPasswordPage = lazy(() => import('../pages/auth/ForgotPasswordPage'))
-const ResetPasswordPage = lazy(() => import('../pages/auth/ResetPasswordPage'))
-const OtpVerificationPage = lazy(() => import('../pages/auth/OtpVerificationPage'))
-const TwoFactorSetupPage = lazy(() => import('../pages/auth/TwoFactorSetupPage'))
-const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage'))
-const AdminDashboardPage = lazy(() => import('../pages/admin/AdminDashboardPage'))
-const AdminUsersPage = lazy(() => import('../pages/admin/AdminUsersPage'))
-const AdminUserDetailPage = lazy(() => import('../pages/admin/AdminUserDetailPage'))
-const AdminFraudPage = lazy(() => import('../pages/admin/AdminFraudPage'))
-const AdminTransactionsPage = lazy(() => import('../pages/admin/AdminTransactionsPage'))
-const AdminSecurityRulesPage = lazy(() => import('../pages/admin/AdminSecurityRulesPage'))
-const ProfilePage = lazy(() => import('../pages/profile/ProfilePage'))
-const WalletPage = lazy(() => import('../pages/profile/WalletPage'))
-const KycPage = lazy(() => import('../pages/profile/KycPage'))
-const PaymentsPage = lazy(() => import('../pages/payments/PaymentsPage'))
-const ConfirmQrPage = lazy(() => import('../pages/payments/ConfirmQrPage'))
-const SettingsPage = lazy(() => import('../pages/profile/SettingsPage'))
-const NotificationsPage = lazy(() => import('../pages/profile/NotificationsPage'))
+import {
+  AdminDashboardPage,
+  AdminFraudPage,
+  AdminSecurityRulesPage,
+  AdminTransactionsPage,
+  AdminUserDetailPage,
+  AdminUsersPage,
+  ConfirmQrPage,
+  DashboardPage,
+  ForgotPasswordPage,
+  KycPage,
+  LoginPage,
+  NotificationsPage,
+  OtpVerificationPage,
+  PaymentsPage,
+  ProfilePage,
+  RegisterPage,
+  ResetPasswordPage,
+  SettingsPage,
+  TwoFactorSetupPage,
+  WalletPage,
+} from './lazy-pages'
 
 const loader = (
-  <div className="min-h-screen flex items-center justify-center bg-white">
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50">
     <FullPageLoader />
   </div>
 )

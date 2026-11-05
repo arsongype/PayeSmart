@@ -23,14 +23,15 @@ export default function KycPage() {
   const [trustScore, setTrustScore] = useState<TrustScoreData | null>(null)
   const [recalculating, setRecalculating] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const userId = user?.id
 
   const loadDocuments = useCallback(() => {
-    if (user?.id) {
-      kycService.getDocuments(user.id).then(setDocuments).catch((err) => {
+    if (userId) {
+      kycService.getDocuments(userId).then(setDocuments).catch((err) => {
         setError(err instanceof Error ? err.message : t('cannotLoadDocuments'))
       }).finally(() => setLoading(false))
     }
-  }, [user])
+  }, [userId, t])
 
   useEffect(() => {
     loadDocuments()
@@ -238,6 +239,4 @@ export default function KycPage() {
     </div>
   )
 }
-
-
 

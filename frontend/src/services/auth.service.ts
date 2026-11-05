@@ -1,16 +1,42 @@
 import { apiClient } from '../config/axios.config'
 import type { AuthResponse, LoginCredentials, RegisterData, RefreshTokenPayload } from '../models/User.model'
 
+export interface SavedPaymentMethod {
+  id: number
+  methodType: string
+  lastFourDigits: string | null
+  brand: string | null
+  expiryDate: string | null
+  isActive: boolean
+}
+
+export interface AccountDeletionResult {
+  status: 'blocked' | 'scheduled'
+  message: string
+  reasons?: string[]
+  reactivationDeadline?: string
+}
+
 export const authService = {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     const { data } = await apiClient.post<AuthResponse>('/auth/login', credentials)
     return data
   },
 
-  async register(data: RegisterData): Promise<void> {
+  async requestAccountDeletion(payload: { password: string; otpCode?: string }): Promise<AccountDeletionResult> {
+    const { data } = await apiClient.delete<AccountDeletionResult>('/profiles/account/deletion', { data: payload })
+    return data
+  },
+
+  async cancelAccountDeletion(payload: { email: string; password: string; otpCode?: string }): Promise<void> {
+    await apiClient.post('/auth/account-deletion/cancel', payload)
+  },
+
+  async register(data: RegisterData): Promise<AuthResponse> {
     const { confirmPassword, ...payload } = data
     void confirmPassword
-    await apiClient.post('/auth/register', payload)
+    const { data: response } = await apiClient.post<AuthResponse>('/auth/register', payload)
+    return response
   },
 
   async logout(): Promise<void> {
@@ -62,13 +88,13 @@ export const authService = {
     await apiClient.post('/auth/two-factor/disable', payload)
   },
 
-  async getPaymentMethods() {
-    const { data } = await apiClient.get('/auth/payment-methods')
+  async getPaymentMethods(): Promise<SavedPaymentMethod[]> {
+    const { data } = await apiClient.get<SavedPaymentMethod[]>('/auth/payment-methods')
     return data
   },
 
-  async createPaymentMethod(payload: { methodType: string; lastFourDigits?: string; brand?: string; expiryDate?: string }) {
-    const { data } = await apiClient.post('/auth/payment-methods', payload)
+  async createPaymentMethod(payload: { methodType: string; lastFourDigits?: string; brand?: string; expiryDate?: string }): Promise<SavedPaymentMethod> {
+    const { data } = await apiClient.post<SavedPaymentMethod>('/auth/payment-methods', payload)
     return data
   },
 

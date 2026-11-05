@@ -37,14 +37,14 @@ export class User {
   @Column({ nullable: true, name: 'last_name' })
   lastName: string;
 
-  @Column({ unique: true, nullable: true })
-  cin: string;
+  @Column({ type: 'varchar', unique: true, nullable: true })
+  cin: string | null;
 
-  @Column({ nullable: true })
-  phone: string;
+  @Column({ type: 'varchar', nullable: true })
+  phone: string | null;
 
   @Column({ type: 'date', nullable: true, name: 'date_of_birth' })
-  dateOfBirth: string;
+  dateOfBirth: string | null;
 
   @Column({ type: 'varchar', nullable: true, name: 'avatar_url' })
   avatarUrl: string | null;
@@ -80,6 +80,9 @@ export class User {
   })
   accountStatus: UserStatus;
 
+  @Column({ type: 'varchar', length: 30, nullable: true, name: 'deletion_previous_status' })
+  deletionPreviousStatus: UserStatus | null;
+
   @Column({ type: 'text', nullable: true, name: 'suspension_reason' })
   suspensionReason: string | null;
 
@@ -92,6 +95,9 @@ export class User {
   @Column({ type: 'timestamp', nullable: true, name: 'reactivation_deadline' })
   reactivationDeadline: Date | null;
 
+  @Column({ type: 'timestamp', nullable: true, name: 'account_expires_at' })
+  accountExpiresAt: Date | null;
+
   @Column({ type: 'timestamp', nullable: true, name: 'revalidated_at' })
   revalidatedAt: Date | null;
 
@@ -101,8 +107,8 @@ export class User {
   @Column({ default: false, name: 'is_two_factor_enabled' })
   isTwoFactorEnabled: boolean;
 
-  @Column({ nullable: true, name: 'two_factor_secret' })
-  twoFactorSecret: string;
+  @Column({ type: 'varchar', nullable: true, name: 'two_factor_secret' })
+  twoFactorSecret: string | null;
 
   @Column({ type: 'json', nullable: true, name: 'security_metadata' })
   securityMetadata: Record<string, string | number | null> | null;

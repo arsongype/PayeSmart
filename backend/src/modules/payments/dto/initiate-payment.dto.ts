@@ -1,5 +1,7 @@
 import { IsEnum, IsNumber, IsNumberString, IsOptional, IsString, Min } from 'class-validator'
 import { PaymentChannel } from '../../auth/enums/payment-channel.enum.js'
+import { IsIn } from 'class-validator'
+import { PAYMENT_CURRENCIES } from '../payment-currency.js'
 
 export class InitiatePaymentDto {
   @IsNumberString()
@@ -15,6 +17,7 @@ export class InitiatePaymentDto {
 
   @IsString()
   @IsOptional()
+  @IsIn(PAYMENT_CURRENCIES)
   currency?: string
 
   @IsString()
@@ -24,10 +27,6 @@ export class InitiatePaymentDto {
   @IsString()
   @IsOptional()
   phoneNumber?: string
-
-  @IsString()
-  @IsOptional()
-  bankReference?: string
 
   @IsString()
   @IsOptional()

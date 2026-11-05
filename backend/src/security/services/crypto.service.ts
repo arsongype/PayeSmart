@@ -7,7 +7,8 @@ export class CryptoService {
   private readonly key: Buffer
 
   constructor(config: ConfigService) {
-    const secret = config.get<string>('security.encryptionKey', 'dev-only-change-me')
+    const secret = config.get<string>('security.encryptionKey')
+    if (!secret) throw new Error('Missing configuration: security.encryptionKey')
     this.key = createHash('sha256').update(secret).digest()
   }
 

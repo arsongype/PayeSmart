@@ -7,6 +7,7 @@ export const ROUTES = {
   DASHBOARD: '/dashboard',
   PAYMENTS: '/payments',
   PAYMENT_HISTORY: '/payments/history',
+  NOTIFICATIONS: '/notifications',
   PROFILE: '/profile',
   WALLET: '/wallet',
   KYC: '/kyc',

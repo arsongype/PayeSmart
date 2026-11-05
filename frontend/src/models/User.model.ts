@@ -11,6 +11,7 @@ export interface User {
   suspendedAt?: string | null;
   deletedAt?: string | null;
   reactivationDeadline?: string | null;
+  accountExpiresAt?: string | null;
   cin?: string;
   phone?: string;
   dateOfBirth?: string;

@@ -1,10 +1,10 @@
 import { apiClient } from '../config/axios.config'
 
 export type PaymentChannel = 'MVOLA' | 'ORANGE_MONEY' | 'AIRTEL_MONEY' | 'CARD' | 'QR' | 'BANK_TRANSFER'
+export type PaymentCurrency = 'MGA' | 'EUR' | 'USD' | 'XOF'
 
 export interface RecipientAccount {
   walletNumber: string
-  cardNumber: string
   cardHolderName: string
   firstName: string
   lastName: string
@@ -25,14 +25,23 @@ export interface PaymentTransaction {
   failureReason?: string | null
   metadata?: {
     qrData?: string
-    temporaryIban?: string
     phoneNumber?: string
-    bankReference?: string
+    senderDebitAmount?: number
+    recipientCreditAmount?: number
+    senderCurrency?: string
+    recipientCurrency?: string
+    sandboxExchangeRate?: boolean
     riskScore?: number
     riskLevel?: string
     riskDecision?: string
     riskReasons?: string[]
+    twoFactorExpiresAt?: string
   } | null
+  recipient?: {
+    name: string
+    walletNumber: string
+  }
+  canConfirmQr?: boolean
   createdAt: string
   updatedAt: string
   direction?: 'OUTGOING' | 'INCOMING'
@@ -42,15 +51,9 @@ export interface PaymentQuote {
   amount: number
   feeAmount: number
   totalAmount: number
-  currency: string
-}
-
-export interface VirtualCard {
-  walletNumber: string
-  cardNumber: string
-  cardHolderName: string
-  currency: string
-  status: string
+  currency: PaymentCurrency
+  walletCurrency: PaymentCurrency
+  walletDebitAmount: number
 }
 
 export const paymentService = {
@@ -64,18 +67,13 @@ export const paymentService = {
     return data
   },
 
-  async getVirtualCard(): Promise<VirtualCard> {
-    const { data } = await apiClient.get('/payments/virtual-card')
-    return data
-  },
-
-  async initiate(payload: { recipientWalletNumber?: string; amount: number; channel: PaymentChannel; currency?: string; phoneNumber?: string; cardToken?: string; bankReference?: string }): Promise<PaymentTransaction> {
+  async initiate(payload: { recipientWalletNumber?: string; amount: number; channel: PaymentChannel; currency?: PaymentCurrency; phoneNumber?: string; cardToken?: string }): Promise<PaymentTransaction> {
     const { data } = await apiClient.post('/payments/initiate', payload)
     return data
   },
 
-  async quote(amount: number): Promise<PaymentQuote> {
-    const { data } = await apiClient.post('/payments/quote', { amount })
+  async quote(amount: number, currency: PaymentCurrency): Promise<PaymentQuote> {
+    const { data } = await apiClient.post('/payments/quote', { amount, currency })
     return data
   },
 
@@ -86,6 +84,11 @@ export const paymentService = {
 
   async get(transactionId: number): Promise<PaymentTransaction> {
     const { data } = await apiClient.get(`/payments/${transactionId}`)
+    return data
+  },
+
+  async getQrConfirmation(transactionId: number): Promise<PaymentTransaction> {
+    const { data } = await apiClient.get(`/payments/${transactionId}/qr/confirmation`)
     return data
   },
 

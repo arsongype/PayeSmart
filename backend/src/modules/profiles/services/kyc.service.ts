@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Injectable, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 import { KycDocument } from '../../auth/entities/kyc-document.entity.js'
@@ -37,11 +37,11 @@ export class KycService {
         ? await this.aiService.analyzeKycFile(userId, dto.documentType, file)
         : await this.aiService.analyzeKycDocument(userId, dto.documentType, dto.ocrData || '')
       savedDocument.aiTrustScore = Math.round((analysis.confidenceScore ?? 0) * 100)
-      savedDocument.metadata = { ...(savedDocument.metadata ?? {}), analysis }
+      savedDocument.metadata = { ...savedDocument.metadata, analysis }
       await this.kycRepository.save(savedDocument)
     } catch (error) {
       console.error('AI analysis failed for KYC document:', error)
-      savedDocument.metadata = { ...(savedDocument.metadata ?? {}), analysisUnavailable: true }
+      savedDocument.metadata = { ...savedDocument.metadata, analysisUnavailable: true }
       await this.kycRepository.save(savedDocument)
     }
 
@@ -148,14 +148,14 @@ export class KycService {
       return {
         ...document,
         metadata: {
-          ...(document.metadata ?? {}),
+          ...document.metadata,
           analysis: this.buildStoredAnalysis(document, score > 0 ? score : 100),
         },
       }
     }
     if (!this.isSyntheticAnalysis(analysis)) return document
 
-    const metadata = { ...(document.metadata ?? {}) }
+    const metadata = { ...document.metadata }
     delete metadata.analysis
     document.metadata = score > 0 ? { ...metadata, analysis: this.buildStoredAnalysis(document, score) } : metadata
     return document

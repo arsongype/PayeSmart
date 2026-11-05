@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { AuthProvider } from './AuthProvider'
-import { SettingsProvider } from './SettingsContext'
+import { SettingsProvider } from './SettingsProvider'
 
 interface AppProvidersProps {
   children: ReactNode
@@ -15,4 +15,3 @@ export function AppProviders({ children }: AppProvidersProps) {
     </SettingsProvider>
   )
 }
-

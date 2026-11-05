@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Bell, Camera, Globe, Lock, Save, WalletCards, Shield } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Bell, Camera, Globe, Lock, Save, WalletCards, Shield, Trash2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useAuth } from '../../contexts/AuthContext'
@@ -10,8 +11,9 @@ import { Button } from '../../components/common/Button'
 
 export default function SettingsPage() {
   const { settings, update, save } = useSettings()
-  const { user, updateUser } = useAuth()
+  const { user, updateUser, logout } = useAuth()
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [saved, setSaved] = useState(false)
   const [twoFactorStatus, setTwoFactorStatus] = useState<{ isTwoFactorEnabled: boolean } | null>(null)
   const [twoFactorLoading, setTwoFactorLoading] = useState(false)
@@ -21,6 +23,10 @@ export default function SettingsPage() {
   const [twoFactorOtpauthUrl, setTwoFactorOtpauthUrl] = useState<string | null>(null)
   const [avatarSaving, setAvatarSaving] = useState(false)
   const [avatarMessage, setAvatarMessage] = useState<string | null>(null)
+  const [deletionPassword, setDeletionPassword] = useState('')
+  const [deletionOtpCode, setDeletionOtpCode] = useState('')
+  const [deletionLoading, setDeletionLoading] = useState(false)
+  const [deletionMessage, setDeletionMessage] = useState<string | null>(null)
 
   const uploadAvatar = async (file: File) => {
     if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
@@ -51,13 +57,27 @@ export default function SettingsPage() {
 
   useEffect(() => {
     save()
-    setSaved(true)
-    window.setTimeout(() => setSaved(false), 2500)
   }, [settings, save])
 
   useEffect(() => {
-    loadStatus()
-  }, [save])
+    let active = true
+    void authService.getTwoFactorStatus()
+      .then((data) => {
+        if (active) setTwoFactorStatus(data)
+      })
+      .catch(() => {
+        if (active) setTwoFactorStatus(null)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const handleSave = () => {
+    save()
+    setSaved(true)
+    window.setTimeout(() => setSaved(false), 2500)
+  }
 
   const startEnableTwoFactor = async () => {
     setTwoFactorLoading(true)
@@ -110,6 +130,35 @@ export default function SettingsPage() {
       }
     } else {
       await startEnableTwoFactor()
+    }
+  }
+
+  const requestAccountDeletion = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!window.confirm(t('confirmSelfDeletion'))) return
+    setDeletionLoading(true)
+    setDeletionMessage(null)
+    try {
+      const result = await authService.requestAccountDeletion({
+        password: deletionPassword,
+        otpCode: twoFactorStatus?.isTwoFactorEnabled ? deletionOtpCode : undefined,
+      })
+      if (result.status === 'blocked') {
+        setDeletionMessage(`${t('accountDeletionBlocked')} ${result.reasons?.join(' · ') ?? ''}`)
+        return
+      }
+      const date = result.reactivationDeadline
+        ? new Date(result.reactivationDeadline).toLocaleDateString()
+        : ''
+      logout()
+      navigate('/login', {
+        replace: true,
+        state: { successMessage: t('accountDeletionScheduled', { date }) },
+      })
+    } catch (err) {
+      setDeletionMessage(err instanceof Error ? err.message : t('errorAccountManagement'))
+    } finally {
+      setDeletionLoading(false)
     }
   }
 
@@ -298,9 +347,61 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      <section className="rounded-3xl border border-rose-300 bg-rose-50 p-6 shadow-lg shadow-black/10">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="rounded-2xl bg-rose-500/10 p-2.5 text-rose-700">
+            <Trash2 size={20} />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold text-black">{t('deleteAccount')}</h2>
+            <p className="mt-1 text-sm text-black">{t('accountDeletionDescription')}</p>
+          </div>
+        </div>
+        {deletionMessage && (
+          <p role="status" className="mb-4 rounded-xl border border-amber-400 bg-amber-50 p-3 text-sm text-black">
+            {deletionMessage}
+          </p>
+        )}
+        <form onSubmit={requestAccountDeletion} className="space-y-3">
+          <label className="block text-sm font-medium text-black">
+            {t('password')}
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={deletionPassword}
+              onChange={(event) => setDeletionPassword(event.target.value)}
+              className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-black"
+              required
+            />
+          </label>
+          {twoFactorStatus?.isTwoFactorEnabled && (
+            <label className="block text-sm font-medium text-black">
+              {t('otpCode')}
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={deletionOtpCode}
+                onChange={(event) => setDeletionOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-black"
+                required
+              />
+            </label>
+          )}
+          <Button
+            type="submit"
+            variant="danger"
+            isLoading={deletionLoading}
+            disabled={!deletionPassword || (Boolean(twoFactorStatus?.isTwoFactorEnabled) && deletionOtpCode.length !== 6)}
+          >
+            {t('requestAccountDeletion')}
+          </Button>
+        </form>
+      </section>
+
       <div className="flex items-center justify-end gap-3">
         <span className="text-base text-black">{saved ? t('preferencesSaved') : ''}</span>
-        <button type="button" onClick={save} className="flex items-center gap-2 rounded-2xl bg-primary-600 px-5 py-2.5 text-base font-medium text-black hover:bg-primary-500">
+        <button type="button" onClick={handleSave} className="flex items-center gap-2 rounded-2xl bg-primary-600 px-5 py-2.5 text-base font-medium text-black hover:bg-primary-500">
           <Save size={16} /> {t('saveSettings')}
         </button>
       </div>

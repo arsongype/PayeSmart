@@ -1,75 +1,51 @@
-# React + TypeScript + Vite
+# PayeSmart — interface utilisateur
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Ce dossier contient les pages visibles dans le navigateur : connexion, tableau de bord, portefeuille, paiements, notifications, vérification des documents et espaces d’administration.
 
-Currently, two official plugins are available:
+## Ce que l’on peut faire
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Créer un compte et se connecter.
+- Consulter son portefeuille, ses opérations et la date d’expiration de son compte.
+- Préparer un paiement par carte de test, QR code ou virement.
+- Recevoir et consulter des notifications.
+- Envoyer des documents pour une démonstration de vérification KYC/KYB.
+- Gérer les règles et les comptes avec un profil administrateur.
 
-## React Compiler
+> **Important :** PayeSmart est une application de démonstration. Les paiements sont simulés ; aucune banque ni aucun réseau de carte bancaire réel n’est connecté. N’utilisez pas de vraies coordonnées de carte ou de données personnelles pour une démonstration.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Démarrer l’application
 
-## Expanding the ESLint configuration
+Il faut Node.js 20.19 ou plus récent (ou 22.12 ou plus récent), npm, une base PostgreSQL préparée et le backend PayeSmart démarré. La configuration de la base est expliquée dans le [guide du backend](../backend/README.md). Le service IA est nécessaire pour les fonctions de vérification de documents.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+1. Démarrez PostgreSQL et configurez le backend. Depuis la racine du dépôt, dans un premier terminal :
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+   ```powershell
+   Set-Location .\backend
+   npm ci
+   npm run start:dev
+   ```
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+2. Si vous voulez utiliser l’analyse de documents, démarrez aussi le [service IA](../ai-service/README.md).
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+3. Dans un autre terminal, repartez de la racine du dépôt, puis installez et démarrez cette interface :
 
+   ```powershell
+   Set-Location .\frontend
+   npm ci
+   npm run dev
+   ```
+
+4. Ouvrez l’adresse indiquée par Vite, généralement `http://localhost:5173`, puis créez un compte de démonstration.
+
+En mode développement, Vite transmet automatiquement les demandes `/api/v1` et les fichiers `/uploads` au backend local sur le port 3000. Pour utiliser une autre adresse d’API, définissez `VITE_API_BASE_URL` dans un fichier `.env.local` du dossier `frontend`.
+
+## Contrôles disponibles
+
+Depuis `frontend`, exécutez :
+
+```powershell
+npm run lint
+npm run build
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
+Le lint vérifie la qualité du code. Le build vérifie les types TypeScript et prépare les fichiers de l’interface. Aucun script de tests unitaires frontend n’est actuellement configuré.

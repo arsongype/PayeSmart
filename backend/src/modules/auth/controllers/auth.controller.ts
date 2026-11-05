@@ -1,12 +1,11 @@
 import { Controller, Post, Body, HttpCode, HttpStatus, Get, UseGuards, Req, Param, Patch, Delete } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from '../services/auth.service.js';
-import { RegisterDto, LoginDto, RefreshTokenDto, UpdateRoleDto, UpdateKycStatusDto, UpdateMeDto, ForgotPasswordDto, ResetPasswordDto, VerifyEmailDto, EnableTwoFactorDto, ConfirmTwoFactorSetupDto, CreatePaymentMethodDto, TwoFactorVerifyDto } from '../dto/auth.dto.js';
+import { RegisterDto, LoginDto, CancelAccountDeletionDto, RefreshTokenDto, UpdateRoleDto, UpdateKycStatusDto, UpdateMeDto, ForgotPasswordDto, ResetPasswordDto, VerifyEmailDto, EnableTwoFactorDto, ConfirmTwoFactorSetupDto, CreatePaymentMethodDto, TwoFactorVerifyDto } from '../dto/auth.dto.js';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../../../common/guards/roles.guard.js';
 import { SetMetadata } from '@nestjs/common';
 import { Role } from '../enums/role.enum.js';
-import { KycStatus } from '../enums/kyc-status.enum.js';
 
 export const Roles = (...roles: Role[]) => SetMetadata('roles', roles);
 
@@ -37,6 +36,15 @@ export class AuthController {
   @Post('refresh')
   refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshTokens(dto.refreshToken)
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('account-deletion/cancel')
+  cancelPendingAccountDeletion(@Body() dto: CancelAccountDeletionDto, @Req() req: Request) {
+    return this.authService.cancelPendingAccountDeletion(dto, {
+      ipAddress: req.ip ?? req.socket.remoteAddress ?? 'unknown',
+      userAgent: req.get('user-agent') ?? 'unknown',
+    })
   }
 
   @UseGuards(AuthGuard('jwt'))

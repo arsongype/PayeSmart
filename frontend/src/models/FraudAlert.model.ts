@@ -4,6 +4,7 @@ export interface FraudAlert {
   amount: number
   currency: string
   status: string
+  reviewStatus?: string
   channel: string
   riskScore: number
   riskLevel: 'low' | 'medium' | 'high' | 'critical'

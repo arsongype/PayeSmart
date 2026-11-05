@@ -14,6 +14,14 @@ class FraudPrediction:
     features: dict
 
 
+def evaluate_risk_decision(risk_score: float, low_threshold: float = 30.0, medium_threshold: float = 70.0) -> tuple[str, str]:
+    if risk_score < low_threshold:
+        return "APPROVE", "LOW"
+    if risk_score < medium_threshold:
+        return "REQUIRE_2FA", "MEDIUM"
+    return "BLOCK", "HIGH"
+
+
 class FraudDetectionService:
     """Explainable fraud decisions backed by a local logistic-regression model and ensemble alternatives."""
 
@@ -36,6 +44,8 @@ class FraudDetectionService:
         ip_address: Optional[str] = None,
         recipient_wallet_id: Optional[int] = None,
         hour: Optional[int] = None,
+        low_risk_threshold: float = 30.0,
+        medium_risk_threshold: float = 70.0,
     ) -> FraudPrediction:
         normalized_amount = max(0.0, float(amount or 0))
         transaction_count = max(0, int(transaction_count_24h or 0))
@@ -73,12 +83,11 @@ class FraudDetectionService:
             reasons.append("Le portefeuille destinataire est identique à l'émetteur.")
 
         risk_score = round(prediction.probability * 100, 2)
-        if risk_score < 40:
-            decision, risk_level = "APPROVE", "LOW"
-        elif risk_score < 90:
-            decision, risk_level = "REQUIRE_2FA", "MEDIUM"
-        else:
-            decision, risk_level = "BLOCK", "HIGH"
+        decision, risk_level = evaluate_risk_decision(
+            risk_score,
+            low_risk_threshold,
+            medium_risk_threshold,
+        )
 
         if not reasons:
             if decision == "APPROVE":

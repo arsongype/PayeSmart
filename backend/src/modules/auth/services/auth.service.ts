@@ -13,13 +13,14 @@ import { PaymentMethod } from '../entities/payment-method.entity.js';
 import { FraudAlert } from '../entities/fraud-alert.entity.js';
 import { DeviceFingerprint } from '../entities/device-fingerprint.entity.js';
 import { OtpCode } from '../entities/otp-code.entity.js';
-import { RegisterDto, LoginDto, UpdateMeDto, ForgotPasswordDto, ResetPasswordDto, VerifyEmailDto, EnableTwoFactorDto, ConfirmTwoFactorSetupDto, CreatePaymentMethodDto } from '../dto/auth.dto.js';
+import { RegisterDto, LoginDto, CancelAccountDeletionDto, UpdateMeDto, ForgotPasswordDto, ResetPasswordDto, VerifyEmailDto, EnableTwoFactorDto, ConfirmTwoFactorSetupDto, CreatePaymentMethodDto } from '../dto/auth.dto.js';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '../enums/role.enum.js';
 import { KycStatus } from '../enums/kyc-status.enum.js';
+import { UserStatus } from '../enums/user-status.enum.js';
 import { Wallet } from '../entities/wallet.entity.js';
 import { WalletStatus } from '../enums/wallet-status.enum.js';
-import { createHash, randomBytes, randomInt } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { NotificationService } from '../../../notifications/services/notification.service.js'
 import { AuditService } from '../../../security/services/audit.service.js'
 import { getCurrencyForCountry, INITIAL_WALLET_BALANCE } from './wallet-defaults.js'
@@ -78,12 +79,15 @@ export class AuthService {
       const normalizedRole: Role = dto.role ?? Role.USER
       const normalizedKycStatus: typeof KycStatus[keyof typeof KycStatus] = dto.kycStatus ?? KycStatus.NON_VERIFIE
       const passwordHash = await argon2.hash(dto.password)
+      const accountExpiresAt = new Date()
+      accountExpiresAt.setUTCFullYear(accountExpiresAt.getUTCFullYear() + 1)
       const { address, city, country, postalCode, ...userData } = dto
       const user = this.userRepository.create({
         ...userData,
         role: normalizedRole,
         kycStatus: normalizedKycStatus,
         passwordHash,
+        accountExpiresAt,
       })
 
       const savedUser = await this.userRepository.save(user)
@@ -125,10 +129,20 @@ export class AuthService {
       if (!dto.otpCode) {
         throw new BadRequestException('2FA_REQUIRED');
       }
+      if (!user.twoFactorSecret) {
+        throw new BadRequestException('Secret 2FA manquant')
+      }
       const isValid = (await totp.verify(dto.otpCode, { secret: user.twoFactorSecret, epochTolerance: 30 })).valid;
       if (!isValid) {
         throw new BadRequestException('Code 2FA invalide');
       }
+    }
+
+    if (user.accountStatus === UserStatus.DELETED) {
+      if (user.reactivationDeadline && user.reactivationDeadline > new Date()) {
+        throw new ForbiddenException('ACCOUNT_DELETION_PENDING')
+      }
+      throw new UnauthorizedException('ACCOUNT_DELETION_EXPIRED')
     }
 
     if (context) {
@@ -150,18 +164,39 @@ export class AuthService {
   }
 
   async refreshTokens(refreshToken: string) {
+    let payload: { sub: string | number }
     try {
-      const payload = this.jwtService.verify(refreshToken, {
+      payload = this.jwtService.verify<{ sub: string | number }>(refreshToken, {
         secret: this.configService.get<string>('jwt.refreshSecret'),
       });
-
-      const user = await this.userRepository.findOne({ where: { id: payload.sub } });
-      if (!user) throw new UnauthorizedException('Accès refusé');
-
-      return this.generateTokens(user);
     } catch {
       throw new UnauthorizedException('Token de rafraîchissement invalide ou expiré');
     }
+
+    const userId = Number(payload.sub)
+    if (!Number.isSafeInteger(userId)) throw new UnauthorizedException('Token de rafraîchissement invalide ou expiré')
+    const user = await this.userRepository.findOne({ where: { id: userId } })
+    if (!user || user.accountStatus === UserStatus.DELETED) {
+      throw new UnauthorizedException('Token de rafraîchissement invalide ou expiré')
+    }
+
+    const tokenMatched = await this.refreshTokenRepository.manager.transaction(async (manager) => {
+      const repository = manager.getRepository(RefreshToken)
+      const activeTokens = await repository.find({
+        where: { userId: user.id, isRevoked: false },
+        lock: { mode: 'pessimistic_write' },
+      })
+      for (const record of activeTokens) {
+        if (record.expiresAt > new Date() && await argon2.verify(record.tokenHash, refreshToken)) {
+          record.isRevoked = true
+          await repository.save(record)
+          return true
+        }
+      }
+      return false
+    })
+    if (!tokenMatched) throw new UnauthorizedException('Token de rafraîchissement invalide ou expiré')
+    return this.generateTokens(user)
   }
 
   async me(userId: string) {
@@ -194,6 +229,8 @@ export class AuthService {
       accountStatus: user.accountStatus,
       suspensionReason: user.suspensionReason,
       reactivationDeadline: user.reactivationDeadline,
+      accountExpiresAt: user.accountExpiresAt,
+      createdAt: user.createdAt,
       wallet,
       isEmailVerified: user.isEmailVerified,
       isTwoFactorEnabled: user.isTwoFactorEnabled,
@@ -214,6 +251,7 @@ export class AuthService {
       accountStatus: user.accountStatus,
       suspensionReason: user.suspensionReason,
       reactivationDeadline: user.reactivationDeadline,
+      accountExpiresAt: user.accountExpiresAt,
       isEmailVerified: user.isEmailVerified,
       createdAt: user.createdAt,
     }))
@@ -412,11 +450,94 @@ export class AuthService {
       throw new BadRequestException('Code 2FA invalide')
     }
 
+    if (user.accountStatus === UserStatus.DELETED) {
+      if (user.reactivationDeadline && user.reactivationDeadline > new Date()) {
+        throw new ForbiddenException('ACCOUNT_DELETION_PENDING')
+      }
+      throw new UnauthorizedException('ACCOUNT_DELETION_EXPIRED')
+    }
+
     if (recentAttempt) {
       await this.loginAttemptRepository.delete(recentAttempt.id)
     }
 
     return this.generateTokens(user)
+  }
+
+  async verifyAccountDeletionCredentials(userId: number, password: string, otpCode?: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId } })
+    if (!user || !(await argon2.verify(user.passwordHash, password))) {
+      throw new UnauthorizedException('Identifiants invalides')
+    }
+    if (user.isTwoFactorEnabled) {
+      if (!otpCode) throw new BadRequestException('2FA_REQUIRED')
+      if (!user.twoFactorSecret || !(await totp.verify(otpCode, { secret: user.twoFactorSecret, epochTolerance: 30 })).valid) {
+        throw new UnauthorizedException('Code 2FA invalide')
+      }
+    }
+  }
+
+  async cancelPendingAccountDeletion(dto: CancelAccountDeletionDto, context?: { ipAddress: string; userAgent: string }) {
+    if (await this.isLoginBlocked(dto.email, context?.ipAddress)) {
+      throw new ForbiddenException('Compte temporairement bloqué suite à trop de tentatives de connexion')
+    }
+
+    const user = await this.userRepository.findOne({ where: { email: dto.email } })
+    if (!user || !(await argon2.verify(user.passwordHash, dto.password))) {
+      await this.recordLoginAttempt(dto.email, context?.ipAddress, context?.userAgent, false)
+      throw new UnauthorizedException('Identifiants invalides')
+    }
+    const result = await this.userRepository.manager.transaction(async (manager) => {
+      const users = manager.getRepository(User)
+      const currentUser = await users.findOne({ where: { id: user.id }, lock: { mode: 'pessimistic_write' } })
+      if (!currentUser || currentUser.email !== dto.email || !(await argon2.verify(currentUser.passwordHash, dto.password))) {
+        return { status: 'invalid' as const }
+      }
+      if (currentUser.accountStatus !== UserStatus.DELETED || !currentUser.reactivationDeadline) {
+        return { status: 'not-pending' as const }
+      }
+      if (new Date() >= currentUser.reactivationDeadline) {
+        return { status: 'expired' as const }
+      }
+      if (currentUser.isTwoFactorEnabled) {
+        if (!dto.otpCode) return { status: 'missing-2fa' as const }
+        if (!currentUser.twoFactorSecret || !(await totp.verify(dto.otpCode, { secret: currentUser.twoFactorSecret, epochTolerance: 30 })).valid) {
+          return { status: 'invalid-2fa' as const }
+        }
+      }
+
+      currentUser.accountStatus = currentUser.deletionPreviousStatus ?? UserStatus.ACTIVE
+      currentUser.deletionPreviousStatus = null
+      currentUser.deletedAt = null
+      currentUser.reactivationDeadline = null
+      if (currentUser.accountStatus !== UserStatus.SUSPENDED) {
+        currentUser.suspensionReason = null
+        currentUser.suspendedAt = null
+      }
+      await users.save(currentUser)
+      return { status: 'restored' as const, user: currentUser }
+    })
+
+    if (result.status === 'invalid' || result.status === 'invalid-2fa') {
+      await this.recordLoginAttempt(dto.email, context?.ipAddress, context?.userAgent, false)
+      throw new UnauthorizedException(result.status === 'invalid' ? 'Identifiants invalides' : 'Code 2FA invalide')
+    }
+    if (result.status === 'not-pending') throw new BadRequestException('Aucune suppression de compte récupérable')
+    if (result.status === 'expired') throw new ForbiddenException('ACCOUNT_DELETION_EXPIRED')
+    if (result.status === 'missing-2fa') throw new BadRequestException('2FA_REQUIRED')
+
+    await this.recordLoginAttempt(dto.email, context?.ipAddress, context?.userAgent, true)
+    await this.auditService.record({
+      method: 'POST',
+      path: '/auth/account-deletion/cancel',
+      action: 'ACCOUNT_DELETION_CANCELLED',
+      userId: result.user.id,
+      ipAddress: context?.ipAddress,
+      userAgent: context?.userAgent,
+      statusCode: 200,
+    })
+    await this.notificationService.create(result.user.id, 'Suppression annulée', 'Votre compte a été réactivé avant la fin du délai de 30 jours.')
+    return { message: 'ACCOUNT_DELETION_CANCELLED' }
   }
 
   async forgotPassword(dto: ForgotPasswordDto, context?: { ipAddress: string; userAgent: string }) {
@@ -544,6 +665,19 @@ export class AuthService {
   async createPaymentMethod(userId: number, dto: CreatePaymentMethodDto) {
     const user = await this.userRepository.findOne({ where: { id: userId } })
     if (!user) throw new UnauthorizedException('Utilisateur non trouvé')
+    if (dto.methodType === 'CARD') {
+      const expiry = dto.expiryDate?.match(/^(0[1-9]|1[0-2])\/(\d{2})$/)
+      const currentDate = new Date()
+      if (!expiry) throw new BadRequestException('La date d’expiration doit être au format MM/AA')
+      const expiryYear = 2000 + Number(expiry[2])
+      const expiryMonth = Number(expiry[1])
+      if (
+        expiryYear < currentDate.getFullYear()
+        || (expiryYear === currentDate.getFullYear() && expiryMonth < currentDate.getMonth() + 1)
+      ) {
+        throw new BadRequestException('La carte simulée est expirée')
+      }
+    }
 
     return this.paymentMethodRepository.save(
       this.paymentMethodRepository.create({
@@ -657,6 +791,8 @@ export class AuthService {
         accountStatus: user.accountStatus,
         suspensionReason: user.suspensionReason,
         reactivationDeadline: user.reactivationDeadline,
+        accountExpiresAt: user.accountExpiresAt,
+        createdAt: user.createdAt,
         wallet,
         isEmailVerified: user.isEmailVerified,
         isTwoFactorEnabled: user.isTwoFactorEnabled,
@@ -687,7 +823,7 @@ export class AuthService {
         cardNumber: this.generateCardNumber(userId),
         cardHolderName: [user.firstName, user.lastName].filter(Boolean).join(' ').toUpperCase() || user.email.toUpperCase(),
         status: WalletStatus.ACTIVE,
-        currency: getCurrencyForCountry(user.profile?.country),
+        currency: getCurrencyForCountry(user.profile?.country ?? undefined),
         balance: INITIAL_WALLET_BALANCE,
         dailyLimit: 0,
         monthlyLimit: 0,

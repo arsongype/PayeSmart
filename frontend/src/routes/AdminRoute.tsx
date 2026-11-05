@@ -7,7 +7,7 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-600 border-t-transparent" />
       </div>
     )

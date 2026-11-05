@@ -1,8 +1,8 @@
-import { Controller, Get, UseGuards, Param, Patch, Body, Req, Post, Delete, Query, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common'
+import { Controller, Get, UseGuards, Param, Patch, Body, Req, Post, Delete, Query, UseInterceptors, UploadedFile, BadRequestException, NotFoundException, ParseIntPipe } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { InjectRepository } from '@nestjs/typeorm'
-import { Repository } from 'typeorm'
+import { In, Not, Repository } from 'typeorm'
 import { RolesGuard } from '../../../common/guards/roles.guard.js'
 import { UsersService } from '../../../users/services/users.service.js'
 import { Role } from '../../auth/enums/role.enum.js'
@@ -43,38 +43,74 @@ export class AdminController {
   }
 
   @Get('audit-logs')
-  async getAuditLogs(@Query('limit') limit = '20') {
-    const logs = await this.auditLogRepository.find({ order: { createdAt: 'DESC' }, take: Math.min(100, Math.max(1, parseInt(limit, 10) || 20)) })
-    return Promise.all(logs.map(async (log) => ({
+  async getAuditLogs(@Query('page') pageValue = '1') {
+    const requestedPage = Number(pageValue)
+    if (!Number.isSafeInteger(requestedPage) || requestedPage < 1) {
+      throw new BadRequestException('Le numéro de page doit être un entier positif')
+    }
+    const limit = 10
+    const total = await this.auditLogRepository.count()
+    const totalPages = Math.ceil(total / limit)
+    const page = Math.min(requestedPage, Math.max(totalPages, 1))
+    const logs = await this.auditLogRepository.find({
+      order: { createdAt: 'DESC', id: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    })
+    const items = await Promise.all(logs.map(async (log) => ({
       ...log,
       user: log.userId ? await this.usersService.findById(log.userId).catch(() => null) : null,
     })))
+    return { items, total, page, limit, totalPages }
   }
 
   @Post('security-rules')
-  createSecurityRule(@Body() body: Partial<SecurityRule>) {
-    return this.securityRuleRepository.save(this.securityRuleRepository.create({
-      ruleName: body.ruleName ?? 'Nouvelle règle',
-      ruleType: body.ruleType ?? 'FRAUD',
-      conditions: body.conditions ?? {},
-      actions: body.actions ?? {},
-      isActive: body.isActive ?? true,
-      priority: body.priority ?? 0,
-      description: body.description ?? null,
-    }))
+  async createSecurityRule(@Body() body: Partial<SecurityRule>) {
+    return this.securityRuleRepository.manager.transaction(async (manager) => {
+      const repository = manager.getRepository(SecurityRule)
+      const rule = repository.create({
+        ruleName: body.ruleName ?? 'Nouvelle règle',
+        ruleType: body.ruleType ?? 'FRAUD',
+        conditions: body.conditions ?? {},
+        actions: body.actions ?? {},
+        isActive: body.isActive ?? true,
+        priority: body.priority ?? 0,
+        description: body.description ?? null,
+      })
+      if (rule.isActive) {
+        await repository.update({ ruleType: rule.ruleType, isActive: true }, { isActive: false })
+      }
+      return repository.save(rule)
+    })
   }
 
   @Patch('security-rules/:id')
-  async updateSecurityRule(@Param('id') id: string, @Body() body: Partial<SecurityRule>) {
-    const rule = await this.securityRuleRepository.findOneBy({ id: parseInt(id, 10) })
-    if (!rule) throw new BadRequestException('Règle de sécurité introuvable')
-    Object.assign(rule, body)
-    return this.securityRuleRepository.save(rule)
+  async updateSecurityRule(@Param('id', ParseIntPipe) id: number, @Body() body: Partial<SecurityRule>) {
+    return this.securityRuleRepository.manager.transaction(async (manager) => {
+      const repository = manager.getRepository(SecurityRule)
+      const rule = await repository.findOneBy({ id })
+      if (!rule) throw new BadRequestException('Règle de sécurité introuvable')
+      const { ruleName, ruleType, conditions, actions, isActive, priority, description } = body
+      if (ruleName !== undefined) rule.ruleName = ruleName
+      if (ruleType !== undefined) rule.ruleType = ruleType
+      if (conditions !== undefined) rule.conditions = conditions
+      if (actions !== undefined) rule.actions = actions
+      if (isActive !== undefined) rule.isActive = isActive
+      if (priority !== undefined) rule.priority = priority
+      if (description !== undefined) rule.description = description
+      if (rule.isActive) {
+        await repository.update(
+          { ruleType: rule.ruleType, isActive: true, id: Not(rule.id) },
+          { isActive: false },
+        )
+      }
+      return repository.save(rule)
+    })
   }
 
   @Delete('security-rules/:id')
-  async deleteSecurityRule(@Param('id') id: string) {
-    await this.securityRuleRepository.delete(parseInt(id, 10))
+  async deleteSecurityRule(@Param('id', ParseIntPipe) id: number) {
+    await this.securityRuleRepository.delete(id)
     return { success: true }
   }
 
@@ -167,6 +203,12 @@ export class AdminController {
       order: { createdAt: 'DESC' },
       relations: { senderWallet: true, recipientWallet: true },
     })
+    const fraudAlerts = await this.fraudAlertRepository.find({
+      where: { transactionId: In(transactions.map((transaction) => transaction.id)) },
+    })
+    const reviewStatusByTransaction = new Map(
+      fraudAlerts.map((alert) => [alert.transactionId, alert.status]),
+    )
 
     const alerts = await Promise.all(
       transactions
@@ -188,6 +230,8 @@ export class AdminController {
             : null
 
           const riskScore = Number(metadata.riskScore ?? metadata.risk_score ?? 0)
+          const hasFraudFailureReason = typeof transaction.failureReason === 'string'
+            && transaction.failureReason.toLowerCase().includes('fraude')
           const riskLevel = String(metadata.riskLevel ?? metadata.risk_level ?? 'UNKNOWN').toUpperCase()
           const riskReasons = Array.isArray(metadata.riskReasons)
             ? metadata.riskReasons.filter((reason): reason is string => typeof reason === 'string')
@@ -211,6 +255,8 @@ export class AdminController {
             riskLevel: riskLevel === 'LOW' || riskLevel === 'MEDIUM' || riskLevel === 'HIGH' || riskLevel === 'CRITICAL'
               ? riskLevel.toLowerCase()
               : 'medium',
+            reviewStatus: reviewStatusByTransaction.get(transaction.id)
+              ?? (riskScore >= 70 || hasFraudFailureReason ? 'OPEN' : 'RESOLVED'),
             reason: contextualReason,
             sender: senderUser ? { id: senderUser.id, name: `${senderUser.firstName} ${senderUser.lastName}`.trim() } : null,
             recipient: recipientUser ? { id: recipientUser.id, name: `${recipientUser.firstName} ${recipientUser.lastName}`.trim() } : null,
@@ -265,14 +311,24 @@ export class AdminController {
 
   @Patch('fraud-alerts/:id/review')
   async reviewFraudAlert(@Param('id') id: string, @Body() body: { status: string; adminNotes?: string }, @Req() req: RequestWithUser) {
-    let alert = await this.fraudAlertRepository.findOne({ where: { transactionId: parseInt(id) } })
+    if (body.status !== 'OPEN' && body.status !== 'RESOLVED') {
+      throw new BadRequestException('Le statut doit être OPEN ou RESOLVED')
+    }
+    const transactionId = parseInt(id, 10)
+    if (!Number.isSafeInteger(transactionId) || transactionId < 1) {
+      throw new BadRequestException('Identifiant de transaction invalide')
+    }
+    const transaction = await this.transactionRepository.findOne({
+      where: { id: transactionId },
+      relations: { senderWallet: true },
+    })
+    if (!transaction?.senderWallet) throw new NotFoundException('Transaction non trouvée')
+    let alert = await this.fraudAlertRepository.findOne({ where: { transactionId } })
     if (!alert) {
-      const transaction = await this.transactionRepository.findOne({ where: { id: parseInt(id) } })
-      if (!transaction) throw new Error('Transaction non trouvée')
       const metadata = (transaction.metadata ?? {}) as Record<string, unknown>
       alert = this.fraudAlertRepository.create({
         transactionId: transaction.id,
-        userId: transaction.senderWalletId,
+        userId: transaction.senderWallet.userId,
         riskScore: Number(metadata.riskScore ?? metadata.risk_score ?? 0),
         riskLevel: String(metadata.riskLevel ?? metadata.risk_level ?? 'MEDIUM'),
         reasons: Array.isArray(metadata.riskReasons) ? metadata.riskReasons.join(', ') : (transaction.failureReason ?? ''),
@@ -282,6 +338,7 @@ export class AdminController {
         reviewedBy: parseInt(req.user.sub, 10),
       })
     } else {
+      alert.userId = transaction.senderWallet.userId
       alert.status = body.status
       alert.adminNotes = body.adminNotes ?? alert.adminNotes
       alert.reviewedAt = new Date()

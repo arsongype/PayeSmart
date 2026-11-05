@@ -13,7 +13,7 @@ import { useTranslation } from '../../utils/i18n'
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuth()
-  const { t, formatMoney } = useTranslation()
+  const { t, locale, formatMoney } = useTranslation()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [wallet, setWallet] = useState<WalletType | null>(null)
   const [kycDocs, setKycDocs] = useState<KycDocument[]>([])
@@ -36,6 +36,7 @@ export default function ProfilePage() {
   const [avatarSaving, setAvatarSaving] = useState(false)
   const [avatarError, setAvatarError] = useState('')
   const [addressForm, setAddressForm] = useState({ address: '', city: '', country: '', postalCode: '' })
+  const [addressError, setAddressError] = useState('')
   const mountedRef = useRef(false)
   const approvedKybData = kybDocs
     .filter((document) => document.status === 'APPROVED' || document.status === 'VERIFIE')
@@ -89,12 +90,20 @@ export default function ProfilePage() {
 
   const saveAddress = async () => {
     if (!user) return
+    if (addressForm.country.trim() && !/^[A-Za-z]{2}$/.test(addressForm.country.trim())) {
+      setAddressError('Saisissez le code pays ISO-2 (ex. MG).')
+      setSaved(false)
+      return
+    }
     setSaving(true)
     setSaved(false)
+    setAddressError('')
     try {
-      const updated = await profileService.updateProfile(user.id, addressForm)
+      const updated = await profileService.updateProfile(user.id, { ...addressForm, country: addressForm.country.trim().toUpperCase() })
       setProfile(updated)
       setSaved(true)
+    } catch (error) {
+      setAddressError(error instanceof Error ? error.message : 'Impossible d’enregistrer le pays du profil.')
     } finally {
       setSaving(false)
     }
@@ -239,6 +248,13 @@ export default function ProfilePage() {
                   </label>
                 ))}
               </div>
+              {profileUser?.accountExpiresAt && (
+                <p className="mt-4 text-sm text-black">
+                  {t('accountExpirationDate', {
+                    date: new Date(profileUser.accountExpiresAt).toLocaleDateString(locale),
+                  })}
+                </p>
+              )}
               <div className="mt-6 flex items-center justify-between gap-3">
                 {personalInfoError && <span className="text-sm text-red-600">{personalInfoError}</span>}
                 {personalInfoSaved && !personalInfoError && <span className="text-sm text-black">{t('personalInfoSaved')}</span>}
@@ -264,7 +280,7 @@ export default function ProfilePage() {
                 {[
                   [t('address'), 'address', '12 rue des Fleurs'],
                   [t('city'), 'city', 'Dakar'],
-                  [t('country'), 'country', 'Sénégal'],
+                  [`${t('country')} (ISO-2)`, 'country', 'FR'],
                   [t('postalCode'), 'postalCode', '10000'],
                 ].map(([label, key, placeholder]) => (
                   <label key={key as string} className="text-sm text-black">
@@ -272,13 +288,16 @@ export default function ProfilePage() {
                     <input
                       value={addressForm[key as keyof typeof addressForm]}
                       placeholder={placeholder as string}
-                      onChange={(event) => setAddressForm({ ...addressForm, [key as string]: event.target.value })}
+                      maxLength={key === 'country' ? 2 : undefined}
+                      autoCapitalize={key === 'country' ? 'characters' : undefined}
+                      onChange={(event) => setAddressForm({ ...addressForm, [key as string]: key === 'country' ? event.target.value.toUpperCase() : event.target.value })}
                       className="mt-1 w-full rounded-2xl border border-gray-300 bg-white px-4 py-2.5 text-base text-black outline-none focus:border-primary-500"
                     />
                   </label>
                 ))}
               </div>
               <div className="mt-6 flex items-center justify-between gap-3">
+                {addressError && <span role="alert" className="text-sm text-red-600">{addressError}</span>}
                 {saved && <span className="text-sm text-black">{t('addressSaved')}</span>}
                 <button type="button" onClick={() => void saveAddress()} disabled={saving} className="ml-auto flex items-center gap-2 rounded-2xl bg-primary-600 px-5 py-2.5 text-sm font-medium text-black hover:bg-primary-500 disabled:opacity-50">
                   <Save size={16} /> {saving ? t('saving') : t('saveAddress')}
@@ -388,5 +407,3 @@ export default function ProfilePage() {
     </div>
   )
 }
-
-

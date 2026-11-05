@@ -9,7 +9,7 @@ export interface AuthContextValue {
   twoFactorEmail: string
   login: (credentials: { email: string; password: string }) => Promise<void>
   verifyTwoFactor: (code: string) => Promise<void>
-  register: (data: { email: string; password: string; confirmPassword: string; firstName: string; lastName: string; cin?: string; phone?: string; dateOfBirth?: string; address: string; city: string; country: string; postalCode: string; role?: 'USER' | 'MERCHANT' | 'ADMIN' }) => Promise<void>
+  register: (data: { email: string; password: string; confirmPassword: string; firstName: string; lastName: string; cin?: string; phone?: string; dateOfBirth?: string; address: string; city: string; country: string; postalCode: string; role?: 'USER' | 'MERCHANT' | 'ADMIN' }) => Promise<import('../models/User.model').AuthResponse>
   logout: () => void
   refreshUser: () => Promise<void>
   updateUser: (user: User) => void
@@ -24,7 +24,6 @@ export const useAuth = (): AuthContextValue => {
   }
   return context
 }
-
 
 
 

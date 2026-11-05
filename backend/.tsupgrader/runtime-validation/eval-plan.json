@@ -1,0 +1,47 @@
+{
+  "projectType": "server",
+  "setup": [],
+  "assertions": [
+    {
+      "name": "backend-build",
+      "kind": "process",
+      "command": "npm",
+      "args": ["run", "build"],
+      "verificationMethod": "exit-code",
+      "expected": "0",
+      "timeoutSeconds": 180
+    },
+    {
+      "name": "frontend-build",
+      "kind": "process",
+      "command": "npm",
+      "args": ["run", "build"],
+      "cwd": "D:\\PayeSmart\\frontend",
+      "verificationMethod": "exit-code",
+      "expected": "0",
+      "timeoutSeconds": 180
+    },
+    {
+      "name": "tests-pass",
+      "kind": "process",
+      "command": "npm",
+      "args": ["test"],
+      "verificationMethod": "test-results",
+      "expected": "0",
+      "timeoutSeconds": 300
+    },
+    {
+      "name": "api-root-responds",
+      "kind": "http-probe",
+      "startCommand": "npm",
+      "startArgs": ["run", "start:prod"],
+      "env": {
+        "PORT": "3100"
+      },
+      "url": "http://localhost:3100/api/v1",
+      "verificationMethod": "http-status",
+      "expected": "200",
+      "timeoutSeconds": 90
+    }
+  ]
+}

@@ -7,6 +7,7 @@ import type { LoginFormData } from '../../utils/validators'
 import { loginSchema } from '../../utils/validators'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTranslation } from '../../utils/i18n'
+import { authService } from '../../services/auth.service'
 import logo from '../../assets/Logo.png'
 
 interface LoginFormProps {
@@ -20,6 +21,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [twoFactorCode, setTwoFactorCode] = useState('')
+  const [deletionPending, setDeletionPending] = useState(false)
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
@@ -63,7 +65,12 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       onSuccess?.()
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : t('loginFailed')
-      if (errMsg !== '2FA_REQUIRED') {
+      if (errMsg === 'ACCOUNT_DELETION_PENDING') {
+        setDeletionPending(true)
+        setError(t('accountDeletionPending'))
+      } else if (errMsg === 'ACCOUNT_DELETION_EXPIRED') {
+        setError(t('accountDeletionExpired'))
+      } else if (errMsg !== '2FA_REQUIRED') {
         setError(errMsg)
       }
     } finally {
@@ -81,7 +88,41 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       await verifyTwoFactor(twoFactorCode)
       onSuccess?.()
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('invalid2faCode'))
+      const errMsg = err instanceof Error ? err.message : t('invalid2faCode')
+      if (errMsg === 'ACCOUNT_DELETION_PENDING') {
+        setDeletionPending(true)
+        setError(t('accountDeletionPending'))
+      } else if (errMsg === 'ACCOUNT_DELETION_EXPIRED') {
+        setError(t('accountDeletionExpired'))
+      } else {
+        setError(errMsg)
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleRestoreAccount = async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      await authService.cancelAccountDeletion({
+        ...formData,
+        otpCode: twoFactorRequired ? twoFactorCode : undefined,
+      })
+      setDeletionPending(false)
+      setTwoFactorCode('')
+      setError(t('accountDeletionRestored'))
+      try {
+        await login(formData)
+        onSuccess?.()
+      } catch (err) {
+        if (!(err instanceof Error) || err.message !== '2FA_REQUIRED') throw err
+        setError(t('accountDeletionRestored'))
+      }
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : t('unknownError')
+      setError(errMsg === 'ACCOUNT_DELETION_EXPIRED' ? t('accountDeletionExpired') : errMsg)
     } finally {
       setIsLoading(false)
     }
@@ -211,6 +252,21 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
               </Link>
             </p>
           </>
+        )}
+
+        {deletionPending && (
+          <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+            <p className="text-xs text-black">{t('accountDeletionRecoveryHint')}</p>
+            <Button
+              type="button"
+              onClick={handleRestoreAccount}
+              className="w-full h-10 rounded-lg text-sm font-semibold"
+              isLoading={isLoading}
+              disabled={twoFactorRequired && twoFactorCode.length !== 6}
+            >
+              {t('restoreAccount')}
+            </Button>
+          </div>
         )}
       </form>
   )

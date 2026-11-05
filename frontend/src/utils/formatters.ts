@@ -1,5 +1,35 @@
 export type SupportedCurrency = 'EUR' | 'USD' | 'XOF' | 'MGA'
 
+const currencySymbols: Record<SupportedCurrency, string> = {
+  EUR: '€',
+  USD: '$',
+  XOF: 'FCFA',
+  MGA: 'Ar',
+}
+
+export const getCurrencySymbol = (currency: string): string =>
+  currency in currencySymbols
+    ? currencySymbols[currency as SupportedCurrency]
+    : currency
+
+export const formatCurrencySymbol = (amount: number, currency: string, locale = 'fr-FR'): string => {
+  try {
+    const formatter = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      currencyDisplay: 'narrowSymbol',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    })
+    const symbol = getCurrencySymbol(currency)
+    return formatter.formatToParts(amount)
+      .map((part) => part.type === 'currency' ? symbol : part.value)
+      .join('')
+  } catch {
+    return `${amount.toLocaleString(locale)} ${getCurrencySymbol(currency)}`
+  }
+}
+
 // Approximate rates: one unit of each currency expressed in EUR.
 const currencyToEur: Record<SupportedCurrency, number> = {
   EUR: 1,
@@ -19,16 +49,7 @@ export const convertCurrency = (
 }
 
 export const formatCurrency = (amount: number, currency: string = 'XOF', sourceCurrency = currency): string => {
-  try {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(convertCurrency(amount, sourceCurrency, currency))
-  } catch {
-    return `${convertCurrency(amount, sourceCurrency, currency).toLocaleString('fr-FR')} ${currency}`
-  }
+  return formatCurrencySymbol(convertCurrency(amount, sourceCurrency, currency), currency)
 }
 
 export const formatDuration = (minutes: number): string => {

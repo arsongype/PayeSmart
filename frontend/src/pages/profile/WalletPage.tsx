@@ -7,10 +7,12 @@ import { FullPageLoader } from '../../components/common/Loader'
 import type { Wallet as WalletType } from '../../models/User.model'
 import type { PaymentTransaction } from '../../services/payment.service'
 import { useTranslation } from '../../utils/i18n'
+import { useSandboxDynamicCvv } from '../../hooks/useSandboxDynamicCvv'
 
 export default function WalletPage() {
   const { user } = useAuth()
-  const { t, formatMoney } = useTranslation()
+  const { t, locale, formatMoney } = useTranslation()
+  const dynamicCvv = useSandboxDynamicCvv(user?.id ?? 0)
   const [wallet, setWallet] = useState<WalletType | null>(null)
   const [history, setHistory] = useState<PaymentTransaction[]>([])
   const [loading, setLoading] = useState(true)
@@ -20,6 +22,11 @@ export default function WalletPage() {
   const historyPageSize = 5
   const historyTotalPages = Math.max(1, Math.ceil(history.length / historyPageSize))
   const visibleHistory = history.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize)
+  const expirationSource = user?.accountExpiresAt ?? user?.createdAt
+  const accountExpirationDate = expirationSource ? new Date(expirationSource) : null
+  if (accountExpirationDate && !user?.accountExpiresAt) {
+    accountExpirationDate.setUTCFullYear(accountExpirationDate.getUTCFullYear() + 1)
+  }
 
   const loadHistory = async () => {
     try {
@@ -34,8 +41,10 @@ export default function WalletPage() {
   useEffect(() => {
     if (user) {
       walletService.getWalletWithEffectiveLimits(user.id).then(setWallet).finally(() => setLoading(false))
-      void loadHistory()
+      const timeoutId = window.setTimeout(() => void loadHistory(), 0)
+      return () => window.clearTimeout(timeoutId)
     }
+    return undefined
   }, [user])
 
   const openDetail = async (transaction: PaymentTransaction) => {
@@ -144,6 +153,19 @@ export default function WalletPage() {
                 </span>
               </div>
             </div>
+            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+              <p className="text-sm font-medium text-black">
+                {t('accountExpirationDate', {
+                  date: accountExpirationDate && !Number.isNaN(accountExpirationDate.getTime())
+                    ? accountExpirationDate.toLocaleDateString(locale === 'en' ? 'en-US' : 'fr-FR')
+                    : '-',
+                })}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+              <p className="text-sm font-medium text-black">{t('dynamicCvv', { code: dynamicCvv })}</p>
+              <p className="mt-1 text-xs text-gray-600">{t('dynamicCvvNotice')}</p>
+            </div>
           </div>
         </div>
 
@@ -163,6 +185,12 @@ export default function WalletPage() {
             <div className="space-y-3">
               {visibleHistory.map((transaction) => {
                 const outgoing = transaction.direction === 'OUTGOING'
+                const walletAmount = outgoing
+                  ? Number(transaction.metadata?.senderDebitAmount ?? transaction.totalAmount ?? transaction.amount)
+                  : Number(transaction.metadata?.recipientCreditAmount ?? transaction.amount)
+                const walletCurrency = outgoing
+                  ? transaction.metadata?.senderCurrency ?? transaction.currency
+                  : transaction.metadata?.recipientCurrency ?? transaction.currency
                 return (
                   <div key={transaction.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-300 bg-gray-50 p-4 transition hover:border-gray-400">
                     <div className="flex items-center gap-3">
@@ -176,7 +204,7 @@ export default function WalletPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <p className="font-semibold text-black">{outgoing ? '-' : '+'}{formatMoney(Number(transaction.amount), transaction.currency)}</p>
+                        <p className="font-semibold text-black">{outgoing ? '-' : '+'}{formatMoney(walletAmount, walletCurrency)}</p>
                         <p className={`text-sm ${transaction.status === 'COMPLETED' ? 'text-black' : transaction.status === 'FAILED' ? 'text-black' : 'text-black'}`}>{transaction.status}</p>
                       </div>
                       <button type="button" onClick={() => openDetail(transaction)} className="rounded-xl border border-gray-300 bg-white p-2 text-black hover:bg-gray-100">
@@ -259,5 +287,3 @@ export default function WalletPage() {
     </div>
   )
 }
-
-

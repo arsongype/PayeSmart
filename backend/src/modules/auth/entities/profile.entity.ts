@@ -19,44 +19,44 @@ export class Profile {
   @JoinColumn({ name: 'user_id' })
   user: User
 
-  @Column({ nullable: true })
-  address: string
+  @Column({ type: 'varchar', nullable: true })
+  address: string | null
 
-  @Column({ nullable: true })
-  city: string
+  @Column({ type: 'varchar', nullable: true })
+  city: string | null
 
-  @Column({ nullable: true })
-  country: string
+  @Column({ type: 'varchar', nullable: true })
+  country: string | null
 
-  @Column({ nullable: true, name: 'postal_code' })
-  postalCode: string
+  @Column({ type: 'varchar', nullable: true, name: 'postal_code' })
+  postalCode: string | null
 
-  @Column({ nullable: true, name: 'id_number' })
-  idNumber: string
+  @Column({ type: 'varchar', nullable: true, name: 'id_number' })
+  idNumber: string | null
 
-  @Column({ nullable: true, name: 'id_type' })
-  idType: string
+  @Column({ type: 'varchar', nullable: true, name: 'id_type' })
+  idType: string | null
 
   @Column({ nullable: true, name: 'id_expiry_date', type: 'date' })
-  idExpiryDate: string
+  idExpiryDate: string | null
 
-  @Column({ nullable: true, name: 'company_name' })
-  companyName: string
+  @Column({ type: 'varchar', nullable: true, name: 'company_name' })
+  companyName: string | null
 
-  @Column({ nullable: true, name: 'siren_nif' })
-  sirenNif: string
+  @Column({ type: 'varchar', nullable: true, name: 'siren_nif' })
+  sirenNif: string | null
 
-  @Column({ nullable: true, name: 'trade_register' })
-  tradeRegister: string
+  @Column({ type: 'varchar', nullable: true, name: 'trade_register' })
+  tradeRegister: string | null
 
-  @Column({ nullable: true, name: 'company_address' })
-  companyAddress: string
+  @Column({ type: 'varchar', nullable: true, name: 'company_address' })
+  companyAddress: string | null
 
-  @Column({ nullable: true, name: 'company_rib' })
-  companyRib: string
+  @Column({ type: 'varchar', nullable: true, name: 'company_rib' })
+  companyRib: string | null
 
   @Column({ type: 'json', nullable: true, name: 'metadata' })
-  metadata: Record<string, any>
+  metadata: Record<string, any> | null
 
   @Column({ type: 'timestamp', name: 'created_at' })
   createdAt: Date

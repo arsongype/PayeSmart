@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 :root {
-	--primary: #4d85ee;
-	--primary-dark: #2563eb;
-	--primary-light: #e8f0fe;
-	--background: #f8fafc;
+	--primary: #278b71;
+	--primary-dark: #1d705c;
+	--primary-light: #edf5f1;
+	--background: #f8faf9;
 	--text: #0f172a;
 }
 
@@ -41,8 +41,8 @@ button:not(:disabled):active {
 }
 
 ::selection {
-	background: rgba(77, 133, 238, 0.22);
-	color: white;
+	background: rgba(39, 139, 113, 0.16);
+	color: #174e40;
 }
 
 ::-webkit-scrollbar {
@@ -50,23 +50,32 @@ button:not(:disabled):active {
 }
 
 ::-webkit-scrollbar-track {
-	background: #e8eef8;
+	background: #edf2ef;
 }
 
 ::-webkit-scrollbar-thumb {
 	border: 3px solid var(--background);
 	border-radius: 999px;
-	background: #b8c8e3;
+	background: #c5d6cd;
 }
 
 .app-surface {
 	background: rgba(255, 255, 255, 0.9);
-	border: 1px solid #e2e8f0;
-	box-shadow: 0 16px 40px rgba(37, 99, 235, 0.08);
+	border: 1px solid #e3ebe6;
+	box-shadow: 0 16px 40px rgba(39, 100, 79, 0.06);
 }
 
 .app-surface:hover {
-	border-color: rgba(77, 133, 238, 0.42);
+	border-color: rgba(39, 139, 113, 0.32);
+}
+
+.app-main {
+	min-height: calc(100vh - 4rem);
+	background: linear-gradient(135deg, #f7f9f8 0%, #ffffff 55%, #f1f6f3 100%);
+}
+
+.app-main > .page-enter[class*="min-h-screen"] {
+	background: linear-gradient(135deg, #f7f9f8 0%, #ffffff 55%, #f1f6f3 100%) !important;
 }
 
 .page-enter {
@@ -116,9 +125,9 @@ button:not(:disabled):active {
 .blue-hero {
 	position: relative;
 	overflow: hidden;
-	background: linear-gradient(135deg, #3b78e7, #5b8ff5);
+	background: linear-gradient(135deg, #278b71, #55a68b);
 	color: white;
-	box-shadow: 0 18px 40px rgba(37, 99, 235, 0.2);
+	box-shadow: 0 18px 40px rgba(39, 100, 79, 0.14);
 	animation: blue-breathe 7s ease-in-out infinite;
 }
 
@@ -137,8 +146,8 @@ button:not(:disabled):active {
 }
 
 @keyframes blue-breathe {
-	0%, 100% { box-shadow: 0 18px 40px rgba(37, 99, 235, 0.16); }
-	50% { box-shadow: 0 22px 52px rgba(37, 99, 235, 0.28); }
+	0%, 100% { box-shadow: 0 18px 40px rgba(39, 100, 79, 0.12); }
+	50% { box-shadow: 0 22px 52px rgba(39, 100, 79, 0.2); }
 }
 
 @keyframes blue-shimmer {

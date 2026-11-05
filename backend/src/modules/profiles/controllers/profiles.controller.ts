@@ -4,7 +4,10 @@ import { FileInterceptor } from '@nestjs/platform-express'
 import type { Request } from 'express'
 import { ProfilesService } from '../services/profiles.service.js'
 import { CreateProfileDto } from '../../auth/dto/profile.dto.js'
-import { imageFileFilter, fileFilter, storage } from '../../../storage/storage.config.js'
+import { RequestAccountDeletionDto } from '../../auth/dto/auth.dto.js'
+import { AuthService } from '../../auth/services/auth.service.js'
+import { AccountManagementService } from '../../../users/services/account-management.service.js'
+import { imageFileFilter, storage } from '../../../storage/storage.config.js'
 
 interface RequestWithUser extends Request {
   user: { sub: string }
@@ -13,7 +16,18 @@ interface RequestWithUser extends Request {
 @Controller('profiles')
 @UseGuards(AuthGuard('jwt'))
 export class ProfilesController {
-  constructor(private profilesService: ProfilesService) {}
+  constructor(
+    private profilesService: ProfilesService,
+    private authService: AuthService,
+    private accountManagementService: AccountManagementService,
+  ) {}
+
+  @Delete('account/deletion')
+  async requestAccountDeletion(@Req() req: RequestWithUser, @Body() dto: RequestAccountDeletionDto) {
+    const userId = parseInt(req.user.sub, 10)
+    await this.authService.verifyAccountDeletionCredentials(userId, dto.password, dto.otpCode)
+    return this.accountManagementService.requestOwnDeletion(userId, dto.password)
+  }
 
   @Post()
   create(@Body() dto: CreateProfileDto, @Param('userId') userId: number) {

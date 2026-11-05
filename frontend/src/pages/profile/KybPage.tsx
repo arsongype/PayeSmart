@@ -27,14 +27,15 @@ export default function KybPage({ embedded = false }: KybPageProps) {
   const pendingDocumentTypeRef = useRef<KybDocument['documentType']>('KBIS')
   const [trustScore, setTrustScore] = useState<TrustScoreData | null>(null)
   const [recalculating, setRecalculating] = useState(false)
+  const userId = user?.id
 
   const loadDocuments = useCallback(() => {
-    if (user?.id) {
-      kybService.getDocuments(user.id).then(setDocuments).catch((err) => {
+    if (userId) {
+      kybService.getDocuments(userId).then(setDocuments).catch((err) => {
         setError(err instanceof Error ? err.message : t('cannotLoadDocuments'))
       }).finally(() => setLoading(false))
     }
-  }, [user])
+  }, [userId, t])
 
   useEffect(() => {
     loadDocuments()
@@ -220,6 +221,4 @@ export default function KybPage({ embedded = false }: KybPageProps) {
     </div>
   )
 }
-
-
 

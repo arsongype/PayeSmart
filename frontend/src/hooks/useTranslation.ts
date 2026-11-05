@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useSettings } from '../contexts/SettingsContext'
 import { translations } from '../utils/i18n'
-import { convertCurrency } from '../utils/formatters'
+import { convertCurrency, formatCurrencySymbol } from '../utils/formatters'
 
 type TranslationKey = keyof typeof translations.fr.common
 
@@ -16,16 +16,7 @@ export function useTranslation() {
 
   const formatMoney = (amount: number, sourceCurrency?: string, targetCurrency = settings.currency) => {
     const convertedAmount = convertCurrency(amount, sourceCurrency, targetCurrency)
-    try {
-      return new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'fr-FR', {
-        style: 'currency',
-        currency: targetCurrency,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-      }).format(convertedAmount)
-    } catch {
-      return `${convertedAmount.toLocaleString(locale === 'en' ? 'en-US' : 'fr-FR')} ${targetCurrency}`
-    }
+    return formatCurrencySymbol(convertedAmount, targetCurrency, locale === 'en' ? 'en-US' : 'fr-FR')
   }
 
   const formatDate = (dateString: string) => {

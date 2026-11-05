@@ -7,8 +7,8 @@ export const adminService = {
     return data
   },
 
-  async getAuditLogs() {
-    const { data } = await apiClient.get('/admin/audit-logs?limit=20')
+  async getAuditLogs(page = 1) {
+    const { data } = await apiClient.get('/admin/audit-logs', { params: { page } })
     return data
   },
 
@@ -93,6 +93,11 @@ export const adminService = {
 
   async getFraudAlerts() {
     const { data } = await apiClient.get('/admin/fraud-alerts')
+    return data
+  },
+
+  async reviewFraudAlert(transactionId: number, status: 'OPEN' | 'RESOLVED') {
+    const { data } = await apiClient.patch(`/admin/fraud-alerts/${transactionId}/review`, { status })
     return data
   },
 

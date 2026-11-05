@@ -48,6 +48,11 @@ export class PaymentsController {
     return this.paymentsService.findHistory(parseInt(req.user.sub, 10))
   }
 
+  @Get(':id/qr/confirmation')
+  qrConfirmation(@Param('id', ParseIntPipe) id: number, @Req() req: RequestWithUser) {
+    return this.paymentsService.findQrConfirmation(parseInt(req.user.sub, 10), id)
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number, @Req() req: RequestWithUser) {
     return this.paymentsService.findOne(parseInt(req.user.sub, 10), id)

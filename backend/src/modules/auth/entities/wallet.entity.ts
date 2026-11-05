@@ -51,7 +51,7 @@ export class Wallet {
   currency: string
 
   @Column({ type: 'json', nullable: true, name: 'metadata' })
-  metadata: Record<string, any>
+  metadata: Record<string, any> | null
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date

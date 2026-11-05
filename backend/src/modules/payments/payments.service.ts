@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleDes
 import { ConfigService } from '@nestjs/config'
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm'
 import axios from 'axios'
-import { DataSource, MoreThanOrEqual, Repository } from 'typeorm'
+import { DataSource, In, MoreThanOrEqual, Repository } from 'typeorm'
 import { User } from '../auth/entities/user.entity.js'
 import { Wallet } from '../auth/entities/wallet.entity.js'
 import { Transaction } from '../auth/entities/transaction.entity.js'
@@ -21,8 +21,10 @@ import { Redis } from 'ioredis'
 import { createHash, randomInt } from 'node:crypto'
 import { CryptoService } from '../../security/services/crypto.service.js'
 import { SecurityRule } from '../auth/entities/security-rule.entity.js'
+import { convertPaymentCurrency, PAYMENT_CURRENCIES } from './payment-currency.js'
 
 export type FraudRiskDecision = 'APPROVE' | 'REQUIRE_2FA' | 'BLOCK'
+export const PAYMENT_TWO_FACTOR_TTL_MS = 30 * 60 * 1000
 
 function normalizePhoneNumber(phoneNumber: string): string {
   const digits = phoneNumber.replace(/\D/g, '')
@@ -31,10 +33,35 @@ function normalizePhoneNumber(phoneNumber: string): string {
   return digits
 }
 
-export function evaluateRiskDecision(score: number): FraudRiskDecision {
-  if (score < 40) return 'APPROVE'
-  if (score < 75) return 'REQUIRE_2FA'
+export function evaluateRiskDecision(score: number, lowThreshold = 30, mediumThreshold = 70): FraudRiskDecision {
+  if (score < lowThreshold) return 'APPROVE'
+  if (score < mediumThreshold) return 'REQUIRE_2FA'
   return 'BLOCK'
+}
+
+function normalizeCountryLabel(country: string) {
+  return country.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function isIsoCountryCode(countryCode: string) {
+  if (!/^[A-Z]{2}$/.test(countryCode)) return false
+  return ['fr-FR', 'en-US'].some((locale) => {
+    const displayName = new Intl.DisplayNames([locale], { type: 'region' }).of(countryCode)
+    return displayName !== undefined && displayName !== 'Unknown Region' && displayName !== 'Région inconnue'
+  })
+}
+
+export function isMonitoredCountry(country: string | null | undefined, countryCodes: string[]) {
+  if (!country?.trim()) return false
+  const normalizedCountry = normalizeCountryLabel(country)
+  return countryCodes.some((countryCode) => {
+    const code = countryCode.trim().toUpperCase()
+    if (normalizedCountry === code.toLowerCase()) return true
+    const displayNames = ['fr-FR', 'en-US'].map((locale) =>
+      new Intl.DisplayNames([locale], { type: 'region' }).of(code),
+    )
+    return displayNames.some((displayName) => displayName && normalizeCountryLabel(displayName) === normalizedCountry)
+  })
 }
 
 @Injectable()
@@ -98,7 +125,6 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (!user) throw new NotFoundException('Titulaire du compte introuvable')
     return {
       walletNumber: wallet.walletNumber,
-      cardNumber: wallet.cardNumber,
       cardHolderName: wallet.cardHolderName,
       firstName: user.firstName,
       lastName: user.lastName,
@@ -115,7 +141,6 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (!wallet) throw new NotFoundException('Le titulaire ne possède pas encore de portefeuille')
     return {
       walletNumber: wallet.walletNumber,
-      cardNumber: wallet.cardNumber,
       cardHolderName: wallet.cardHolderName,
       firstName: user.firstName,
       lastName: user.lastName,
@@ -154,12 +179,19 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (!wallet) throw new NotFoundException('Portefeuille non trouvé')
 
     const amount = Math.round(Number(dto.amount) * 100) / 100
+    const currency = dto.currency ?? wallet.currency ?? 'EUR'
+    if (!PAYMENT_CURRENCIES.includes(currency) || !PAYMENT_CURRENCIES.includes(wallet.currency ?? 'EUR')) {
+      throw new BadRequestException('Devise non prise en charge par le sandbox')
+    }
     const feeAmount = await this.calculateFee(amount)
+    const totalAmount = Math.round((amount + feeAmount) * 100) / 100
     return {
       amount,
       feeAmount,
-      totalAmount: Math.round((amount + feeAmount) * 100) / 100,
-      currency: wallet.currency || 'EUR',
+      totalAmount,
+      currency,
+      walletCurrency: wallet.currency || 'EUR',
+      walletDebitAmount: convertPaymentCurrency(totalAmount, currency, wallet.currency || 'EUR'),
     }
   }
 
@@ -183,64 +215,93 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (!dto.recipientWalletNumber) {
       throw new BadRequestException('Le numéro du compte destinataire est requis')
     }
-    if (dto.channel === PaymentChannel.CARD && !dto.cardToken) {
-      throw new BadRequestException('Le token de carte est requis')
+    if (
+      dto.channel === PaymentChannel.CARD
+      && (typeof dto.cardToken !== 'string' || !dto.cardToken.startsWith('tok_test_'))
+    ) {
+      throw new BadRequestException('Un token de carte de test sandbox est requis')
     }
     const recipientWallet = await this.walletRepository.findOne({ where: { walletNumber: dto.recipientWalletNumber } })
     if (!senderWallet || !recipientWallet) throw new NotFoundException('Compte émetteur ou destinataire introuvable')
     if (senderWallet.id === recipientWallet.id) throw new BadRequestException('Vous ne pouvez pas vous payer vous-même')
     if (senderWallet.status !== 'ACTIVE' || recipientWallet.status !== 'ACTIVE') throw new BadRequestException('Un portefeuille est inactif')
-    if (dto.currency && dto.currency !== (senderWallet.currency || 'EUR')) throw new BadRequestException('Devise non supportée')
+    const currency = dto.currency ?? senderWallet.currency ?? 'EUR'
+    const senderCurrency = senderWallet.currency || 'EUR'
+    const recipientCurrency = recipientWallet.currency || senderCurrency
+    if (
+      !PAYMENT_CURRENCIES.includes(currency)
+      || !PAYMENT_CURRENCIES.includes(senderCurrency)
+      || !PAYMENT_CURRENCIES.includes(recipientCurrency)
+    ) {
+      throw new BadRequestException('Devise non prise en charge par le sandbox')
+    }
 
-    const feeAmount = await this.calculateFee(Number(dto.amount))
-    const totalAmount = Math.round((Number(dto.amount) + feeAmount) * 100) / 100
+    const amount = Math.round(Number(dto.amount) * 100) / 100
+    const feeAmount = await this.calculateFee(amount)
+    const totalAmount = Math.round((amount + feeAmount) * 100) / 100
+    const senderDebitAmount = convertPaymentCurrency(totalAmount, currency, senderCurrency)
+    const recipientCreditAmount = convertPaymentCurrency(amount, currency, recipientCurrency)
+    if (senderDebitAmount <= 0 || recipientCreditAmount <= 0) {
+      throw new BadRequestException('Le montant est trop faible après conversion')
+    }
     const now = new Date()
     const dayStart = new Date(now)
     dayStart.setHours(0, 0, 0, 0)
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const completedTransactions = await this.transactionRepository.find({
-      where: { senderWalletId: senderWallet.id, status: TransactionStatus.COMPLETED, createdAt: MoreThanOrEqual(monthStart) },
+    const transactionsThisMonth = await this.transactionRepository.find({
+      where: {
+        senderWalletId: senderWallet.id,
+        status: In([TransactionStatus.COMPLETED, TransactionStatus.PENDING, TransactionStatus.PROCESSING]),
+        createdAt: MoreThanOrEqual(monthStart),
+      },
     })
-    const spentThisMonth = completedTransactions.reduce((sum, transaction) => sum + (Number(transaction.totalAmount) > 0 ? Number(transaction.totalAmount) : Number(transaction.amount)), 0)
-    const spentToday = completedTransactions
+    const getWalletDebitAmount = (transaction: Transaction) => {
+      const historicalDebit = Number(transaction.metadata?.senderDebitAmount)
+      if (Number.isFinite(historicalDebit) && historicalDebit > 0) return historicalDebit
+      return Number(transaction.totalAmount) > 0 ? Number(transaction.totalAmount) : Number(transaction.amount)
+    }
+    const spentThisMonth = transactionsThisMonth.reduce((sum, transaction) => sum + getWalletDebitAmount(transaction), 0)
+    const spentToday = transactionsThisMonth
       .filter((transaction) => transaction.createdAt >= dayStart)
-      .reduce((sum, transaction) => sum + (Number(transaction.totalAmount) > 0 ? Number(transaction.totalAmount) : Number(transaction.amount)), 0)
+      .reduce((sum, transaction) => sum + getWalletDebitAmount(transaction), 0)
     const transactionRule = await this.securityRuleRepository.findOne({ where: { ruleType: 'TRANSACTION_LIMIT', isActive: true }, order: { priority: 'DESC', updatedAt: 'DESC' } })
     const conditions = transactionRule?.conditions ?? {}
     const transactionLimit = this.getNumericCondition(conditions.transactionLimit) ?? Number.POSITIVE_INFINITY
     const paymentAttempts = this.getNumericCondition(conditions.paymentAttempts) ?? Number.POSITIVE_INFINITY
     const dailyLimitRule = this.getNumericCondition(conditions.dailyLimit)
     const monthlyLimitRule = this.getNumericCondition(conditions.monthlyLimit)
-    if (Number(dto.amount) > transactionLimit) throw new BadRequestException('Le plafond de transaction est dépassé')
+    if (senderDebitAmount > transactionLimit) throw new BadRequestException('Le plafond de transaction est dépassé')
     const since = new Date(Date.now() - 60 * 60 * 1000)
     const recentAttempts = await this.transactionRepository.count({ where: { senderWalletId: senderWallet.id, createdAt: MoreThanOrEqual(since) } })
     if (recentAttempts >= paymentAttempts) throw new BadRequestException('Le nombre maximal de tentatives de paiement par heure est atteint')
     const effectiveDailyLimit = dailyLimitRule ?? this.getPositiveNumber(senderWallet.dailyLimit)
     const effectiveMonthlyLimit = monthlyLimitRule ?? this.getPositiveNumber(senderWallet.monthlyLimit)
-    if (effectiveDailyLimit !== null && spentToday + totalAmount > effectiveDailyLimit) {
+    if (effectiveDailyLimit !== null && spentToday + senderDebitAmount > effectiveDailyLimit) {
       throw new BadRequestException(dailyLimitRule !== null ? 'Le plafond journalier global est dépassé' : 'Le plafond journalier du portefeuille est dépassé')
     }
-    if (effectiveMonthlyLimit !== null && spentThisMonth + totalAmount > effectiveMonthlyLimit) {
+    if (effectiveMonthlyLimit !== null && spentThisMonth + senderDebitAmount > effectiveMonthlyLimit) {
       throw new BadRequestException(monthlyLimitRule !== null ? 'Le plafond mensuel global est dépassé' : 'Le plafond mensuel du portefeuille est dépassé')
     }
 
+    const frontendBaseUrl = (this.configService.get<string>('app.frontendUrl') ?? 'http://localhost:5173').replace(/\/$/, '')
     const metadata = {
-      phoneNumber: dto.phoneNumber ? this.cryptoService.encrypt(dto.phoneNumber) : undefined,
+      senderDebitAmount,
+      recipientCreditAmount,
+      senderCurrency,
+      recipientCurrency,
+      sandboxExchangeRate: true,
       cardToken: dto.cardToken ? this.cryptoService.encrypt(dto.cardToken) : undefined,
-      bankReference: dto.bankReference ? this.cryptoService.encrypt(dto.bankReference) : undefined,
       deviceId: securityContext?.deviceFingerprint ? createHash('sha256').update(securityContext.deviceFingerprint).digest('hex') : undefined,
       ipAddress: securityContext?.ipAddress,
-      ...(dto.channel === PaymentChannel.QR ? { qrData: `paysmart://pay/${senderWallet.id}/${recipientWallet.id}` } : {}),
-      ...(dto.channel === PaymentChannel.BANK_TRANSFER ? { temporaryIban: `FR76PAYSMART${String(recipientWallet.id).padStart(10, '0')}` } : {}),
     }
 
     const transaction = await this.transactionRepository.save(this.transactionRepository.create({
       senderWalletId: senderWallet.id,
       recipientWalletId: recipientWallet.id,
-      amount: dto.amount,
+      amount,
       feeAmount,
       totalAmount,
-      currency: dto.currency || senderWallet.currency || 'EUR',
+      currency,
       channel: dto.channel,
       status: TransactionStatus.PENDING,
       externalReference: `PAY-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
@@ -248,24 +309,47 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       metadata,
     }))
 
-    if (dto.channel === PaymentChannel.QR && recipientWallet.userId) {
-      const frontendBaseUrl = this.configService?.get?.('app.frontendUrl') ?? 'http://localhost:5173'
-      const confirmationUrl = `${frontendBaseUrl}/payments/confirm/${transaction.id}`
-      await this.notificationService.create(
-        recipientWallet.userId,
-        'Demande de paiement QR',
-        `Vous avez reçu une demande de paiement de ${dto.amount} ${dto.currency || 'EUR'}.`,
-        confirmationUrl,
-      )
+    if (dto.channel === PaymentChannel.QR) {
+      transaction.metadata = {
+        ...transaction.metadata,
+        qrData: `${frontendBaseUrl}/payments/confirm/${transaction.id}`,
+      }
+      await this.transactionRepository.save(transaction)
+      const notificationLink = `${frontendBaseUrl}/payments/confirm/${transaction.id}`
+      try {
+        await this.notificationService.create(
+          recipientWallet.userId,
+          'Demande de paiement QR',
+          `Scannez ce QR code, vérifiez le bénéficiaire et le montant, puis confirmez le paiement.`,
+          notificationLink,
+        )
+      } catch (error) {
+        this.logger.error(`QR payment ${transaction.id} was created, but the recipient notification could not be saved`, error)
+      }
     }
 
-    if (this.redisQueue) {
-      await this.redisQueue.add('process-payment', { transactionId: transaction.id }, { removeOnComplete: true, removeOnFail: 100 })
-    } else {
-      this.paymentQueue.push(transaction.id)
-      this.runQueue()
+    if (dto.channel !== PaymentChannel.QR) {
+      if (this.redisQueue) {
+        await this.redisQueue.add('process-payment', { transactionId: transaction.id }, { removeOnComplete: true, removeOnFail: 100 })
+      } else {
+        this.paymentQueue.push(transaction.id)
+        this.runQueue()
+      }
     }
-    return transaction
+    const safeTransaction = this.withoutQrConfirmationLinkForPayer(transaction, senderWallet.id)
+    if (transaction.channel !== PaymentChannel.QR) return safeTransaction
+
+    const qrRecipientWallet = await this.walletRepository.findOne({ where: { id: transaction.recipientWalletId } })
+    const recipient = qrRecipientWallet
+      ? await this.userRepository.findOne({ where: { id: qrRecipientWallet.userId } })
+      : null
+    return {
+      ...safeTransaction,
+      recipient: {
+        name: recipient ? `${recipient.firstName} ${recipient.lastName}`.trim() : '',
+        walletNumber: qrRecipientWallet?.walletNumber ?? '',
+      },
+    }
   }
 
   async findOne(userId: number, transactionId: number) {
@@ -276,6 +360,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       throw new NotFoundException('Transaction non trouvée')
     }
 
+    await this.expireTwoFactorIfNeeded(transaction)
     const metadata = transaction.metadata ?? {}
     const hasRiskAnalysis = typeof metadata.riskScore === 'number' && typeof metadata.riskLevel === 'string'
     if (!hasRiskAnalysis) {
@@ -293,7 +378,36 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         console.error(`Risk analysis unavailable for transaction ${transaction.id}:`, error)
       }
     }
-    return transaction
+    if (transaction.channel === PaymentChannel.QR) {
+      const recipientWallet = await this.walletRepository.findOne({ where: { id: transaction.recipientWalletId } })
+      const recipient = recipientWallet
+        ? await this.userRepository.findOne({ where: { id: recipientWallet.userId } })
+        : null
+      const responseTransaction = this.withoutQrConfirmationLinkForPayer(transaction, wallet.id)
+      return {
+        ...responseTransaction,
+        canConfirmQr: transaction.recipientWalletId === wallet.id,
+        recipient: {
+          name: recipient ? `${recipient.firstName} ${recipient.lastName}`.trim() : '',
+          walletNumber: recipientWallet?.walletNumber ?? '',
+        },
+      }
+    }
+    return this.withoutSensitiveTransactionData(transaction)
+  }
+
+  async findQrConfirmation(userId: number, transactionId: number) {
+    const wallet = await this.walletRepository.findOne({ where: { userId } })
+    const transaction = await this.transactionRepository.findOne({ where: { id: transactionId } })
+    if (
+      !wallet
+      || !transaction
+      || transaction.channel !== PaymentChannel.QR
+      || transaction.recipientWalletId !== wallet.id
+    ) {
+      throw new NotFoundException('Transaction non trouvée')
+    }
+    return this.findOne(userId, transactionId)
   }
 
   async confirmQr(recipientUserId: number, transactionId: number) {
@@ -302,12 +416,12 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     const transaction = await this.transactionRepository.findOne({ where: { id: transactionId } })
     if (!transaction) throw new NotFoundException('Transaction non trouvée')
     if (transaction.channel !== PaymentChannel.QR) throw new BadRequestException('Ce paiement n\'est pas un paiement QR')
-    if (transaction.recipientWalletId !== recipientWallet.id) throw new BadRequestException('Vous n\'êtes pas le destinataire de cette demande')
+    if (transaction.recipientWalletId !== recipientWallet.id) throw new BadRequestException('Seul le destinataire peut confirmer ce paiement')
     if (transaction.status !== TransactionStatus.PENDING) throw new BadRequestException('Cette demande n\'est plus en attente de confirmation')
-    transaction.status = TransactionStatus.PROCESSING
-    transaction.metadata = { ...(transaction.metadata ?? {}), recipientQrConfirmedAt: new Date().toISOString() }
+    transaction.metadata = { ...transaction.metadata, qrConfirmedAt: new Date().toISOString() }
     await this.transactionRepository.save(transaction)
-    return this.executePayment(transaction)
+    const result = await this.process(transactionId)
+    return result ? this.withoutSensitiveTransactionData(result) : null
   }
 
   private async executePayment(transaction: Transaction) {
@@ -318,34 +432,89 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       } as Transaction
       const gatewayResult = await this.sandboxGateway.authorize(gatewayTransaction)
       transaction.externalReference = gatewayResult.providerReference
+      if (transaction.metadata) delete transaction.metadata.cardToken
       await this.transactionRepository.save(transaction)
       await this.dataSource.transaction(async (manager) => {
         const senderWallet = await manager.findOne(Wallet, { where: { id: transaction.senderWalletId }, lock: { mode: 'pessimistic_write' } })
         const recipientWallet = await manager.findOne(Wallet, { where: { id: transaction.recipientWalletId }, lock: { mode: 'pessimistic_write' } })
         if (!senderWallet || !recipientWallet) throw new BadRequestException('Portefeuille indisponible')
-        const debitAmount = Number(transaction.totalAmount) > 0 ? Number(transaction.totalAmount) : Number(transaction.amount)
+        const senderDebitAmount = Number(transaction.metadata?.senderDebitAmount)
+        const recipientCreditAmount = Number(transaction.metadata?.recipientCreditAmount)
+        const debitAmount = Number.isFinite(senderDebitAmount) && senderDebitAmount > 0
+          ? senderDebitAmount
+          : Number(transaction.totalAmount) > 0 ? Number(transaction.totalAmount) : Number(transaction.amount)
+        const creditAmount = Number.isFinite(recipientCreditAmount) && recipientCreditAmount > 0
+          ? recipientCreditAmount
+          : Number(transaction.amount)
         if (Number(senderWallet.balance) < debitAmount) throw new BadRequestException('Solde insuffisant')
 
         senderWallet.balance = Number(senderWallet.balance) - debitAmount
-        recipientWallet.balance = Number(recipientWallet.balance) + Number(transaction.amount)
+        recipientWallet.balance = Number(recipientWallet.balance) + creditAmount
         await manager.save([senderWallet, recipientWallet])
         await manager.save(Ledger, [
-          manager.create(Ledger, { transactionId: transaction.id, walletId: senderWallet.id, amount: debitAmount, currency: transaction.currency, direction: 'DEBIT', entryReference: `${transaction.externalReference}-D` }),
-          manager.create(Ledger, { transactionId: transaction.id, walletId: recipientWallet.id, amount: transaction.amount, currency: transaction.currency, direction: 'CREDIT', entryReference: `${transaction.externalReference}-C` }),
+          manager.create(Ledger, { transactionId: transaction.id, walletId: senderWallet.id, amount: debitAmount, currency: senderWallet.currency || transaction.currency, direction: 'DEBIT', entryReference: `${transaction.externalReference}-D` }),
+          manager.create(Ledger, { transactionId: transaction.id, walletId: recipientWallet.id, amount: creditAmount, currency: recipientWallet.currency || transaction.currency, direction: 'CREDIT', entryReference: `${transaction.externalReference}-C` }),
         ])
+        transaction.status = TransactionStatus.COMPLETED
+        transaction.failureReason = null
+        await manager.save(transaction)
       })
-      transaction.status = TransactionStatus.COMPLETED
-      await this.transactionRepository.save(transaction)
-      const recipient = await this.walletRepository.findOne({ where: { id: transaction.recipientWalletId } })
-      if (recipient) await this.notificationService.create(recipient.userId, 'Paiement reçu', `Vous avez reçu ${transaction.amount} ${transaction.currency}.`)
-      const sender = await this.walletRepository.findOne({ where: { id: transaction.senderWalletId } })
-      if (sender) await this.notificationService.create(sender.userId, 'Paiement confirmé', `Votre paiement de ${transaction.amount} ${transaction.currency} a été confirmé et enregistré.`)
+      try {
+        const [recipient, sender] = await Promise.all([
+          this.walletRepository.findOne({ where: { id: transaction.recipientWalletId } }),
+          this.walletRepository.findOne({ where: { id: transaction.senderWalletId } }),
+        ])
+        const notifications = await Promise.allSettled([
+          ...(recipient ? [this.notificationService.create(recipient.userId, 'Paiement reçu', `Vous avez reçu ${transaction.amount} ${transaction.currency}.`)] : []),
+          ...(sender ? [this.notificationService.create(sender.userId, 'Paiement confirmé', `Votre paiement de ${transaction.amount} ${transaction.currency} a été confirmé et enregistré.`)] : []),
+        ])
+        for (const result of notifications) {
+          if (result.status === 'rejected') {
+            this.logger.error(`Payment ${transaction.id} completed, but a notification could not be saved`, result.reason)
+          }
+        }
+      } catch (error) {
+        this.logger.error(`Payment ${transaction.id} completed, but payment notifications could not be prepared`, error)
+      }
     } catch (error) {
+      if (transaction.metadata) delete transaction.metadata.cardToken
       transaction.status = TransactionStatus.FAILED
       transaction.failureReason = error instanceof Error ? error.message : 'Paiement échoué'
       await this.transactionRepository.save(transaction)
     }
-    return transaction
+    return this.withoutSensitiveTransactionData(transaction)
+  }
+
+  private withoutSensitiveTransactionData(transaction: Transaction): Transaction {
+    const metadata = { ...transaction.metadata }
+    delete metadata.twoFactorCodeHash
+    delete metadata.cardToken
+    return { ...transaction, metadata }
+  }
+
+  private withoutQrConfirmationLinkForPayer(transaction: Transaction, walletId: number): Transaction {
+    const safeTransaction = this.withoutSensitiveTransactionData(transaction)
+    if (
+      transaction.channel === PaymentChannel.QR
+      && transaction.senderWalletId === walletId
+      && safeTransaction.metadata
+    ) {
+      delete safeTransaction.metadata.qrData
+    }
+    return safeTransaction
+  }
+
+  private async expireTwoFactorIfNeeded(transaction: Transaction) {
+    if (transaction.status !== TransactionStatus.PENDING || transaction.failureReason !== 'Vérification 2FA requise avant exécution.') return
+    const metadata = { ...transaction.metadata }
+    const expiresAt = typeof metadata.twoFactorExpiresAt === 'string' ? Date.parse(metadata.twoFactorExpiresAt) : 0
+    if (expiresAt > Date.now()) return
+    delete metadata.twoFactorCodeHash
+    delete metadata.twoFactorExpiresAt
+    transaction.metadata = metadata
+    transaction.status = TransactionStatus.FAILED
+    transaction.failureReason = 'Le délai de confirmation 2FA est expiré.'
+    await this.transactionRepository.save(transaction)
   }
 
   private runQueue() {
@@ -364,14 +533,21 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async evaluateTransactionRisk(senderUserId: number, transaction: Transaction) {
-    const baseUrl = this.configService.get<string>('aiService.url', 'http://localhost:8001')
-    const apiKey = this.configService.get<string>('aiService.apiKey', 'dev-secret-key-change-in-production')
+    const baseUrl = this.configService.get<string>('aiService.url', 'http://localhost:8101')
+    const apiKey = this.configService.getOrThrow<string>('aiService.apiKey')
+    const thresholdRule = await this.securityRuleRepository.findOne({ where: { ruleType: 'AI_THRESHOLDS', isActive: true }, order: { priority: 'DESC', updatedAt: 'DESC' } })
+    const thresholdConditions = thresholdRule?.conditions ?? {}
+    const lowThreshold = (this.getNumericCondition(thresholdConditions.lowRiskThreshold) ?? 0.3) * 100
+    const mediumThreshold = (this.getNumericCondition(thresholdConditions.mediumRiskThreshold) ?? 0.7) * 100
+    if (lowThreshold >= mediumThreshold || mediumThreshold > 100) {
+      throw new BadRequestException('Les seuils de détection de fraude configurés sont invalides')
+    }
     const senderWallet = await this.walletRepository.findOne({ where: { id: transaction.senderWalletId } })
     const userId = senderWallet?.userId ?? senderUserId
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
     const riskPayload = {
       user_id: userId,
-      amount: Number(transaction.amount),
+      amount: Number(transaction.metadata?.senderDebitAmount ?? transaction.amount),
       channel: transaction.channel,
       transaction_count_24h: await this.transactionRepository.count({
         where: { senderWalletId: transaction.senderWalletId, createdAt: MoreThanOrEqual(since) },
@@ -380,6 +556,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       ip_address: transaction.metadata?.ipAddress ?? '0.0.0.0',
       recipient_wallet_id: transaction.recipientWalletId,
       hour: new Date().getHours(),
+      low_risk_threshold: lowThreshold,
+      medium_risk_threshold: mediumThreshold,
     }
     const response = await axios.post<{ risk_score: number; risk_level: string; decision: FraudRiskDecision; reasons: string[] }>(
       `${baseUrl}/api/v1/fraud-detection/predict`,
@@ -387,29 +565,42 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       { headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' } },
     )
     const riskScore = Number(response.data.risk_score ?? 0)
-    const thresholdRule = await this.securityRuleRepository.findOne({ where: { ruleType: 'AI_THRESHOLDS', isActive: true }, order: { priority: 'DESC', updatedAt: 'DESC' } })
-    const thresholdConditions = thresholdRule?.conditions ?? {}
-    const lowThreshold = (this.getNumericCondition(thresholdConditions.lowRiskThreshold) ?? 0.3) * 100
-    const mediumThreshold = (this.getNumericCondition(thresholdConditions.mediumRiskThreshold) ?? 0.7) * 100
-    const decision: FraudRiskDecision = riskScore < lowThreshold ? 'APPROVE' : riskScore < mediumThreshold ? 'REQUIRE_2FA' : 'BLOCK'
+    if (!Number.isFinite(riskScore) || riskScore < 0 || riskScore > 100) {
+      throw new BadRequestException('Le service de détection de fraude a renvoyé un score invalide')
+    }
+    const configuredCountryCodes = thresholdConditions.monitoredCountryCodes ?? []
+    if (
+      !Array.isArray(configuredCountryCodes)
+      || configuredCountryCodes.some((country) => typeof country !== 'string' || !isIsoCountryCode(country))
+      || new Set(configuredCountryCodes).size !== configuredCountryCodes.length
+    ) {
+      throw new BadRequestException('La liste des pays surveillés est invalide')
+    }
+    const monitoredCountryCodes = configuredCountryCodes as string[]
+    const sender = monitoredCountryCodes.length > 0
+      ? await this.userRepository.findOne({ where: { id: userId }, relations: { profile: true } })
+      : null
+    const countryIsMonitored = isMonitoredCountry(sender?.profile?.country, monitoredCountryCodes)
+    const baseDecision = evaluateRiskDecision(riskScore, lowThreshold, mediumThreshold)
+    if (response.data.decision !== baseDecision) {
+      throw new BadRequestException('La décision du service de détection de fraude ne correspond pas aux seuils configurés')
+    }
+    const decision: FraudRiskDecision = countryIsMonitored && baseDecision === 'APPROVE'
+      ? 'REQUIRE_2FA'
+      : baseDecision
+    const decisionReason = countryIsMonitored && decision === 'REQUIRE_2FA'
+      ? `Pays surveillé (${sender?.profile?.country}) : confirmation OTP requise.`
+      : decision === 'APPROVE'
+      ? `Risque faible : score de ${riskScore.toFixed(1)}/100, validation automatique selon les seuils configurés.`
+      : decision === 'REQUIRE_2FA'
+        ? `Risque intermédiaire : score de ${riskScore.toFixed(1)}/100, confirmation OTP requise selon les seuils configurés.`
+        : `Risque élevé : score de ${riskScore.toFixed(1)}/100, transaction bloquée selon les seuils configurés.`
     return {
       riskScore,
-      riskLevel: response.data.risk_level ?? (riskScore < 40 ? 'LOW' : riskScore < 75 ? 'MEDIUM' : 'HIGH'),
+      riskLevel: decision === 'APPROVE' ? 'LOW' : decision === 'REQUIRE_2FA' ? 'MEDIUM' : 'HIGH',
       decision,
-      reasons: response.data.reasons?.length ? response.data.reasons : [
-        decision === 'APPROVE'
-          ? `Risque faible : montant de ${Number(transaction.amount).toFixed(2)} ${transaction.currency}, validation automatique.`
-          : decision === 'REQUIRE_2FA'
-            ? `Risque intermédiaire : score de ${riskScore.toFixed(1)}/100, confirmation OTP requise.`
-            : `Risque élevé : score de ${riskScore.toFixed(1)}/100, transaction bloquée pour vérification.`,
-      ],
-      reason: response.data.reasons?.[0] ?? (
-        decision === 'APPROVE'
-          ? `Risque faible : montant de ${Number(transaction.amount).toFixed(2)} ${transaction.currency}, validation automatique.`
-          : decision === 'REQUIRE_2FA'
-            ? `Risque intermédiaire : score de ${riskScore.toFixed(1)}/100, confirmation OTP requise.`
-            : `Risque élevé : score de ${riskScore.toFixed(1)}/100, transaction bloquée pour vérification.`
-      ),
+      reasons: [decisionReason, ...(response.data.reasons ?? [])],
+      reason: decisionReason,
     }
 
   }
@@ -433,8 +624,10 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         const risk = await this.evaluateTransactionRisk(transaction.senderWalletId, transaction)
         const transactionRule = await this.securityRuleRepository.findOne({ where: { ruleType: 'TRANSACTION_LIMIT', isActive: true }, order: { priority: 'DESC', updatedAt: 'DESC' } })
         const requirePaymentTwoFactor = transactionRule?.actions?.twoFactorEnabled === true
+          || transaction.channel === PaymentChannel.BANK_TRANSFER
+          || transaction.channel === PaymentChannel.CARD
         const effectiveDecision: FraudRiskDecision = requirePaymentTwoFactor && risk.decision === 'APPROVE' ? 'REQUIRE_2FA' : risk.decision
-        transaction.metadata = { ...(transaction.metadata ?? {}), riskScore: risk.riskScore, riskLevel: risk.riskLevel, riskDecision: effectiveDecision, riskReasons: risk.reasons }
+        transaction.metadata = { ...transaction.metadata, riskScore: risk.riskScore, riskLevel: risk.riskLevel, riskDecision: effectiveDecision, riskReasons: risk.reasons }
         transaction.riskScore = risk.riskScore
         transaction.riskLevel = risk.riskLevel
         await this.transactionRepository.save(transaction)
@@ -453,33 +646,52 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
               status: 'OPEN',
             }),
           )
-          return transaction
+          return this.withoutSensitiveTransactionData(transaction)
         }
         if (effectiveDecision === 'REQUIRE_2FA') {
+          const existingMetadata = (transaction.metadata ?? {}) as Record<string, unknown>
+          const existingExpiry = typeof existingMetadata.twoFactorExpiresAt === 'string'
+            ? Date.parse(existingMetadata.twoFactorExpiresAt)
+            : 0
+          if (typeof existingMetadata.twoFactorCodeHash === 'string' && existingExpiry > Date.now()) {
+            transaction.status = TransactionStatus.PENDING
+            transaction.failureReason = 'Vérification 2FA requise avant exécution.'
+            await this.transactionRepository.save(transaction)
+            return transaction
+          }
+          if (existingMetadata.twoFactorCodeHash) {
+            transaction.status = TransactionStatus.FAILED
+            transaction.failureReason = 'Le délai de confirmation 2FA est expiré.'
+            await this.transactionRepository.save(transaction)
+            return transaction
+          }
           const code = String(randomInt(0, 1_000_000)).padStart(6, '0')
           transaction.metadata = {
             ...transaction.metadata,
             twoFactorCodeHash: createHash('sha256').update(code).digest('hex'),
-            twoFactorExpiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+            twoFactorExpiresAt: new Date(Date.now() + PAYMENT_TWO_FACTOR_TTL_MS).toISOString(),
           }
           transaction.status = TransactionStatus.PENDING
           transaction.failureReason = 'Vérification 2FA requise avant exécution.'
           await this.transactionRepository.save(transaction)
-          const senderWallet = await this.walletRepository.findOne({ where: { id: transaction.senderWalletId } })
-          if (senderWallet) {
+          const confirmationWalletId = transaction.channel === PaymentChannel.QR
+            ? transaction.recipientWalletId
+            : transaction.senderWalletId
+          const confirmationWallet = await this.walletRepository.findOne({ where: { id: confirmationWalletId } })
+          if (confirmationWallet) {
             await this.notificationService.create(
-              senderWallet.userId,
+              confirmationWallet.userId,
               'Confirmation 2FA requise',
-              `Votre code de confirmation pour le paiement #${transaction.id} est ${code}. Il expire dans 10 minutes.`,
+              `Votre code OTP de confirmation pour le paiement #${transaction.id} est ${code}. Il expire dans 30 minutes. Ne le partagez avec personne.`,
             )
           }
           return transaction
         }
       }
-      if (transaction.channel === PaymentChannel.QR && !((transaction.metadata ?? {}).recipientQrConfirmedAt as string | undefined)) {
+      if (transaction.channel === PaymentChannel.QR && !((transaction.metadata ?? {}).qrConfirmedAt as string | undefined)) {
         return transaction
       }
-      return this.executePayment(transaction)
+      return this.withoutSensitiveTransactionData(await this.executePayment(transaction))
     } catch (error) {
       transaction.status = TransactionStatus.FAILED
       transaction.failureReason = error instanceof Error ? error.message : 'Paiement échoué'
@@ -491,7 +703,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
   private decryptSensitiveMetadata(metadata: Record<string, unknown> | null) {
     if (!metadata) return metadata
     return Object.fromEntries(Object.entries(metadata).map(([key, value]) => {
-      if (['phoneNumber', 'cardToken', 'bankReference'].includes(key) && typeof value === 'string') {
+      if (key === 'cardToken' && typeof value === 'string') {
         return [key, this.cryptoService.decrypt(value)]
       }
       return [key, value]
@@ -500,32 +712,43 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
 
   async processForUser(userId: number, transactionId: number) {
     await this.findOne(userId, transactionId)
-    return this.process(transactionId)
+    const wallet = await this.walletRepository.findOne({ where: { userId } })
+    const result = await this.process(transactionId)
+    return result && wallet ? this.withoutQrConfirmationLinkForPayer(result, wallet.id) : null
   }
 
   async confirmTwoFactor(userId: number, transactionId: number, code: string) {
-    const transaction = await this.findOne(userId, transactionId)
+    await this.findOne(userId, transactionId)
+    const transaction = await this.transactionRepository.findOne({ where: { id: transactionId } })
+    if (!transaction) throw new NotFoundException('Transaction non trouvée')
     if (transaction.status !== TransactionStatus.PENDING || transaction.failureReason !== 'Vérification 2FA requise avant exécution.') {
       throw new BadRequestException('Cette transaction ne demande pas de confirmation 2FA')
     }
 
-    const senderWallet = await this.walletRepository.findOne({ where: { id: transaction.senderWalletId } })
-    if (!senderWallet || senderWallet.userId !== userId) {
-      throw new BadRequestException('Seul l\'émetteur peut confirmer ce paiement')
+    const confirmationWalletId = transaction.channel === PaymentChannel.QR
+      ? transaction.recipientWalletId
+      : transaction.senderWalletId
+    const confirmationWallet = await this.walletRepository.findOne({ where: { id: confirmationWalletId } })
+    if (!confirmationWallet || confirmationWallet.userId !== userId) {
+      throw new BadRequestException(transaction.channel === PaymentChannel.QR
+        ? 'Seul le destinataire peut confirmer ce paiement'
+        : 'Seul l\'émetteur peut confirmer ce paiement')
     }
 
     const metadata = (transaction.metadata ?? {}) as Record<string, unknown>
     const expiresAt = typeof metadata.twoFactorExpiresAt === 'string' ? Date.parse(metadata.twoFactorExpiresAt) : 0
     const expectedHash = typeof metadata.twoFactorCodeHash === 'string' ? metadata.twoFactorCodeHash : ''
     const receivedHash = createHash('sha256').update(code.trim()).digest('hex')
-    if (!expectedHash || !expiresAt || expiresAt < Date.now() || receivedHash !== expectedHash) {
+    if (!expectedHash || !expiresAt || expiresAt <= Date.now() || receivedHash !== expectedHash) {
       throw new BadRequestException('Code 2FA invalide ou expiré')
     }
 
-    transaction.metadata = { ...metadata, twoFactorVerified: true }
+    const { twoFactorCodeHash: _codeHash, twoFactorExpiresAt: _expiresAt, ...safeMetadata } = metadata
+    transaction.metadata = { ...safeMetadata, twoFactorVerified: true, twoFactorVerifiedAt: new Date().toISOString() }
     transaction.failureReason = null
     await this.transactionRepository.save(transaction)
-    return this.process(transactionId, true)
+    const result = await this.process(transactionId, true)
+    return result ? this.withoutSensitiveTransactionData(result) : null
   }
 
   async findHistory(userId: number) {
@@ -536,7 +759,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       order: { createdAt: 'DESC' },
     })
     return transactions.map((transaction) => ({
-      ...transaction,
+      ...this.withoutQrConfirmationLinkForPayer(transaction, wallet.id),
       direction: transaction.senderWalletId === wallet.id ? 'OUTGOING' : 'INCOMING',
     }))
   }
@@ -548,6 +771,11 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (!transaction || (transaction.senderWalletId !== wallet.id && transaction.recipientWalletId !== wallet.id)) {
       throw new NotFoundException('Transaction non trouvée')
     }
+    const confirmationWalletId = transaction.channel === PaymentChannel.QR
+      ? transaction.recipientWalletId
+      : transaction.senderWalletId
+    if (wallet.id !== confirmationWalletId) throw new NotFoundException('Transaction non trouvée')
+    await this.expireTwoFactorIfNeeded(transaction)
     if (transaction.status !== 'PENDING' || transaction.failureReason !== 'Vérification 2FA requise avant exécution.') {
       return { requiresTwoFactor: false }
     }
@@ -574,6 +802,6 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     transaction.status = TransactionStatus.FAILED
     transaction.failureReason = 'Paiement annulé par l\'utilisateur'
     await this.transactionRepository.save(transaction)
-    return transaction
+    return this.withoutSensitiveTransactionData(transaction)
   }
 }

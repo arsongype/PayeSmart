@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsObject } from 'class-validator'
+import { Transform } from 'class-transformer'
+import { IsString, IsOptional, IsObject, Matches } from 'class-validator'
 
 export class CreateProfileDto {
   @IsString()
@@ -10,6 +11,8 @@ export class CreateProfileDto {
   city?: string
 
   @IsString()
+  @Matches(/^[A-Za-z]{2}$/, { message: 'Le pays doit être indiqué avec son code ISO-2 (ex. MG)' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
   @IsOptional()
   country?: string
 

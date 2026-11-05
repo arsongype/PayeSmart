@@ -60,6 +60,8 @@ CREATE TABLE users (
   suspended_at TIMESTAMP,
   deleted_at TIMESTAMP,
   reactivation_deadline TIMESTAMP,
+  deletion_previous_status VARCHAR(30),
+  account_expires_at TIMESTAMP,
   revalidated_at TIMESTAMP,
   is_email_verified BOOLEAN NOT NULL DEFAULT FALSE,
   is_two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE,

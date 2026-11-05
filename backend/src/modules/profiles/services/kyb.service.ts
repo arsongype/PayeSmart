@@ -6,7 +6,6 @@ import { CreateKybDocumentDto, ReviewKybDocumentDto } from '../../auth/dto/kyb.d
 import { AiService } from './ai.service.js'
 import { User } from '../../auth/entities/user.entity.js'
 import { Profile } from '../../auth/entities/profile.entity.js'
-import { KycStatus } from '../../auth/enums/kyc-status.enum.js'
 import { KybStatus } from '../../auth/enums/kyb-status.enum.js'
 import { NotificationService } from '../../../notifications/services/notification.service.js'
 
@@ -41,11 +40,11 @@ export class KybService {
             dto.ocrData || '',
           )
       savedDocument.aiRiskScore = Math.round((analysis.confidenceScore ?? 0) * 100)
-      savedDocument.metadata = { ...(savedDocument.metadata ?? {}), analysis }
+      savedDocument.metadata = { ...savedDocument.metadata, analysis }
       await this.kybRepository.save(savedDocument)
     } catch (error) {
       console.error('AI analysis failed for KYB document:', error)
-      savedDocument.metadata = { ...(savedDocument.metadata ?? {}), analysisUnavailable: true }
+      savedDocument.metadata = { ...savedDocument.metadata, analysisUnavailable: true }
       await this.kybRepository.save(savedDocument)
     }
 
@@ -62,7 +61,7 @@ export class KybService {
     if (!analysis || !this.isSyntheticAnalysis(analysis)) return document
 
     const score = Number(document.aiRiskScore ?? 0)
-    const metadata = { ...(document.metadata ?? {}) }
+    const metadata = { ...document.metadata }
     delete metadata.analysis
     if (score <= 0) {
       document.metadata = metadata

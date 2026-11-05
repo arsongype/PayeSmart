@@ -44,12 +44,12 @@ export const downloadReport = async () => {
       const responseData = error.response?.data
       if (responseData instanceof Blob) {
         const message = await readErrorBlob(responseData)
-        if (message) throw new Error(message)
+        if (message) throw new Error(message, { cause: error })
       }
       const message = typeof responseData === 'object' && responseData !== null && 'message' in responseData
         ? responseData.message
         : null
-      if (typeof message === 'string') throw new Error(message)
+      if (typeof message === 'string') throw new Error(message, { cause: error })
     }
     throw error
   }

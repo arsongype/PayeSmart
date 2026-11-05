@@ -29,8 +29,8 @@ export class AiService {
   private readonly apiKey: string
 
   constructor(private configService: ConfigService) {
-    this.baseUrl = this.configService.get<string>('aiService.url', 'http://localhost:8001')
-    this.apiKey = this.configService.get<string>('aiService.apiKey', 'dev-secret-key-change-in-production')
+    this.baseUrl = this.configService.get<string>('aiService.url', 'http://localhost:8101')
+    this.apiKey = this.configService.getOrThrow<string>('aiService.apiKey')
   }
 
   private normalizeAnalysis(data: Record<string, any>): DocumentAnalysisResult {

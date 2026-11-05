@@ -1,6 +1,5 @@
 import 'reflect-metadata'
 import { DataSource } from 'typeorm'
-import { ConfigService } from '@nestjs/config'
 import { User } from '../modules/auth/entities/user.entity.js'
 import { RefreshToken } from '../modules/auth/entities/refresh-token.entity.js'
 import { config } from 'dotenv'

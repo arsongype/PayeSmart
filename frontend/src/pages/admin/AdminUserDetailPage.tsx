@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Shield, User as UserIcon, Wallet, FileText, CheckCircle2, XCircle, Ban, Trash2, RotateCcw, Camera } from 'lucide-react'
+import { ArrowLeft, Shield, User as UserIcon, Wallet, FileText, CheckCircle2, XCircle, Ban, Trash2, RotateCcw, Camera, Eye, X } from 'lucide-react'
 import { adminService } from '../../services/admin.service'
 import { kycService } from '../../services/kyc.service'
 import { kybService } from '../../services/kyb.service'
@@ -26,23 +26,30 @@ export default function AdminUserDetailPage() {
   const [recalculating, setRecalculating] = useState(false)
   const [avatarSaving, setAvatarSaving] = useState(false)
   const [avatarError, setAvatarError] = useState('')
+  const [documentPreview, setDocumentPreview] = useState<{ url: string; title: string } | null>(null)
   const mountedRef = useRef(false)
 
   const loadUserDetail = useCallback(async () => {
     if (!id || !mountedRef.current) return
     try {
-      const [userRes, kycRes, kybRes] = await Promise.all([
-        adminService.getUserDetail(parseInt(id)),
-        kycService.getDocuments(parseInt(id)).catch(() => []),
-        kybService.getDocuments(parseInt(id)).catch(() => []),
-      ])
+      const userRes = await adminService.getUserDetail(parseInt(id))
       if (!mountedRef.current) return
       setSelectedUser(userRes)
-      setKycDocs(kycRes)
-      setKybDocs(kybRes)
+      const [kycResult, kybResult] = await Promise.allSettled([
+        kycService.getDocuments(parseInt(id)),
+        kybService.getDocuments(parseInt(id)),
+      ])
+      if (!mountedRef.current) return
+      setKycDocs(kycResult.status === 'fulfilled' ? kycResult.value : [])
+      setKybDocs(kybResult.status === 'fulfilled' ? kybResult.value : [])
+      const documentError = [kycResult, kybResult].find((result) => result.status === 'rejected')
+      setError(
+        documentError?.status === 'rejected'
+          ? documentError.reason instanceof Error ? documentError.reason.message : t('errorLoading')
+          : null,
+      )
       const score = await adminService.getTrustScore(parseInt(id)).catch(() => null)
       setTrustScore(score)
-      setError(null)
     } catch (err) {
       if (!mountedRef.current) return
       setError(err instanceof Error ? err.message : t('errorLoading'))
@@ -51,7 +58,7 @@ export default function AdminUserDetailPage() {
         setLoading(false)
       }
     }
-  }, [id])
+  }, [id, t])
 
   const recalculateTrustScore = async () => {
     if (!id) return
@@ -92,6 +99,11 @@ export default function AdminUserDetailPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : t('errorValidation'))
     }
+  }
+
+  const openDocumentPreview = (documentUrl: string | undefined, documentType: string) => {
+    const url = adminService.assetUrl(documentUrl)
+    if (url) setDocumentPreview({ url, title: documentType })
   }
 
   const handleAvatarUpload = async (file: File) => {
@@ -161,7 +173,7 @@ export default function AdminUserDetailPage() {
   if (!selectedUser) {
     return (
       <div className="page-enter min-h-screen bg-white flex items-center justify-center text-black">
-        {t('userNotFound')}
+        {error ?? t('userNotFound')}
       </div>
     )
   }
@@ -229,10 +241,12 @@ export default function AdminUserDetailPage() {
             )}
             {selectedUser.accountStatus === 'DELETED' && (
               <>
-                <Button size="sm" variant="primary" onClick={() => updateAccount('cancelDeletion')} className="rounded-xl">
-                  <RotateCcw className="h-3 w-3 mr-1" /> {t('cancelDeletion')}
-                </Button>
-                {selectedUser.reactivationDeadline && new Date(selectedUser.reactivationDeadline) < new Date() && (
+                {selectedUser.reactivationDeadline && new Date(selectedUser.reactivationDeadline) > new Date() && (
+                  <Button size="sm" variant="primary" onClick={() => updateAccount('cancelDeletion')} className="rounded-xl">
+                    <RotateCcw className="h-3 w-3 mr-1" /> {t('cancelDeletion')}
+                  </Button>
+                )}
+                {selectedUser.reactivationDeadline && new Date(selectedUser.reactivationDeadline) <= new Date() && (
                   <Button size="sm" variant="danger" onClick={() => updateAccount('permanentDelete')} className="rounded-xl">
                     <Trash2 className="h-3 w-3 mr-1" /> {t('permanentlyDelete')}
                   </Button>
@@ -330,18 +344,31 @@ export default function AdminUserDetailPage() {
                                 <p className="text-sm text-black">{doc.createdAt ? new Date(doc.createdAt).toLocaleDateString(locale) : '-'}</p>
                             {doc.rejectionReason && <p className="text-sm text-black mt-1">{t('rejectionReasonLabel', { reason: doc.rejectionReason })}</p>}
                           </div>
-                         {doc.status === 'EN_COURS' && (
-                           <div className="flex items-center gap-2">
-                             <Button size="sm" variant="primary" onClick={() => handleKycReview(doc.id, 'APPROVED')} className="rounded-xl">
-                               <CheckCircle2 className="h-3 w-3 mr-1" />
-                               {t('approve')}
-                             </Button>
-                             <Button size="sm" variant="danger" onClick={() => handleKycReview(doc.id, 'REJECTED', t('validation'))} className="rounded-xl">
-                               <XCircle className="h-3 w-3 mr-1" />
-                               {t('reject')}
-                             </Button>
-                           </div>
-                         )}
+                         <div className="flex flex-wrap items-center gap-2">
+                            {doc.documentUrl && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openDocumentPreview(doc.documentUrl, doc.documentType)}
+                                className="rounded-xl border-primary-500 text-black"
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                {t('viewDocument')}
+                              </Button>
+                            )}
+                            {doc.status === 'EN_COURS' && (
+                              <>
+                               <Button size="sm" variant="primary" onClick={() => handleKycReview(doc.id, 'APPROVED')} className="rounded-xl">
+                                 <CheckCircle2 className="h-3 w-3 mr-1" />
+                                 {t('approve')}
+                               </Button>
+                               <Button size="sm" variant="danger" onClick={() => handleKycReview(doc.id, 'REJECTED', t('validation'))} className="rounded-xl">
+                                 <XCircle className="h-3 w-3 mr-1" />
+                                 {t('reject')}
+                               </Button>
+                             </>
+                           )}
+                         </div>
                          <span className={`text-sm px-3 py-1.5 rounded-full ${
                            doc.status === 'APPROVED' ? 'bg-emerald-500/10 text-black border border-emerald-500/30' :
                            doc.status === 'REJECTED' ? 'bg-red-500/10 text-black border border-red-500/30' :
@@ -377,18 +404,31 @@ export default function AdminUserDetailPage() {
                               <p className="text-sm text-black">{doc.createdAt ? new Date(doc.createdAt).toLocaleDateString(locale) : '-'}</p>
                               {doc.rejectionReason && <p className="text-sm text-black mt-1">{t('rejectionReasonLabel', { reason: doc.rejectionReason })}</p>}
                           </div>
-                           {doc.status === 'EN_COURS' && (
-                             <div className="flex items-center gap-2">
-                               <Button size="sm" variant="primary" onClick={() => handleKybReview(doc.id, 'APPROVED')} className="rounded-xl">
-                                 <CheckCircle2 className="h-3 w-3 mr-1" />
-                                 {t('approve')}
+                           <div className="flex flex-wrap items-center gap-2">
+                             {doc.documentUrl && (
+                               <Button
+                                 size="sm"
+                                 variant="outline"
+                                 onClick={() => openDocumentPreview(doc.documentUrl, doc.documentType)}
+                                 className="rounded-xl border-primary-500 text-black"
+                               >
+                                 <Eye className="h-4 w-4 mr-1" />
+                                 {t('viewDocument')}
                                </Button>
-                               <Button size="sm" variant="danger" onClick={() => handleKybReview(doc.id, 'REJECTED', t('validation'))} className="rounded-xl">
-                                 <XCircle className="h-3 w-3 mr-1" />
-                                 {t('reject')}
-                               </Button>
-                             </div>
-                           )}
+                             )}
+                             {doc.status === 'EN_COURS' && (
+                               <>
+                                 <Button size="sm" variant="primary" onClick={() => handleKybReview(doc.id, 'APPROVED')} className="rounded-xl">
+                                   <CheckCircle2 className="h-3 w-3 mr-1" />
+                                   {t('approve')}
+                                 </Button>
+                                 <Button size="sm" variant="danger" onClick={() => handleKybReview(doc.id, 'REJECTED', t('validation'))} className="rounded-xl">
+                                   <XCircle className="h-3 w-3 mr-1" />
+                                   {t('reject')}
+                                 </Button>
+                               </>
+                             )}
+                           </div>
                            <span className={`text-sm px-3 py-1.5 rounded-full ${
                              doc.status === 'APPROVED' ? 'bg-emerald-500/10 text-black border border-emerald-500/30' :
                              doc.status === 'REJECTED' ? 'bg-red-500/10 text-black border border-red-500/30' :
@@ -412,9 +452,59 @@ export default function AdminUserDetailPage() {
           </div>
         </div>
       </div>
+      {documentPreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setDocumentPreview(null)
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="document-preview-title"
+            className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+          >
+            <header className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+              <h2 id="document-preview-title" className="text-lg font-semibold text-black">
+                {t('viewDocument')} — {documentPreview.title}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setDocumentPreview(null)}
+                aria-label={t('close')}
+                className="rounded-lg p-2 text-gray-700 hover:bg-gray-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+            {/\.(png|jpe?g|webp)(?:$|[?#])/i.test(documentPreview.url) ? (
+              <div className="overflow-auto bg-gray-100 p-4 text-center">
+                <img src={documentPreview.url} alt={documentPreview.title} className="mx-auto max-h-[75vh] max-w-full object-contain" />
+              </div>
+            ) : documentPreview.url.toLowerCase().includes('.pdf') ? (
+              <iframe
+                src={documentPreview.url}
+                title={documentPreview.title}
+                className="min-h-[70vh] w-full flex-1"
+              />
+            ) : (
+              <div className="p-8 text-center">
+                <p className="mb-4 text-black">{t('documentPreviewUnavailable')}</p>
+                <a
+                  href={documentPreview.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-primary-700 underline"
+                >
+                  {t('viewDocument')}
+                </a>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </div>
   )
 }
-
-
-

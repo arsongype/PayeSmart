@@ -1,8 +1,7 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common'
+import { Injectable, NotFoundException } from '@nestjs/common'
 import { Repository } from 'typeorm'
 import { InjectRepository } from '@nestjs/typeorm'
 import { User } from '../../modules/auth/entities/user.entity.js'
-import * as bcrypt from 'bcrypt'
 import { Role } from '../../modules/auth/enums/role.enum.js'
 
 @Injectable()

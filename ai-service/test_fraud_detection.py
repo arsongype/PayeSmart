@@ -1,6 +1,6 @@
 import unittest
 
-from services.fraud_detection_service import FraudDetectionService
+from services.fraud_detection_service import FraudDetectionService, evaluate_risk_decision
 
 
 class FraudDetectionServiceTests(unittest.TestCase):
@@ -14,7 +14,7 @@ class FraudDetectionServiceTests(unittest.TestCase):
         self.assertLess(result.risk_score, 40.0)
 
     def test_unusual_transaction_requires_two_factor(self) -> None:
-        result = self.service.predict(1, 1500, "CARD", transaction_count_24h=8, hour=23)
+        result = self.service.predict(1, 1500, "CARD", transaction_count_24h=4, hour=12)
         self.assertEqual(result.decision, "REQUIRE_2FA")
         self.assertEqual(result.risk_level, "MEDIUM")
         self.assertIn("Montant élevé", " ".join(result.reasons))
@@ -42,6 +42,29 @@ class FraudDetectionServiceTests(unittest.TestCase):
                 self.assertIn(result.decision, {"APPROVE", "REQUIRE_2FA", "BLOCK"})
                 self.assertGreaterEqual(result.risk_score, 0.0)
                 self.assertLessEqual(result.risk_score, 100.0)
+
+    def test_default_risk_thresholds_match_backend(self) -> None:
+        self.assertEqual(evaluate_risk_decision(29.99), ("APPROVE", "LOW"))
+        self.assertEqual(evaluate_risk_decision(30.0), ("REQUIRE_2FA", "MEDIUM"))
+        self.assertEqual(evaluate_risk_decision(69.99), ("REQUIRE_2FA", "MEDIUM"))
+        self.assertEqual(evaluate_risk_decision(70.0), ("BLOCK", "HIGH"))
+
+    def test_configured_risk_thresholds_are_used(self) -> None:
+        self.assertEqual(evaluate_risk_decision(39.99, 40.0, 80.0), ("APPROVE", "LOW"))
+        self.assertEqual(evaluate_risk_decision(40.0, 40.0, 80.0), ("REQUIRE_2FA", "MEDIUM"))
+        self.assertEqual(evaluate_risk_decision(80.0, 40.0, 80.0), ("BLOCK", "HIGH"))
+
+    def test_prediction_uses_thresholds_passed_by_backend(self) -> None:
+        result = self.service.predict(
+            1,
+            1500,
+            "CARD",
+            transaction_count_24h=4,
+            hour=12,
+            low_risk_threshold=31.0,
+            medium_risk_threshold=70.0,
+        )
+        self.assertEqual(result.decision, "APPROVE")
 
 
 if __name__ == "__main__":

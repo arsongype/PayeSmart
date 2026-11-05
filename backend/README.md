@@ -1,114 +1,76 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# PayeSmart — services et données
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Le backend reçoit les demandes de l’interface, vérifie les règles, lit et enregistre les données et renvoie les résultats. Il contient notamment les fonctions de compte, portefeuille, paiements simulés, notifications, sécurité, administration et rapports.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Ce qu’il faut avant de commencer
 
-## Description
+- Node.js 20 ou plus récent et npm.
+- PostgreSQL en fonctionnement.
+- Une base de données locale créée pour PayeSmart.
+- Le service IA si vous souhaitez tester l’analyse de documents.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Les services bancaires et les paiements par carte réels ne sont pas connectés. Les opérations de paiement sont prévues pour une démonstration.
 
-## Project setup
+## Préparer la base de données
 
-```bash
-$ npm install
+1. Dans PostgreSQL, créez une base locale dédiée à PayeSmart.
+2. Dans `backend`, utilisez `.env.example` comme liste des paramètres, puis créez votre propre fichier `.env`. Renseignez au minimum les paramètres `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD` et `DB_NAME`. Remplacez tous les exemples de secrets par des valeurs aléatoires d’au moins 32 caractères ; `AI_API_KEY` doit être identique dans le backend et le service IA. Le backend refuse de démarrer en production si ces valeurs sont absentes ou ressemblent à des placeholders. Ne partagez jamais le fichier `.env`.
+3. Pour une **base neuve et vide**, le fichier [`schema.sql`](src/database/schema.sql) fournit la structure initiale. Dans pgAdmin, sélectionnez cette base, ouvrez **Query Tool**, chargez ce fichier et exécutez-le. **Attention : il supprime et recrée certaines tables. Ne l’exécutez jamais sur une base contenant des données à conserver.**
+4. Pour une base déjà créée qui doit recevoir les champs récents, la commande `npm run migration:safe` applique la mise à jour prévue. Faites une sauvegarde avant toute migration et vérifiez que les tables de base existent déjà.
+
+## Installer et lancer
+
+Dans un terminal ouvert dans `backend` :
+
+```powershell
+npm ci
+npm run start:dev
 ```
 
-## Compile and run the project
+Le serveur écoute normalement sur `http://localhost:3000`. Les routes API commencent par `/api/v1`. Par exemple, l’adresse de base est `http://localhost:3000/api/v1`. L’interface frontend déjà configurée utilise un proxy local vers ce serveur.
 
-```bash
-# development
-$ npm run start
+Pour que les fonctions KYC/KYB communiquent avec l’IA, configurez `AI_SERVICE_URL` et `AI_API_KEY` dans le fichier `.env` du backend. La clé doit être la même dans le service IA. L’envoi de courriels nécessite également une configuration SMTP valide.
 
-# watch mode
-$ npm run start:dev
+Pour la détection de fraude, les seuils par défaut sont de 30/100 et 70/100. Les seuils de la règle active `AI_THRESHOLDS` en base remplacent ces valeurs et sont transmis au service IA ; le backend vérifie que sa décision correspond à celle du service. Les règles de pays surveillés et la 2FA obligatoire pour certains moyens de paiement restent des protections supplémentaires.
 
-# production mode
-$ npm run start:prod
+## Suppression d’un compte
+
+Depuis **Paramètres**, l’utilisateur confirme sa demande avec son mot de passe et, si la 2FA est activée, son code OTP. La vérification bloque la demande lorsqu’une alerte de fraude est ouverte, qu’une transaction est en attente/en cours ou qu’une transaction possède déjà un score IA élevé. Les administrateurs reçoivent une notification avec le résultat et peuvent examiner le compte dans la page de gestion des utilisateurs.
+
+Si la demande passe les contrôles, le compte et ses sessions sont bloqués immédiatement. Avant l’échéance exacte de 30 jours, l’utilisateur peut récupérer son compte depuis l’écran de connexion avec son email, son mot de passe et son code 2FA le cas échéant. Un traitement automatique vérifie les échéances chaque minute. À l’expiration, les données personnelles et pièces d’identité sont anonymisées/supprimées, tandis que les portefeuilles, transactions et écritures comptables sont conservés sans identité personnelle afin de préserver les références financières. Cette dernière étape est irréversible.
+
+L’API utilise `DELETE /api/v1/profiles/account/deletion` pour demander la suppression et `POST /api/v1/auth/account-deletion/cancel` pour la récupération. Les administrateurs peuvent traiter une alerte dans **Fraude** ; une alerte résolue ne bloque plus une nouvelle demande. Sur une base existante, appliquez la migration additive avec `npm run migration:safe` après sauvegarde. N’exécutez pas `schema.sql` sur une base qui contient des données à conserver.
+
+## Comment les parties communiquent
+
+1. L’utilisateur effectue une action dans le navigateur.
+2. L’interface envoie une demande HTTP à l’API du backend.
+3. Le backend vérifie la session, les données et les règles applicables, puis enregistre les opérations dans PostgreSQL.
+4. Pour une analyse de document ou de risque, le backend peut appeler le service IA.
+5. Le résultat revient à l’interface sous forme de confirmation, d’état ou de message d’erreur.
+
+La plupart des routes de consultation ou de gestion de compte, ainsi que les paiements, nécessitent une connexion. La connexion et la création de compte sont les exceptions. Les demandes invalides doivent être corrigées à partir du message affiché dans l’interface.
+
+## Vérifier le backend
+
+Depuis `backend` :
+
+```powershell
+npm test
+npm run test:e2e
+npm run build
+npm run lint
 ```
 
-## Run tests
+- `npm test` lance les tests unitaires.
+- `npm run test:e2e` vérifie un parcours d’intégration.
+- `npm run build` compile le serveur.
+- `npm run lint` vérifie le code. Les avertissements éventuels sont affichés dans le terminal.
 
-```bash
-# unit tests
-$ npm run test
+## Fichiers utiles
 
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observer](https://observer.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- [`schema.sql`](src/database/schema.sql) : structure initiale de la base ; destructif si des tables existent déjà.
+- [`run-safe-migration.ts`](src/database/run-safe-migration.ts) : mise à jour destinée à une base déjà structurée.
+- [`payments.controller.ts`](src/modules/payments/payments.controller.ts) : routes API des paiements.
+- [`payments.service.ts`](src/modules/payments/payments.service.ts) : règles métier des paiements.
+- [Guide du service IA](../ai-service/README.md) : démarrage, accès et limites de l’analyse automatisée.

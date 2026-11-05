@@ -21,7 +21,6 @@ import { DeviceFingerprint } from './entities/device-fingerprint.entity.js'
 import { OtpCode } from './entities/otp-code.entity.js'
 import { SecurityRule } from './entities/security-rule.entity.js'
 import { JwtStrategy } from './strategies/jwt.strategy.js'
-import { JwtAuthGuard } from './guards/jwt-auth.guard.js'
 import { NotificationsModule } from '../../notifications/notifications.module.js'
 import { SecurityModule } from '../../security/security.module.js'
 

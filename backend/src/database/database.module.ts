@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common'
 import { TypeOrmModule } from '@nestjs/typeorm'
-import { ConfigModule, ConfigService } from '@nestjs/config'
+import { ConfigModule } from '@nestjs/config'
 import { MigrationService } from './services/migration.service.js'
 import { MigrationController } from './controllers/migration.controller.js'
 

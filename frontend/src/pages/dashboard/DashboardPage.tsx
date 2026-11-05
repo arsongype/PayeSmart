@@ -28,7 +28,7 @@ export default function DashboardPage() {
       .then(setReport)
       .catch(() => setError(t('analyticsUnavailable')))
       .finally(() => setLoading(false))
-  }, [])
+  }, [t])
 
   const handleExport = async () => {
     setExporting(true)
@@ -50,7 +50,7 @@ export default function DashboardPage() {
 
   return (
     <div className="page-enter min-w-0 space-y-8">
-      <header className="relative min-w-0 overflow-hidden rounded-3xl bg-linear-to-br from-blue-50 via-white to-blue-100 p-5 shadow-lg shadow-blue-900/10 sm:p-8 lg:p-10">
+      <header className="relative min-w-0 overflow-hidden rounded-3xl bg-linear-to-br from-white via-slate-50 to-emerald-50 p-5 shadow-lg shadow-slate-900/5 sm:p-8 lg:p-10">
         <div className="relative z-10 flex min-w-0 flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 space-y-2">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-black">{t('analyticsReporting')}</p>
@@ -58,7 +58,7 @@ export default function DashboardPage() {
             <p className="wrap-break-word text-base text-black sm:text-lg">{t('welcomeMessage', { name: user?.firstName ?? '' })}</p>
           </div>
           <div className="flex w-full shrink-0 sm:w-auto">
-            <button type="button" onClick={() => void handleExport()} disabled={exporting} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-400 bg-white px-4 py-2.5 text-sm font-semibold text-black shadow-sm transition hover:bg-blue-50 disabled:cursor-wait disabled:opacity-50 sm:w-auto sm:px-5">
+            <button type="button" onClick={() => void handleExport()} disabled={exporting} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-black shadow-sm transition hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-50 sm:w-auto sm:px-5">
               <FileText size={16} /> {t('exportPDF')}
             </button>
           </div>
@@ -168,6 +168,3 @@ export default function DashboardPage() {
     </div>
   )
 }
-
-
-

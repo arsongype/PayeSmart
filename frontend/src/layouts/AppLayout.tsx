@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   BarChart3,
@@ -30,22 +30,35 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const { user, logout, updateUser } = useAuth()
   const { t } = useTranslation()
+  const translationRef = useRef(t)
   const location = useLocation()
+  const isNotificationsPage = location.pathname === ROUTES.NOTIFICATIONS
   const locale = useLocale()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [unreadNotifications, setUnreadNotifications] = useState(0)
   const [notifications, setNotifications] = useState<Array<{ id: number; title: string; message: string; isRead: boolean; createdAt: string; link: string | null }>>([])
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [notificationsError, setNotificationsError] = useState<string | null>(null)
+
+  useEffect(() => {
+    translationRef.current = t
+  }, [t])
 
   const openNotifications = async () => {
-    setNotificationsOpen((open) => !open)
-    if (unreadNotifications === 0) return
-    const unread = notifications.filter((notification) => !notification.isRead)
-    if (unread.length === 0) return
-    
-    await apiClient.patch('/notifications/read-all')
-    setNotifications((current) => current.map((notification) => ({ ...notification, isRead: true })))
-    setUnreadNotifications(0)
+    const opening = !notificationsOpen
+    setNotificationsOpen(opening)
+    if (!opening) return
+
+    try {
+      const { data } = await apiClient.patch<Array<{ id: number; title: string; message: string; isRead: boolean; createdAt: string; link: string | null }>>('/notifications/read-all')
+      setNotifications(data)
+      setUnreadNotifications(data.filter((notification) => !notification.isRead).length)
+      setNotificationsError(null)
+      window.dispatchEvent(new CustomEvent('paysmart:notifications-updated', { detail: data }))
+    } catch (error) {
+      setNotificationsError(translationRef.current('cannotMarkNotificationRead'))
+      console.error('Unable to mark notifications as read', error)
+    }
   }
 
   useEffect(() => {
@@ -53,28 +66,54 @@ export function AppLayout({ children }: AppLayoutProps) {
 
     let intervalId: ReturnType<typeof setInterval> | undefined = undefined
     let loading = false
+    let lastRequestAt = 0
 
-    const loadNotifications = async () => {
-      if (loading) return
+    const loadNotifications = async (force = false) => {
+      if (loading || document.visibilityState === 'hidden' || (!force && Date.now() - lastRequestAt < 30_000)) return
       loading = true
+      lastRequestAt = Date.now()
       try {
         const { data } = await apiClient.get<Array<{ id: number; title: string; message: string; isRead: boolean; createdAt: string; link: string | null }>>('/notifications')
         setNotifications(data)
         setUnreadNotifications(data.filter((notification) => !notification.isRead).length)
+        setNotificationsError(null)
+      } catch (error) {
+        setNotificationsError(translationRef.current('cannotLoadNotifications'))
+        console.error('Unable to refresh notifications', error)
       } finally {
         loading = false
       }
     }
 
-    void loadNotifications()
-    intervalId = window.setInterval(loadNotifications, 120000)
-    window.addEventListener('focus', loadNotifications)
+    const notificationsUpdated = (event: Event) => {
+      const updatedNotifications = (event as CustomEvent<Array<{ id: number; title: string; message: string; isRead: boolean; createdAt: string; link: string | null }>>).detail
+      if (!Array.isArray(updatedNotifications)) return
+      setNotifications(updatedNotifications)
+      setUnreadNotifications(updatedNotifications.filter((notification) => !notification.isRead).length)
+      setNotificationsError(null)
+    }
+    const refreshNotifications = () => void loadNotifications(true)
+    const loadNotificationsOnFocus = () => void loadNotifications()
+    const loadNotificationsOnVisibilityChange = () => void loadNotifications()
+    window.addEventListener('paysmart:notifications-updated', notificationsUpdated)
+    if (!isNotificationsPage) {
+      void loadNotifications()
+      intervalId = window.setInterval(loadNotifications, 30_000)
+      window.addEventListener('focus', loadNotificationsOnFocus)
+      window.addEventListener('paysmart:notifications-refresh', refreshNotifications)
+      document.addEventListener('visibilitychange', loadNotificationsOnVisibilityChange)
+    }
 
     return () => {
       if (intervalId) window.clearInterval(intervalId)
-      window.removeEventListener('focus', loadNotifications)
+      window.removeEventListener('paysmart:notifications-updated', notificationsUpdated)
+      if (!isNotificationsPage) {
+        window.removeEventListener('focus', loadNotificationsOnFocus)
+        window.removeEventListener('paysmart:notifications-refresh', refreshNotifications)
+        document.removeEventListener('visibilitychange', loadNotificationsOnVisibilityChange)
+      }
     }
-  }, [user?.id])
+  }, [user?.id, isNotificationsPage])
 
   const navItems = [
     { icon: BarChart3, label: t('overview'), href: ROUTES.DASHBOARD },
@@ -91,7 +130,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const initials = `${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase()
 
   return (
-    <div className="min-h-screen bg-white text-black">
+    <div className="min-h-screen bg-slate-50 text-black">
       {sidebarOpen && (
         <button
           type="button"
@@ -165,7 +204,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       </aside>
 
       <div className="min-h-screen lg:ml-72">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-300/80 bg-gray-50/75 px-4 shadow-lg shadow-black/5 backdrop-blur-xl lg:px-8">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-4 shadow-sm shadow-slate-900/5 backdrop-blur-xl lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
@@ -199,6 +238,12 @@ export function AppLayout({ children }: AppLayoutProps) {
                    <span className="text-xs text-black">{notifications.length}</span>
                 </div>
                 <div className="max-h-80 overflow-y-auto">
+                  {notificationsError && (
+                    <div className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">
+                      <p>{notificationsError}</p>
+                      <button type="button" onClick={() => window.dispatchEvent(new Event('paysmart:notifications-refresh'))} className="mt-2 font-semibold underline underline-offset-2">{t('retry')}</button>
+                    </div>
+                  )}
                   {notifications.length === 0 ? (
                      <p className="px-4 py-6 text-center text-sm text-black">{t('noNotifications')}</p>
                    ) : notifications.slice(0, 8).map((notification) => (
@@ -217,6 +262,9 @@ export function AppLayout({ children }: AppLayoutProps) {
                      </div>
                    ))}
                 </div>
+                <Link to={ROUTES.NOTIFICATIONS} onClick={() => setNotificationsOpen(false)} className="block border-t border-gray-200 bg-white px-4 py-3 text-center text-sm font-semibold text-primary-700 hover:bg-emerald-50">
+                  {t('viewAllNotifications')}
+                </Link>
               </div>
             )}
             <div className="hidden text-right sm:block">
@@ -227,11 +275,8 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
         </header>
 
-        <main className="p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="app-main p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
     </div>
   )
 }
-
-
-

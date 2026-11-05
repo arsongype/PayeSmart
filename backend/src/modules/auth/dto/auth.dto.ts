@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsEnum, IsOptional, Matches } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MinLength, IsEnum, IsOptional, Matches, ValidateIf, IsIn } from 'class-validator';
 import { Role } from '../enums/role.enum.js';
 import { KycStatus } from '../enums/kyc-status.enum.js';
 
@@ -41,6 +41,8 @@ export class RegisterDto {
   city?: string;
 
   @IsString()
+  @Matches(/^[A-Za-z]{2}$/, { message: 'Le pays doit être indiqué avec son code ISO-2 (ex. MG)' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
   @IsOptional()
   country?: string;
 
@@ -70,6 +72,31 @@ export class LoginDto {
   @IsString()
   @IsOptional()
   otpCode?: string
+}
+
+export class RequestAccountDeletionDto {
+  @IsString()
+  @MinLength(8, { message: 'Le mot de passe doit contenir au moins 8 caractères' })
+  password: string;
+
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'Le code 2FA doit contenir 6 chiffres' })
+  @IsOptional()
+  otpCode?: string;
+}
+
+export class CancelAccountDeletionDto {
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @IsNotEmpty()
+  password: string;
+
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'Le code 2FA doit contenir 6 chiffres' })
+  @IsOptional()
+  otpCode?: string;
 }
 
 export class RefreshTokenDto {
@@ -165,11 +192,12 @@ export class CreatePaymentMethodDto {
   @IsOptional()
   lastFourDigits?: string;
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf((dto: CreatePaymentMethodDto) => dto.methodType === 'CARD')
+  @IsIn(['Visa', 'Mastercard'])
   brand?: string;
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf((dto: CreatePaymentMethodDto) => dto.methodType === 'CARD')
+  @IsNotEmpty()
+  @Matches(/^(0[1-9]|1[0-2])\/\d{2}$/, { message: 'La date d’expiration doit être au format MM/AA' })
   expiryDate?: string;
 }

@@ -1,14 +1,10 @@
-import { Controller, Get, Param, UseGuards, Body, Patch, Delete, UsePipes, ValidationPipe, Query, Request } from '@nestjs/common'
+import { Controller, Get, Param, UseGuards, Body, Patch, Delete, UsePipes, ValidationPipe, Query } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { UsersService } from '../services/users.service.js'
 import { RolesGuard } from '../../common/guards/roles.guard.js'
 import { Roles } from '../../common/decorators/roles.decorator.js'
 import { UpdateRoleDto } from '../dto/update-role.dto.js'
 import { Role } from '../../modules/auth/enums/role.enum.js'
-
-interface RequestWithUser extends Request {
-  user: { userId: string; email: string; role: string }
-}
 
 @Controller('users')
 @UseGuards(AuthGuard('jwt'), RolesGuard)

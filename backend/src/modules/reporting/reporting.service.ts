@@ -99,8 +99,8 @@ export class ReportingService {
 
   private async getAiMetrics(transactions: ReportRow[]) {
     try {
-      const url = this.configService.get<string>('aiService.url', 'http://localhost:8001')
-      const apiKey = this.configService.get<string>('aiService.apiKey', '')
+      const url = this.configService.get<string>('aiService.url', 'http://localhost:8101')
+      const apiKey = this.configService.getOrThrow<string>('aiService.apiKey')
       const { data } = await axios.get<{ precision: number | null; recall: number | null; f1Score: number | null; analyzedTransactions: number }>(`${url}/api/v1/metrics`, {
         headers: { 'X-API-Key': apiKey },
         timeout: 3000,
@@ -183,13 +183,13 @@ export class ReportingService {
             `${tableX} ${y - rowHeight} ${tableWidth} ${rowHeight} re S`,
             ...values.map((value, columnIndex) => {
               const x = tableX + columns.slice(0, columnIndex).reduce((sum, item) => sum + item.width, 0) + 6
-              return `BT /F1 8 Tf ${x} ${y - 14} Td (${escapePdfText(value)}) Tj ET`
+              return `0 g BT /F1 8 Tf ${x} ${y - 14} Td (${escapePdfText(value)}) Tj ET`
             }),
           ].join('\n')
         }),
         ...columns.map((column, columnIndex) => {
           const x = tableX + columns.slice(0, columnIndex).reduce((sum, item) => sum + item.width, 0) + 6
-          return `BT /F1 8 Tf ${x} ${headerY + 7} Td (${escapePdfText(column.title)}) Tj ET`
+          return `0 g BT /F1 8 Tf ${x} ${headerY + 7} Td (${escapePdfText(column.title)}) Tj ET`
         }),
       ].join('\n')
       const commands = [
@@ -197,6 +197,7 @@ export class ReportingService {
         '0.03 0.48 0.50 rg',
         '42 755 511 48 re f',
         'Q',
+        '1 g',
         'BT',
         '/F1 18 Tf',
         '62 775 Td',
@@ -207,12 +208,14 @@ export class ReportingService {
         '62 760 Td',
         `(${escapePdfText(`Page ${pageIndex + 1} / ${pages.length}`)}) Tj`,
         'ET',
+        '0 g',
         'BT',
         '/F1 9 Tf',
         '54 720 Td',
         `(${escapePdfText(`Transactions analysees : ${rows.length} | Genere le : ${new Date().toLocaleString('fr-FR')}`)}) Tj`,
         'ET',
         tableCommands,
+        '0 g',
         'BT',
         '/F1 8 Tf',
         '54 35 Td',

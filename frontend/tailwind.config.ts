@@ -6,17 +6,17 @@ const config: Config = {
     extend: {
       colors: {
         primary: {
-          50: '#E8F0FE',
-          100: '#D4E4FC',
-          200: '#A9C9F8',
-          300: '#7EABF3',
-          400: '#5391EE',
-          500: '#3B82F6',
-          600: '#2563EB',
-          700: '#1D4ED8',
-          800: '#1E40AF',
-          900: '#1E3A8A',
-          950: '#172554',
+          50: '#EFF6F2',
+          100: '#DFEEE6',
+          200: '#C1DDCE',
+          300: '#91C5AC',
+          400: '#5CA78A',
+          500: '#278B71',
+          600: '#227A64',
+          700: '#1D6855',
+          800: '#195445',
+          900: '#164638',
+          950: '#0D2F26',
         },
         dark: {
           50: '#0B1120',
@@ -45,10 +45,10 @@ const config: Config = {
         xs: '2px',
       },
       boxShadow: {
-        soft: '0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2)',
-        glow: '0 0 20px rgba(59, 130, 246, 0.3)',
-        'glow-lg': '0 0 40px rgba(59, 130, 246, 0.4)',
-        card: '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2)',
+        soft: '0 1px 3px rgba(22, 70, 56, 0.07), 0 1px 2px rgba(22, 70, 56, 0.04)',
+        glow: '0 0 20px rgba(39, 139, 113, 0.16)',
+        'glow-lg': '0 0 40px rgba(39, 139, 113, 0.24)',
+        card: '0 4px 6px -1px rgba(22, 70, 56, 0.07), 0 2px 4px -2px rgba(22, 70, 56, 0.04)',
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -62,8 +62,8 @@ const config: Config = {
       },
       keyframes: {
         glow: {
-          '0%': { boxShadow: '0 0 5px rgba(59, 130, 246, 0.5)' },
-          '100%': { boxShadow: '0 0 20px rgba(59, 130, 246, 0.8)' },
+          '0%': { boxShadow: '0 0 5px rgba(39, 139, 113, 0.32)' },
+          '100%': { boxShadow: '0 0 20px rgba(39, 139, 113, 0.52)' },
         },
         fadeIn: {
           '0%': { opacity: '0' },
@@ -91,8 +91,8 @@ const config: Config = {
         },
       },
       gradientColorStops: {
-        'gradient-start': 'rgba(37, 99, 235, 0.15)',
-        'gradient-end': 'rgba(30, 58, 138, 0.05)',
+        'gradient-start': 'rgba(39, 139, 113, 0.09)',
+        'gradient-end': 'rgba(22, 70, 56, 0.03)',
       },
     },
   },

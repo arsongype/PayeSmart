@@ -1,35 +1,11 @@
-import { createContext, useContext, useEffect, useState } from 'react'
-
-export type Language = 'fr' | 'en'
-export type Currency = 'EUR' | 'USD' | 'XOF' | 'MGA'
-
-export interface Settings {
-  language: Language
-  currency: Currency
-  emailNotifications: boolean
-  fraudAlerts: boolean
-}
+import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
+import { SettingsContext, type Settings } from './SettingsContext'
 
 const defaultSettings: Settings = { language: 'fr', currency: 'EUR', emailNotifications: true, fraudAlerts: true }
 
-interface SettingsContextValue {
-  settings: Settings
-  update: <K extends keyof Settings>(key: K, value: Settings[K]) => void
-  save: () => void
-}
-
-export const SettingsContext = createContext<SettingsContextValue | null>(null)
-
-export function useSettings(): SettingsContextValue {
-  const context = useContext(SettingsContext)
-  if (!context) {
-    throw new Error('useSettings must be used within SettingsProvider')
-  }
-  return context
-}
-
 interface SettingsProviderProps {
-  children: React.ReactNode
+  children: ReactNode
   userId?: string | null
 }
 
@@ -66,4 +42,3 @@ export function SettingsProvider({ children, userId }: SettingsProviderProps) {
     </SettingsContext.Provider>
   )
 }
-

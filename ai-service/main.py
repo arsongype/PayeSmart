@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional
 import os
 import socket
@@ -20,7 +20,6 @@ app = FastAPI(
     description="Service IA pour l'analyse de documents KYC/KYB et le scoring de confiance",
     version="1.0.0"
 )
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://localhost:3000"],
@@ -29,7 +28,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_KEY = os.getenv("AI_API_KEY", "dev-secret-key-change-in-production")
+API_KEY = os.getenv("AI_API_KEY", "local-development-ai-key")
+if (os.getenv("ENVIRONMENT") == "production" or os.getenv("NODE_ENV") == "production") and (
+    len(API_KEY) < 32 or API_KEY.startswith(("replace-with", "your-", "dev-"))
+):
+    raise RuntimeError("AI_API_KEY must be configured with a random value of at least 32 characters in production")
 ocr_service = OCRService()
 trust_score_service = TrustScoreService()
 fraud_detection_service = FraudDetectionService()
@@ -59,6 +62,14 @@ class FraudDetectionRequest(BaseModel):
     ip_address: Optional[str] = None
     recipient_wallet_id: Optional[int] = None
     hour: Optional[int] = None
+    low_risk_threshold: float = Field(default=30.0, ge=0, le=100)
+    medium_risk_threshold: float = Field(default=70.0, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def validate_risk_thresholds(self):
+        if self.low_risk_threshold >= self.medium_risk_threshold:
+            raise ValueError("low_risk_threshold must be lower than medium_risk_threshold")
+        return self
 
 class FraudDetectionResponse(BaseModel):
     user_id: int
@@ -230,6 +241,8 @@ async def predict_fraud_risk(request: FraudDetectionRequest):
             ip_address=request.ip_address,
             recipient_wallet_id=request.recipient_wallet_id,
             hour=request.hour,
+            low_risk_threshold=request.low_risk_threshold,
+            medium_risk_threshold=request.medium_risk_threshold,
         )
         fraud_metrics["analyzed_transactions"] += 1
         if prediction.risk_score >= 40:

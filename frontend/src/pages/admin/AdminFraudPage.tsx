@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowUpRight, ShieldAlert } from 'lucide-react'
 import { adminService } from '../../services/admin.service'
 import type { FraudAlert } from '../../models/FraudAlert.model'
 import { FullPageLoader } from '../../components/common/Loader'
+import { Button } from '../../components/common/Button'
 import { useLocale } from '../../hooks/useLocale'
 import { useTranslation } from '../../utils/i18n'
 
@@ -19,6 +20,7 @@ export default function AdminFraudPage() {
   const [alerts, setAlerts] = useState<FraudAlert[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [reviewingTransactionId, setReviewingTransactionId] = useState<number | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const alertsPerPage = 5
   const totalPages = Math.max(1, Math.ceil(alerts.length / alertsPerPage))
@@ -44,7 +46,22 @@ export default function AdminFraudPage() {
     }
 
     void loadAlerts()
-  }, [])
+  }, [t])
+
+  const markFraudReviewed = async (alert: FraudAlert) => {
+    setReviewingTransactionId(alert.transactionId)
+    setError(null)
+    try {
+      await adminService.reviewFraudAlert(alert.transactionId, 'RESOLVED')
+      setAlerts((current) => current.map((item) => item.transactionId === alert.transactionId
+        ? { ...item, reviewStatus: 'RESOLVED' }
+        : item))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('cannotResolveFraudAlert'))
+    } finally {
+      setReviewingTransactionId(null)
+    }
+  }
 
   if (loading) return <FullPageLoader />
 
@@ -113,6 +130,20 @@ export default function AdminFraudPage() {
                    <p className="text-sm uppercase tracking-wide text-black">{t('mainReason')}</p>
                   <p className="mt-2 text-base text-black">{alert.reason}</p>
                 </div>
+                <div className="mt-3 flex justify-end">
+                  {alert.reviewStatus !== 'OPEN' ? (
+                    <span className="text-sm font-medium text-emerald-700">{t('fraudReviewed')}</span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void markFraudReviewed(alert)}
+                      isLoading={reviewingTransactionId === alert.transactionId}
+                    >
+                      {t('markFraudReviewed')}
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
             {totalPages > 1 && (
@@ -154,6 +185,3 @@ export default function AdminFraudPage() {
     </div>
   )
 }
-
-
-

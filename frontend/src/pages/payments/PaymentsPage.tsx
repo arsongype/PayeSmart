@@ -1,13 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
-import { ArrowDownLeft, ArrowUpRight, CreditCard, Printer, RefreshCw, Send, UserRound, WandSparkles } from 'lucide-react'
+import { AlertCircle, ArrowDownLeft, ArrowUpRight, BadgeCheck, Building2, CheckCircle2, Clock3, CreditCard, Printer, QrCode, RefreshCw, Send, ShieldCheck, UserRound } from 'lucide-react'
 import { Button } from '../../components/common/Button'
 import { useAuth } from '../../contexts/AuthContext'
-import { paymentService, type PaymentChannel, type PaymentQuote, type PaymentTransaction, type RecipientAccount, type VirtualCard } from '../../services/payment.service'
+import { paymentService, type PaymentChannel, type PaymentCurrency, type PaymentQuote, type PaymentTransaction, type RecipientAccount } from '../../services/payment.service'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useTranslation } from '../../utils/i18n'
+import { isSandboxCardCvvValid, isSandboxCardExpiryValid } from '../../utils/sandbox-card'
+import { useSandboxDynamicCvv } from '../../hooks/useSandboxDynamicCvv'
+import { getCurrencySymbol } from '../../utils/formatters'
 
 type PaymentMode = 'CARD' | 'QR' | 'BANK_TRANSFER'
+
+function generateSandboxCardToken(): string {
+  return `tok_test_${crypto.randomUUID().replaceAll('-', '').slice(0, 24)}`
+}
 
 function getPaymentErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
@@ -22,49 +29,55 @@ export default function PaymentsPage() {
   const { user } = useAuth()
   const { settings } = useSettings()
   const { t, formatMoney } = useTranslation()
+  const dynamicCvv = useSandboxDynamicCvv(user?.id ?? 0)
   const locale = settings.language === 'en' ? 'en-US' : 'fr-FR'
   const [recipientWalletNumber, setRecipientWalletNumber] = useState('')
   const [recipient, setRecipient] = useState<RecipientAccount | null>(null)
   const [amount, setAmount] = useState('')
+  const [cardExpiry, setCardExpiry] = useState('')
+  const [cardCvv, setCardCvv] = useState('')
+  const [paymentCurrency, setPaymentCurrency] = useState<PaymentCurrency>('MGA')
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('CARD')
-  const [cardToken, setCardToken] = useState('')
-  const [bankReference, setBankReference] = useState('')
   const [paymentQuote, setPaymentQuote] = useState<PaymentQuote | null>(null)
   const [loadingQuote, setLoadingQuote] = useState(false)
   const [history, setHistory] = useState<PaymentTransaction[]>([])
-  const [card, setCard] = useState<VirtualCard | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [lastTransaction, setLastTransaction] = useState<PaymentTransaction | null>(null)
+  const [hiddenReceiptId, setHiddenReceiptId] = useState<number | null>(null)
   const [twoFactorCode, setTwoFactorCode] = useState('')
   const [confirmingTwoFactor, setConfirmingTwoFactor] = useState(false)
   const [twoFactorRemainingSeconds, setTwoFactorRemainingSeconds] = useState<number | null>(null)
+  const notificationRefreshTransaction = useRef<number | null>(null)
+  const translationRef = useRef(t)
   const [historyPage, setHistoryPage] = useState(1)
   const historyPageSize = 5
   const historyTotalPages = Math.max(1, Math.ceil(history.length / historyPageSize))
   const visibleHistory = history.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize)
+  const completedCount = history.filter((transaction) => transaction.status === 'COMPLETED').length
+  const pendingCount = history.filter((transaction) => transaction.status === 'PENDING' || transaction.status === 'PROCESSING').length
   const channel: PaymentChannel = paymentMode
+  const currentQuote = paymentQuote?.currency === paymentCurrency
+    && paymentQuote.amount === Number(amount)
+    ? paymentQuote
+    : null
 
   useEffect(() => {
     const parsedAmount = Number(amount)
-    if (!amount || !Number.isFinite(parsedAmount) || parsedAmount < 0.01) {
-      setPaymentQuote(null)
-      setLoadingQuote(false)
-      return
-    }
+    if (!amount || !Number.isFinite(parsedAmount) || parsedAmount < 0.01) return
 
     let cancelled = false
     const timeoutId = window.setTimeout(async () => {
       try {
         setLoadingQuote(true)
-        const quote = await paymentService.quote(parsedAmount)
+        const quote = await paymentService.quote(parsedAmount, paymentCurrency)
         if (!cancelled) setPaymentQuote(quote)
       } catch (err) {
         if (!cancelled) {
           setPaymentQuote(null)
-          setError(getPaymentErrorMessage(err, t('cannotCalculateFee')))
+          setError(getPaymentErrorMessage(err, translationRef.current('cannotCalculateFee')))
         }
       } finally {
         if (!cancelled) setLoadingQuote(false)
@@ -75,16 +88,15 @@ export default function PaymentsPage() {
       cancelled = true
       window.clearTimeout(timeoutId)
     }
-  }, [amount, t])
+  }, [amount, paymentCurrency])
 
   useEffect(() => {
-    if (!success && !error) return
+    if (!success) return
     const timeoutId = window.setTimeout(() => {
       setSuccess(null)
-      setError(null)
-    }, 10000)
+    }, 6000)
     return () => window.clearTimeout(timeoutId)
-  }, [success, error])
+  }, [success])
 
   const statusLabel: Record<PaymentTransaction['status'], string> = {
     PENDING: t('pending'),
@@ -94,78 +106,113 @@ export default function PaymentsPage() {
   }
 
   useEffect(() => {
-    if (!lastTransaction) {
-      setTwoFactorRemainingSeconds(null)
-      return
-    }
-    const expiresAt = (lastTransaction.metadata as unknown as { twoFactorExpiresAt?: string } | null)?.twoFactorExpiresAt
-    if (!expiresAt) {
-      setTwoFactorRemainingSeconds(null)
-      return
+    translationRef.current = t
+  }, [t])
+
+  const twoFactorExpiresAt = lastTransaction?.metadata?.twoFactorExpiresAt
+
+  useEffect(() => {
+    if (!twoFactorExpiresAt) {
+      const timeoutId = window.setTimeout(() => setTwoFactorRemainingSeconds(null), 0)
+      return () => window.clearTimeout(timeoutId)
     }
     const updateCountdown = () => {
-      const remaining = Math.max(0, Math.floor((Date.parse(expiresAt) - Date.now()) / 1000))
+      const remaining = Math.max(0, Math.floor((Date.parse(twoFactorExpiresAt) - Date.now()) / 1000))
       setTwoFactorRemainingSeconds(remaining)
     }
-    updateCountdown()
+    const initialTimeoutId = window.setTimeout(updateCountdown, 0)
     const intervalId = window.setInterval(updateCountdown, 1000)
-    return () => window.clearInterval(intervalId)
-  }, [lastTransaction?.id, lastTransaction?.metadata])
+    return () => {
+      window.clearTimeout(initialTimeoutId)
+      window.clearInterval(intervalId)
+    }
+  }, [twoFactorExpiresAt])
 
-  const generateCardToken = () => {
-    const randomPart = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID().replaceAll('-', '').slice(0, 24)
-      : `${Date.now()}${Math.random().toString(36).slice(2, 14)}`
-    setCardToken(`tok_test_${randomPart}`)
-    setError(null)
-  }
-
-  const load = async () => {
+  const load = useCallback(async (restorePendingTwoFactor = false) => {
     try {
       setLoading(true)
-      const [transactions, virtualCard] = await Promise.all([paymentService.history(), paymentService.getVirtualCard()])
+      const transactions = await paymentService.history()
       setHistory(transactions)
       setHistoryPage(1)
-      setCard(virtualCard)
-      const pendingTwoFactor = transactions.find((transaction) => transaction.status === 'PENDING' && transaction.failureReason === 'Vérification 2FA requise avant exécution.')
+      const pendingTwoFactor = restorePendingTwoFactor
+        ? transactions.find((transaction) => transaction.status === 'PENDING' && transaction.failureReason === 'Vérification 2FA requise avant exécution.')
+        : undefined
       if (pendingTwoFactor) {
         setLastTransaction(pendingTwoFactor)
-        setSuccess(t('paymentCreated', { reference: pendingTwoFactor.externalReference ?? `#${pendingTwoFactor.id}`, status: statusLabel[pendingTwoFactor.status] }))
+        setSuccess(translationRef.current('paymentCreated', { reference: pendingTwoFactor.externalReference ?? `#${pendingTwoFactor.id}`, status: translationRef.current('pending') }))
       }
     } catch (err) {
-      setError(getPaymentErrorMessage(err, t('cannotLoadPayments')))
+      setError(getPaymentErrorMessage(err, translationRef.current('cannotLoadPayments')))
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
-    if (user?.id) void load()
-  }, [user?.id])
+    if (!user?.id) return
+    const timeoutId = window.setTimeout(() => void load(true), 0)
+    return () => window.clearTimeout(timeoutId)
+  }, [user?.id, load])
+
+  const pollingTransactionId = lastTransaction?.id
+  const pollingTransactionChannel = lastTransaction?.channel
+  const pollingTransactionNeedsTwoFactor = lastTransaction?.channel !== 'QR'
+    && lastTransaction?.status === 'PENDING'
+    && lastTransaction.failureReason === 'Vérification 2FA requise avant exécution.'
 
   useEffect(() => {
-    if (!lastTransaction || lastTransaction.status === 'COMPLETED' || lastTransaction.status === 'FAILED') {
+    if (
+      !pollingTransactionId
+      || lastTransaction?.status === 'COMPLETED'
+      || lastTransaction?.status === 'FAILED'
+      || pollingTransactionNeedsTwoFactor
+    ) {
       return
     }
     let timeoutId: ReturnType<typeof window.setTimeout> | undefined = undefined
     const poll = async () => {
       try {
-        const updated = await paymentService.get(lastTransaction.id)
+        const updated = await paymentService.get(pollingTransactionId)
         setLastTransaction(updated)
+        if (
+          updated.failureReason === 'Vérification 2FA requise avant exécution.'
+          && notificationRefreshTransaction.current !== updated.id
+        ) {
+          notificationRefreshTransaction.current = updated.id
+          window.dispatchEvent(new Event('paysmart:notifications-refresh'))
+        }
         if (updated.status === 'COMPLETED' || updated.status === 'FAILED') {
-          setSuccess(updated.status === 'COMPLETED' ? t('paymentConfirmedLedger') : t('paymentFailed', { reason: updated.failureReason ?? t('unknownRecipient') }))
-          await load()
+          setSuccess(updated.status === 'COMPLETED'
+            ? updated.channel === 'QR'
+              ? translationRef.current('qrPaymentConfirmed', { reference: updated.externalReference ?? `#${updated.id}` })
+              : translationRef.current('paymentConfirmedLedger')
+            : translationRef.current('paymentFailed', { reason: updated.failureReason ?? translationRef.current('unknownRecipient') }))
+          window.dispatchEvent(new Event('paysmart:notifications-refresh'))
+          await load(false)
+          return
+        }
+        if (updated.status === 'PENDING' && updated.failureReason === 'Vérification 2FA requise avant exécution.') {
+          return
         }
       } catch {
         // ignore polling errors
       }
-      timeoutId = window.setTimeout(poll, 2000)
+      timeoutId = window.setTimeout(poll, pollingTransactionChannel === 'QR' ? 15_000 : 10_000)
     }
     void poll()
     return () => {
       if (timeoutId) window.clearTimeout(timeoutId)
     }
-  }, [lastTransaction?.id, lastTransaction?.status, lastTransaction?.failureReason])
+  }, [pollingTransactionId, pollingTransactionChannel, lastTransaction?.status, lastTransaction?.failureReason, pollingTransactionNeedsTwoFactor, load])
+
+  const terminalTransactionId = lastTransaction?.id
+  const terminalTransactionStatus = lastTransaction?.status
+
+  useEffect(() => {
+    if (!terminalTransactionId || (terminalTransactionStatus !== 'COMPLETED' && terminalTransactionStatus !== 'FAILED')) return
+    const timeoutId = window.setTimeout(() => setHiddenReceiptId(terminalTransactionId), 6000)
+    return () => window.clearTimeout(timeoutId)
+  }, [terminalTransactionId, terminalTransactionStatus])
 
   const findRecipient = async () => {
     const lookupValue = recipientWalletNumber.trim()
@@ -186,6 +233,20 @@ export default function PaymentsPage() {
   const submitPayment = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!recipient || !amount) return
+    if (paymentMode === 'CARD') {
+      if (!isSandboxCardExpiryValid(cardExpiry)) {
+        setError(t('invalidExpiry'))
+        return
+      }
+      if (!isSandboxCardCvvValid(cardCvv)) {
+        setError(t('invalidCvv'))
+        return
+      }
+      if (cardCvv !== dynamicCvv) {
+        setError(t('invalidCvv'))
+        return
+      }
+    }
     try {
       setSubmitting(true)
       setError(null)
@@ -194,39 +255,24 @@ export default function PaymentsPage() {
         recipientWalletNumber: recipient.walletNumber,
         amount: Number(amount),
         channel,
-        currency: card?.currency || 'EUR',
-        cardToken: cardToken || undefined,
-        bankReference: bankReference || undefined,
+        currency: paymentCurrency,
+        cardToken: paymentMode === 'CARD' ? generateSandboxCardToken() : undefined,
       })
       setLastTransaction(transaction)
+      setHiddenReceiptId(null)
       setSuccess(t('paymentCreated', { reference: transaction.externalReference ?? `#${transaction.id}`, status: statusLabel[transaction.status] }))
       setAmount('')
       setPaymentQuote(null)
+      setLoadingQuote(false)
       setRecipient(null)
       setRecipientWalletNumber('')
-      setCardToken('')
-      setBankReference('')
-      await load()
-      void watchTransaction(transaction.id)
+      setCardExpiry('')
+      setCardCvv('')
+      await load(false)
     } catch (err) {
       setError(getPaymentErrorMessage(err, t('cannotInitiatePayment')))
     } finally {
       setSubmitting(false)
-    }
-  }
-
-  const watchTransaction = async (transactionId: number) => {
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      const updated = await paymentService.get(transactionId).catch(() => null)
-      if (updated) {
-        setLastTransaction(updated)
-        if (updated.status === 'COMPLETED' || updated.status === 'FAILED') {
-          setSuccess(updated.status === 'COMPLETED' ? t('paymentConfirmedLedger') : t('paymentFailed', { reason: updated.failureReason ?? t('unknownRecipient') }))
-          await load()
-          return
-        }
-      }
-      await new Promise((resolve) => window.setTimeout(resolve, 500))
     }
   }
 
@@ -238,15 +284,16 @@ export default function PaymentsPage() {
       setError(null)
       const updated = await paymentService.confirmTwoFactor(transactionId, twoFactorCode.trim())
       setLastTransaction(updated)
+      setHiddenReceiptId(null)
       setTwoFactorCode('')
       setSuccess(updated.status === 'COMPLETED' ? t('paymentConfirmed2fa') : t('paymentStatus', { status: statusLabel[updated.status] }))
-      await load()
+      if (updated.status === 'COMPLETED') window.dispatchEvent(new Event('paysmart:notifications-refresh'))
+      await load(false)
     } catch (err) {
       setError(getPaymentErrorMessage(err, t('invalid2faCode')))
       const refreshed = await paymentService.get(transactionId).catch(() => null)
       if (refreshed && refreshed.status === 'PENDING' && refreshed.failureReason === 'Vérification 2FA requise avant exécution.') {
         setLastTransaction(refreshed)
-        void watchTransaction(transactionId)
       }
     } finally {
       setConfirmingTwoFactor(false)
@@ -297,36 +344,68 @@ export default function PaymentsPage() {
   }
 
   return (
-    <div className="page-enter min-h-screen bg-white p-4 lg:p-8">
-      <div className="mx-auto max-w-6xl space-y-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-black">{t('payments')}</h1>
-             <p className="mt-1 text-black">{t('sendPayment')}</p>
+    <div className="page-enter min-h-screen bg-gradient-to-br from-slate-50 via-white to-teal-50/40 p-4 lg:p-8">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <header className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-emerald-50/70 p-6 text-slate-900 shadow-xl shadow-slate-900/5 sm:p-8">
+          <div className="absolute -right-12 -top-20 h-64 w-64 rounded-full bg-emerald-300/20 blur-3xl" />
+          <div className="relative flex flex-wrap items-center justify-between gap-5">
+            <div className="flex items-center gap-4">
+              <div className="rounded-2xl border border-emerald-100 bg-white p-3 text-emerald-700 shadow-sm"><Send className="h-6 w-6" /></div>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t('payments')}</h1>
+                <p className="mt-1 text-sm text-slate-600">{t('sendPayment')}</p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => void load()} aria-label={t('refreshPayments')} className="border-emerald-200 bg-white/80 text-emerald-800 hover:bg-white hover:text-emerald-900">
+              <RefreshCw className="h-4 w-4" /> {t('refresh')}
+            </Button>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => void load()} aria-label={t('refreshPayments')} className="rounded-2xl border border-gray-300">
-            <RefreshCw className="h-4 w-4" /> {t('refresh')}
-          </Button>
+        </header>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          {[
+            { label: t('transactionHistory'), value: history.length, icon: CreditCard, tone: 'bg-blue-50 text-blue-700' },
+            { label: t('completed'), value: completedCount, icon: CheckCircle2, tone: 'bg-emerald-50 text-emerald-700' },
+            { label: t('pending'), value: pendingCount, icon: Clock3, tone: 'bg-amber-50 text-amber-700' },
+          ].map((item) => (
+            <article key={item.label} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-900/5">
+              <div className={`rounded-xl p-2.5 ${item.tone}`}><item.icon className="h-5 w-5" /></div>
+              <div><p className="text-xs font-medium text-slate-500">{item.label}</p><p className="mt-0.5 text-xl font-bold text-slate-900">{item.value}</p></div>
+            </article>
+          ))}
         </div>
 
-        {error && <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-base text-black">{error}</div>}
-        {success && <div className="rounded-2xl border border-green-500/40 bg-green-500/10 p-4 text-base text-green-300">{success}</div>}
-        {lastTransaction && (
-          <div className="rounded-2xl border border-primary-500/30 bg-primary-500/10 p-5 text-base text-black">
+        {error && <div role="alert" className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"><AlertCircle className="mt-0.5 h-5 w-5 shrink-0" /><span>{error}</span></div>}
+        {success && <div role="status" className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800"><BadgeCheck className="mt-0.5 h-5 w-5 shrink-0" /><span>{success}</span></div>}
+        {lastTransaction && !(
+          (lastTransaction.status === 'COMPLETED' || lastTransaction.status === 'FAILED')
+          && hiddenReceiptId === lastTransaction.id
+        ) && (
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 text-base text-slate-900 shadow-lg shadow-slate-900/5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <span>{t('transactionStatus', { ref: lastTransaction.externalReference ?? `#${lastTransaction.id}`, status: statusLabel[lastTransaction.status] })}</span>
-              <Button type="button" size="sm" variant="outline" onClick={downloadReceipt} className="rounded-xl border border-gray-300"><Printer className="h-4 w-4" /> {t('downloadReceipt')}</Button>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Référence · {lastTransaction.externalReference ?? `#${lastTransaction.id}`}</p>
+                <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${lastTransaction.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700' : lastTransaction.status === 'FAILED' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>{statusLabel[lastTransaction.status]}</span>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={downloadReceipt} className="rounded-xl border-slate-200 text-slate-700"><Printer className="h-4 w-4" /> {t('downloadReceipt')}</Button>
             </div>
-            {lastTransaction.metadata?.qrData && <p className="mt-2 font-mono text-sm">{t('qrDataLabel', { data: lastTransaction.metadata.qrData })}</p>}
-            {lastTransaction.metadata?.temporaryIban && <p className="mt-2 font-mono text-sm">{t('temporaryIbanLabel', { iban: lastTransaction.metadata.temporaryIban })}</p>}
-            <div className="mt-3 grid gap-2 border-t border-primary-500/20 pt-3 text-sm sm:grid-cols-3">
+            {lastTransaction.channel === 'QR' && lastTransaction.status === 'PENDING' && (
+              <div className="mt-4 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
+                <Clock3 className="h-5 w-5 shrink-0 text-amber-700" />
+                <div><p className="font-semibold">{t('qrWaitingForRecipient')}</p><p className="mt-0.5 text-sm text-amber-800">{t('qrRecipientWillReceiveLink')}</p></div>
+              </div>
+            )}
+            <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-3">
               <p>{t('transactionAmount')}: <strong>{formatMoney(Number(lastTransaction.amount), lastTransaction.currency)}</strong></p>
               <p>{t('transactionFee')}: <strong>{formatMoney(Number(lastTransaction.feeAmount ?? 0), lastTransaction.currency)}</strong></p>
               <p>{t('transactionTotal')}: <strong>{formatMoney(Number(lastTransaction.totalAmount ?? lastTransaction.amount), lastTransaction.currency)}</strong></p>
             </div>
-             {lastTransaction.status === 'PENDING' && lastTransaction.failureReason === 'Vérification 2FA requise avant exécution.' && (
-               <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-primary-500/20 pt-4">
+             {lastTransaction.channel !== 'QR' && lastTransaction.status === 'PENDING' && lastTransaction.failureReason === 'Vérification 2FA requise avant exécution.' && (
+               <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4">
                  <div className="min-w-48 flex-1">
+                  {lastTransaction.channel === 'BANK_TRANSFER' && (
+                    <p className="mb-2 text-sm text-black">{t('bankTransferOtpRequired')}</p>
+                  )}
                    <label className="mb-1 block text-xs text-black" htmlFor="two-factor-code">
                   {t('codeReceived')}
                   <span className="ml-1 text-red-500" aria-hidden="true">*</span>
@@ -336,16 +415,19 @@ export default function PaymentsPage() {
                      inputMode="numeric"
                      maxLength={6}
                      required
+                     disabled={twoFactorRemainingSeconds === 0}
                      value={twoFactorCode}
                      onChange={(event) => setTwoFactorCode(event.target.value.replace(/\D/g, ''))}
                      placeholder="000000"
                      className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-2.5 font-mono text-black outline-none focus:border-primary-300"
                    />
                    {typeof twoFactorRemainingSeconds === 'number' && (
-                     <p className="mt-1 text-xs text-black">{t('twoFactorExpiresIn', { seconds: twoFactorRemainingSeconds })}</p>
+                     <p role={twoFactorRemainingSeconds === 0 ? 'alert' : undefined} className={`mt-1 text-xs ${twoFactorRemainingSeconds === 0 ? 'text-red-700' : 'text-black'}`}>
+                       {twoFactorRemainingSeconds === 0 ? t('twoFactorExpired') : t('twoFactorExpiresIn', { seconds: twoFactorRemainingSeconds })}
+                     </p>
                    )}
                  </div>
-                  <Button type="button" size="sm" onClick={() => void confirmTwoFactor()} disabled={twoFactorCode.length !== 6 || confirmingTwoFactor} isLoading={confirmingTwoFactor}>
+                  <Button type="button" size="sm" onClick={() => void confirmTwoFactor()} disabled={twoFactorCode.length !== 6 || confirmingTwoFactor || twoFactorRemainingSeconds === 0} isLoading={confirmingTwoFactor}>
                     {t('confirmPayment')}
                   </Button>
                   <Button type="button" size="sm" variant="outline" onClick={() => void cancelPayment()} className="rounded-xl border border-gray-300">
@@ -356,15 +438,17 @@ export default function PaymentsPage() {
           </div>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <form onSubmit={submitPayment} className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
-            <div className="mb-6 flex items-center gap-3">
-              <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
-                <Send className="h-5 w-5" />
+        <div className="w-full">
+          <form onSubmit={submitPayment} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-900/5">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-5 sm:px-7">
+              <div className="flex items-center gap-3">
+                <div className="rounded-2xl bg-white p-2.5 text-emerald-700 shadow-sm ring-1 ring-emerald-100"><Send className="h-5 w-5" /></div>
+                <div><h2 className="text-lg font-bold text-slate-900">{t('sendPayment')}</h2><p className="text-xs text-slate-500">Saisissez les coordonnées et vérifiez le total avant validation.</p></div>
               </div>
-              <h2 className="text-lg font-semibold text-black">{t('sendPayment')}</h2>
+              <span className="hidden items-center gap-1.5 rounded-full border border-emerald-100 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 sm:inline-flex"><ShieldCheck className="h-3.5 w-3.5" /> Paiement sécurisé</span>
             </div>
-            <label className="mb-2 block text-base font-medium text-black" htmlFor="recipient-account">
+            <div className="space-y-6 p-5 sm:p-7">
+            <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="recipient-account">
               {t('recipientAccountNumber')}
               <span className="ml-1 text-red-500" aria-hidden="true">*</span>
             </label>
@@ -377,27 +461,30 @@ export default function PaymentsPage() {
                 value={recipientWalletNumber}
                 onChange={(event) => setRecipientWalletNumber(event.target.value.replace(/\D/g, ''))}
                 placeholder="000000010000"
-                className="min-w-0 flex-1 rounded-2xl border border-gray-300 bg-white px-4 py-2.5 text-black outline-none focus:border-primary-500"
+                autoComplete="off"
+                aria-describedby={recipient ? 'recipient-confirmed' : undefined}
+                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10"
               />
-              <Button type="button" variant="outline" onClick={() => void findRecipient()} className="rounded-xl border border-gray-300">{t('searchButton')}</Button>
+              <Button type="button" variant="outline" onClick={() => void findRecipient()} disabled={!recipientWalletNumber.trim()} className="rounded-xl border-slate-200 px-4 text-slate-700">{t('searchButton')}</Button>
             </div>
             {recipient && (
-              <div className="mt-4 flex items-center gap-3 rounded-2xl border border-primary-500/30 bg-primary-500/10 p-4">
-                <UserRound className="h-5 w-5 text-black" />
+              <div id="recipient-confirmed" className="mt-4 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <div className="rounded-xl bg-white p-2 text-emerald-700"><UserRound className="h-5 w-5" /></div>
                 <div>
-                  <p className="font-semibold text-black">{recipient.cardHolderName}</p>
-                  <p className="text-base text-black">{recipient.role} · {recipient.walletNumber}</p>
+                  <p className="font-semibold text-emerald-950">{recipient.cardHolderName}</p>
+                  <p className="mt-0.5 text-sm text-emerald-800">{recipient.role} · <span className="font-mono">{recipient.walletNumber}</span></p>
                 </div>
+                <CheckCircle2 className="ml-auto h-5 w-5 text-emerald-700" />
               </div>
             )}
             <div className="mt-5">
-              <p className="mb-2 text-base font-medium text-black">{t('paymentMode')}</p>
-              <div className="grid grid-cols-3 gap-2" role="tablist" aria-label={t('paymentMode')}>
+              <p className="mb-3 text-sm font-semibold text-slate-700">{t('paymentMode')}</p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" role="tablist" aria-label={t('paymentMode')}>
                 {([
-                  ['CARD', t('card')],
-                  ['QR', t('qrCode')],
-                  ['BANK_TRANSFER', t('bankTransfer')],
-                ] as Array<[PaymentMode, string]>).map(([mode, label]) => (
+                  { mode: 'CARD', label: t('card'), icon: CreditCard },
+                  { mode: 'QR', label: t('qrCode'), icon: QrCode },
+                  { mode: 'BANK_TRANSFER', label: t('bankTransfer'), icon: Building2 },
+                ] as const).map(({ mode, label, icon: ModeIcon }) => (
                   <button
                     key={mode}
                     type="button"
@@ -405,159 +492,172 @@ export default function PaymentsPage() {
                     aria-selected={paymentMode === mode}
                     onClick={() => {
                       setPaymentMode(mode)
+                      setCardExpiry('')
+                      setCardCvv('')
+                      setError(null)
                     }}
-                     className={`rounded-xl border px-3 py-2.5 text-base font-semibold transition-colors ${paymentMode === mode ? 'border-primary-500 bg-primary-600/15 text-black' : 'border-gray-300 bg-white text-black hover:border-primary-600/50 hover:text-black'}`}
+                    className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition focus:outline-none focus:ring-4 focus:ring-teal-500/15 ${paymentMode === mode ? 'border-teal-600 bg-teal-50 text-teal-900 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}
                   >
+                    <ModeIcon className="h-4 w-4" />
                     {label}
                   </button>
                 ))}
               </div>
             </div>
-            <div className="mt-5">
+            <div className="grid gap-5 sm:grid-cols-2">
               <div>
-                <label className="mb-2 block text-base font-medium text-black" htmlFor="amount">
-                  {t('amountLabel')}
+                <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="payment-currency">
+                  {t('paymentCurrency')}
+                </label>
+                <select
+                  id="payment-currency"
+                  value={paymentCurrency}
+                  onChange={(event) => {
+                    setPaymentCurrency(event.target.value as PaymentCurrency)
+                    setPaymentQuote(null)
+                    setLoadingQuote(false)
+                    setError(null)
+                  }}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10"
+                >
+                  <option value="MGA">{t('mga')}</option>
+                  <option value="EUR">{t('eur')}</option>
+                  <option value="USD">{t('usd')}</option>
+                  <option value="XOF">{t('xof')}</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="amount">
+                  {t('amountLabel')} ({getCurrencySymbol(paymentCurrency)})
                   <span className="ml-1 text-red-500" aria-hidden="true">*</span>
                 </label>
                 <input id="amount" type="number" min="0.01" step="0.01" required value={amount} onChange={(event) => {
                   setAmount(event.target.value)
                   setPaymentQuote(null)
-                }} placeholder="0.00" className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-2.5 text-black outline-none focus:border-primary-500" />
+                  setLoadingQuote(false)
+                  setError(null)
+                }} placeholder={`0.00 ${paymentCurrency}`} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10" />
               </div>
             </div>
-            {paymentQuote && (
-              <div className="mt-4 rounded-2xl border border-primary-500/30 bg-primary-500/10 p-4 text-black" aria-live="polite">
-                <p className="mb-3 text-base font-semibold">{t('paymentFeePreview')}</p>
+            {paymentMode === 'CARD' && (
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-semibold text-slate-700" htmlFor="card-expiry">
+                  {t('cardExpiry')}
+                  <input
+                    id="card-expiry"
+                    type="text"
+                    required
+                    value={cardExpiry}
+                    onChange={(event) => setCardExpiry(event.target.value.replace(/[^\d/]/g, '').slice(0, 5))}
+                    placeholder="MM/AA"
+                    maxLength={5}
+                    autoComplete="off"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-slate-900 outline-none focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10"
+                  />
+                </label>
+                <label className="text-sm font-semibold text-slate-700" htmlFor="card-cvv">
+                  {t('cvv')}
+                  <input
+                    id="card-cvv"
+                    type="password"
+                    inputMode="numeric"
+                    required
+                    value={cardCvv}
+                    onChange={(event) => setCardCvv(event.target.value.replace(/\D/g, '').slice(0, 4))}
+                    placeholder="•••"
+                    maxLength={4}
+                    autoComplete="off"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-slate-900 outline-none focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10"
+                  />
+                </label>
+              </div>
+            )}
+            {currentQuote && (
+              <div className="mt-4 rounded-2xl border border-teal-200 bg-teal-50/70 p-5 text-slate-800" aria-live="polite">
+                <p className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900"><CreditCard className="h-4 w-4 text-teal-700" />{t('paymentFeePreview')}</p>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between gap-4">
                     <span>{t('transactionAmount')}</span>
-                    <strong>{formatMoney(paymentQuote.amount, paymentQuote.currency)}</strong>
+                    <strong>{formatMoney(currentQuote.amount, currentQuote.currency, currentQuote.currency)}</strong>
                   </div>
                   <div className="flex justify-between gap-4">
                     <span>{t('transactionFee')}</span>
-                    <strong>{formatMoney(paymentQuote.feeAmount, paymentQuote.currency)}</strong>
+                    <strong>{formatMoney(currentQuote.feeAmount, currentQuote.currency, currentQuote.currency)}</strong>
                   </div>
-                  <div className="flex justify-between gap-4 border-t border-primary-500/20 pt-2 text-base">
+                  <div className="flex justify-between gap-4 border-t border-teal-200 pt-3 text-base">
                     <span>{t('transactionTotal')}</span>
-                    <strong>{formatMoney(paymentQuote.totalAmount, paymentQuote.currency)}</strong>
+                    <strong>{formatMoney(currentQuote.totalAmount, currentQuote.currency, currentQuote.currency)}</strong>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span>{t('walletDebitAmount')}</span>
+                    <strong>{formatMoney(currentQuote.walletDebitAmount, currentQuote.walletCurrency, currentQuote.walletCurrency)}</strong>
                   </div>
                 </div>
+                <p className="mt-3 text-xs text-slate-500">{t('sandboxExchangeRateNotice')}</p>
               </div>
             )}
-            {loadingQuote && <p className="mt-2 text-sm text-black" aria-live="polite">{t('calculatingFee')}</p>}
-            {paymentMode === 'CARD' && (
-              <div className="mt-4">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <label className="block text-base font-medium text-black" htmlFor="card-token">
-                    {t('cardToken')}
-                    <span className="ml-1 text-red-500" aria-hidden="true">*</span>
-                  </label>
-                  <Button type="button" size="sm" variant="outline" onClick={generateCardToken} className="rounded-xl border border-gray-300">
-                    <WandSparkles className="h-4 w-4" /> {t('generateToken')}
-                  </Button>
-                </div>
-                <input id="card-token" required value={cardToken} onChange={(event) => setCardToken(event.target.value)} placeholder={t('cardToken')} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-2.5 font-mono text-sm text-black outline-none focus:border-primary-500" />
-                <p className="mt-2 text-base text-black">{t('sandboxToken')}</p>
-              </div>
-            )}
-            {paymentMode === 'QR' && lastTransaction && lastTransaction.channel === 'QR' && (
-              <div className="mt-4 rounded-2xl border border-primary-500/30 bg-primary-500/10 p-4 text-base text-black">
-                <p>{t('qrConfirmationSent')}</p>
-                {lastTransaction.status === 'PROCESSING' && (
-                  <p className="mt-2 text-sm font-semibold text-green-700">{t('qrConfirmedByRecipient', { reference: lastTransaction.externalReference ?? `#${lastTransaction.id}` })}</p>
+            {loadingQuote && <p className="mt-2 flex items-center gap-2 text-sm text-slate-500" aria-live="polite"><span className="h-4 w-4 animate-spin rounded-full border-2 border-teal-600 border-t-transparent" />{t('calculatingFee')}</p>}
+            {paymentMode === 'BANK_TRANSFER' && (
+              <div className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                <p className="flex justify-between gap-3"><span className="text-slate-500">{t('beneficiary')}</span><strong className="text-right text-slate-900">{recipient?.cardHolderName ?? '—'}</strong></p>
+                <p className="flex justify-between gap-3"><span className="text-slate-500">{t('bankAccount')}</span><strong className="font-mono text-slate-900">{recipient?.walletNumber ?? '—'}</strong></p>
+                <p className="flex justify-between gap-3"><span className="text-slate-500">{t('transactionAmount')}</span><strong className="text-slate-900">{amount ? formatMoney(Number(amount), paymentCurrency, paymentCurrency) : '—'}</strong></p>
+                {currentQuote && (
+                  <>
+                    <p className="flex justify-between gap-3"><span className="text-slate-500">{t('transactionFee')}</span><strong className="text-slate-900">{formatMoney(currentQuote.feeAmount, currentQuote.currency, currentQuote.currency)}</strong></p>
+                    <p className="flex justify-between gap-3 border-t border-slate-200 pt-3 text-base"><span className="font-semibold text-slate-700">{t('transactionTotal')}</span><strong className="text-teal-800">{formatMoney(currentQuote.totalAmount, currentQuote.currency, currentQuote.currency)}</strong></p>
+                  </>
                 )}
               </div>
             )}
-            {paymentMode === 'BANK_TRANSFER' && (
-              <div className="mt-4 space-y-3 rounded-2xl border border-gray-300 bg-white p-4">
-                <p className="text-base text-black">{t('temporaryIbanInfo')}</p>
-                <label className="block text-base font-medium text-black" htmlFor="bank-reference">{t('bankReferenceLabel')}</label>
-                <input id="bank-reference" value={bankReference} onChange={(event) => setBankReference(event.target.value)} placeholder={t('bankReferencePlaceholder')} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-2.5 text-black outline-none focus:border-primary-500" />
-              </div>
-            )}
-            <Button type="submit" className="mt-6 w-full rounded-2xl" disabled={!recipient || submitting} isLoading={submitting}>{t('payNow')}</Button>
-            <p className="mt-3 text-base text-black">{t('paymentAuthorized')}</p>
-          </form>
-
-          <div className="overflow-hidden rounded-3xl border border-gray-300 bg-linear-to-br from-blue-50 via-white to-gray-100 p-6 shadow-lg shadow-black/10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10">
-                  <CreditCard className="h-6 w-6 text-black" />
-                </div>
-                 <div>
-                     <p className="text-sm uppercase tracking-[0.25em] text-black">{t('paysmart')}</p>
-                     <p className="text-sm font-semibold tracking-[0.2em] text-black">VIRTUAL</p>
-                 </div>
-               </div>
-                   <span className="rounded-full border border-gray-300 bg-white/5 px-3 py-1 text-sm uppercase tracking-[0.2em] text-black">Pay</span>
-             </div>
-
-            <div className="mt-8 space-y-3">
-              <div className="rounded-2xl border border-gray-200 bg-black/10 p-4 backdrop-blur-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                      <p className="text-sm uppercase tracking-[0.2em] text-black">{t('senderName')}</p>
-                      <p className="mt-1 font-mono text-sm text-black">{card?.walletNumber || '—'}</p>
-                  </div>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full border border-primary-200/50 bg-primary-500/20 text-base text-black">→</div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-gray-200 bg-black/10 p-4 backdrop-blur-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                      <p className="text-sm uppercase tracking-[0.2em] text-black">{t('recipientName')}</p>
-                      <p className="mt-1 font-mono text-sm text-black">{recipient?.walletNumber || '—'}</p>
-                  </div>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full border border-primary-200/50 bg-white/10 text-base text-black">⇄</div>
-                </div>
-              </div>
+            <Button type="submit" className="mt-6 w-full rounded-2xl py-3 text-base" disabled={!recipient || submitting || loadingQuote || !Number.isFinite(Number(amount)) || Number(amount) < 0.01} isLoading={submitting}>{t('payNow')}</Button>
             </div>
+          </form>
+        </div>
 
-            <p className="mt-8 font-mono text-xl tracking-[0.35em] text-black">{card?.cardNumber || '•••• •••• •••• ••••'}</p>
-            <div className="mt-8 flex items-end justify-between gap-3">
-              <div>
-                   <p className="text-sm uppercase text-black">{t('cardholder')}</p>
-                   <p className="text-base font-semibold text-black">{card?.cardHolderName || user?.email || '-'}</p>
-               </div>
-               <div className="text-right">
-                    <p className="text-sm uppercase text-black">{t('account')}</p>
-                    <p className="font-mono text-sm text-black">{card?.walletNumber || '-'}</p>
-               </div>
-             </div>
-           </div>
-         </div>
-
-         <section className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
-           <div className="mb-6 flex items-center justify-between">
+         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm shadow-slate-900/5">
+           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5 sm:p-6">
              <div>
-               <h2 className="text-xl font-semibold text-black">{t('transactionHistory')}</h2>
-               <p className="mt-1 text-base text-black">{t('viewLastTransactions')}</p>
+               <h2 className="text-lg font-bold text-slate-900">{t('transactionHistory')}</h2>
+               <p className="mt-1 text-sm text-slate-500">{t('viewLastTransactions')}</p>
              </div>
-             <Button variant="ghost" size="sm" onClick={() => window.print()} className="rounded-xl border border-gray-300">
+             <Button variant="outline" size="sm" onClick={() => window.print()} className="rounded-xl border-slate-200 text-slate-700">
                <Printer className="h-4 w-4" /> {t('print')}
              </Button>
            </div>
-           {loading ? <p className="text-base text-black">{t('loading')}</p> : history.length === 0 ? <p className="text-base text-black">{t('noTransactions')}</p> : (
-             <div className="space-y-3">
+           {loading ? <p className="p-6 text-sm text-slate-500">{t('loading')}</p> : history.length === 0 ? <p className="p-6 text-sm text-slate-500">{t('noTransactions')}</p> : (
+             <div className="space-y-3 p-4 sm:p-6">
                {visibleHistory.map((transaction) => {
                  const outgoing = transaction.direction === 'OUTGOING'
+                 const statusTone = transaction.status === 'COMPLETED'
+                   ? 'bg-emerald-50 text-emerald-700'
+                   : transaction.status === 'FAILED'
+                     ? 'bg-rose-50 text-rose-700'
+                     : 'bg-amber-50 text-amber-700'
                  return (
-                   <div key={transaction.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-300 bg-gray-50 p-4 transition hover:border-gray-400">
+                   <div key={transaction.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:bg-slate-50/70">
                      <div className="flex items-center gap-3">
-                       <div className={`rounded-xl p-2 ${outgoing ? 'bg-red-500/10 text-black' : 'bg-emerald-500/10 text-black'}`}>
+                       <div className={`rounded-xl p-2.5 ${outgoing ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
                          {outgoing ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownLeft className="h-5 w-5" />}
                        </div>
                        <div>
-                         <p className="text-base font-medium text-black">{transaction.channel} · {transaction.externalReference || `#${transaction.id}`}</p>
-                           <p className="text-sm text-black">{new Date(transaction.createdAt).toLocaleString(locale)}</p>
+                         <p className="text-sm font-semibold text-slate-900">{transaction.channel} · {transaction.externalReference || `#${transaction.id}`}</p>
+                         <p className="mt-1 text-xs text-slate-500">{new Date(transaction.createdAt).toLocaleString(locale)}</p>
                        </div>
                      </div>
                      <div className="text-right">
-                       <p className="font-semibold text-black">{outgoing ? '-' : '+'}{formatMoney(Number(outgoing && Number(transaction.totalAmount) > 0 ? transaction.totalAmount : transaction.amount), transaction.currency)}</p>
-                       {outgoing && <p className="text-xs text-black">{t('transactionFee')}: {formatMoney(Number(transaction.feeAmount ?? 0), transaction.currency)}</p>}
-                       <p className={`text-sm ${transaction.status === 'COMPLETED' ? 'text-black' : transaction.status === 'FAILED' ? 'text-black' : 'text-black'}`}>{statusLabel[transaction.status]}</p>
+                       <p className="font-semibold text-slate-900">{outgoing ? '-' : '+'}{formatMoney(
+                         outgoing && Number(transaction.totalAmount) > 0
+                           ? Number(transaction.totalAmount)
+                           : !outgoing && Number(transaction.metadata?.recipientCreditAmount) > 0
+                             ? Number(transaction.metadata?.recipientCreditAmount)
+                             : Number(transaction.amount),
+                         !outgoing && transaction.metadata?.recipientCurrency
+                           ? transaction.metadata.recipientCurrency
+                           : transaction.currency,
+                       )}</p>
+                       {outgoing && <p className="mt-0.5 text-xs text-slate-500">{t('transactionFee')}: {formatMoney(Number(transaction.feeAmount ?? 0), transaction.currency)}</p>}
+                       <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone}`}>{statusLabel[transaction.status]}</span>
                      </div>
                    </div>
                  )
@@ -565,7 +665,7 @@ export default function PaymentsPage() {
              </div>
            )}
            {history.length > 0 && (
-             <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+             <div className="flex flex-wrap items-center justify-center gap-2 border-t border-slate-100 p-4">
                <Button type="button" variant="outline" size="sm" onClick={() => setHistoryPage((page) => Math.max(1, page - 1))} disabled={historyPage === 1}>Précédent</Button>
                {Array.from({ length: historyTotalPages }, (_, index) => index + 1).map((page) => (
                  <Button key={page} type="button" variant={page === historyPage ? 'primary' : 'outline'} size="sm" onClick={() => setHistoryPage(page)}>{page}</Button>
@@ -578,4 +678,3 @@ export default function PaymentsPage() {
      </div>
    )
  }
-

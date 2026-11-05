@@ -12,7 +12,7 @@ export class MailService {
     this.logger.log(`[DEV] Password reset email sent to ${email} with token: ${token}`)
   }
 
-  async sendWelcomeEmail(email: string, firstName: string): Promise<void> {
+  async sendWelcomeEmail(email: string, _firstName: string): Promise<void> {
     this.logger.log(`[DEV] Welcome email sent to ${email}`)
   }
 }

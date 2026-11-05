@@ -35,7 +35,7 @@ export const registerSchema = z.object({
   dateOfBirth: dateOfBirthSchema,
   address: z.string().min(3, 'Adresse requise'),
   city: z.string().min(2, 'Ville requise'),
-  country: z.string().min(2, 'Pays requis'),
+  country: z.string().regex(/^[A-Za-z]{2}$/, 'Saisissez le code pays ISO-2 (ex. MG)'),
   postalCode: z.string().min(3, 'Code postal requis'),
   role: roleSchema,
 }).refine((data) => data.password === data.confirmPassword, {

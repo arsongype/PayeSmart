@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Shield, Users as UsersIcon, ChevronDown, ChevronRight } from 'lucide-react'
 import { adminService } from '../../services/admin.service'
@@ -22,11 +22,32 @@ export default function AdminUsersPage() {
   const pageSize = 5
   const totalPages = Math.max(1, Math.ceil(users.length / pageSize))
   const visibleUsers = users.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const fetchUsers = useCallback(() => adminService.getUsers(), [])
+
+  useEffect(() => {
+    let active = true
+    void fetchUsers()
+      .then((data) => {
+        if (!active) return
+        setUsers(data)
+        setCurrentPage(1)
+        setError(null)
+      })
+      .catch((err: unknown) => {
+        if (active) setError(err instanceof Error ? err.message : t('errorLoadingUsers'))
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [fetchUsers, t])
 
   const loadUsers = async () => {
     try {
       setLoading(true)
-      const data = await adminService.getUsers()
+      const data = await fetchUsers()
       setUsers(data)
       setCurrentPage(1)
       setError(null)
@@ -36,18 +57,6 @@ export default function AdminUsersPage() {
       setLoading(false)
     }
   }
-
-  useEffect(() => {
-    let isMounted = true
-    const init = async () => {
-      await loadUsers()
-      if (!isMounted) setLoading(false)
-    }
-    init()
-    return () => {
-      isMounted = false
-    }
-  }, [])
 
   const handleRoleChange = async (userId: number, newRole: Role) => {
     try {
@@ -195,6 +204,3 @@ export default function AdminUsersPage() {
     </div>
   )
 }
-
-
-

@@ -91,19 +91,15 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
     country: string
     postalCode: string
     role?: 'USER' | 'MERCHANT' | 'ADMIN'
-  }) => {
-    try {
-      const { confirmPassword, ...payload } = data
-      void confirmPassword
-      const body = {
-        ...payload,
-        role: payload.role ?? 'USER',
-      }
-      const response = await apiClient.post('/auth/register', body)
-      return response.data
-    } catch (error) {
-      throw error
+  }): Promise<AuthResponse> => {
+    const { confirmPassword, ...payload } = data
+    void confirmPassword
+    const body = {
+      ...payload,
+      role: payload.role ?? 'USER',
     }
+    const response = await apiClient.post<AuthResponse>('/auth/register', body)
+    return response.data
   }
 
   const logout = () => {
@@ -145,7 +141,5 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
     </AuthContext.Provider>
   )
 }
-
-
 
 

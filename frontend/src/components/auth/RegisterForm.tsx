@@ -11,12 +11,12 @@ import { useTranslation } from '../../utils/i18n'
 import logo from '../../assets/Logo.png'
 
 interface RegisterFormProps {
-  onSuccess?: () => void
+  onSuccess?: (accountExpiresAt: string) => void
 }
 
 export function RegisterForm({ onSuccess }: RegisterFormProps) {
   const { register } = useAuth()
-  const { t } = useTranslation()
+  const { t, locale } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -73,10 +73,14 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
 
     try {
       const response = await register(formData)
-      void response
-      setSuccess(t('successRedirect'))
+      const accountExpiresAt = response.user.accountExpiresAt
+      if (!accountExpiresAt) {
+        throw new Error(t('registrationFailed'))
+      }
+      const expirationDate = new Date(accountExpiresAt).toLocaleDateString(locale)
+      setSuccess(t('accountCreatedSuccess', { date: expirationDate }))
       setTimeout(() => {
-        onSuccess?.()
+        onSuccess?.(accountExpiresAt)
       }, 1200)
     } catch (err) {
       if (err instanceof Error && err.message) {
@@ -181,11 +185,11 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
 
           <div className="grid grid-cols-2 gap-3">
             <Input
-              label="Pays"
-              placeholder="Pays"
+              label="Pays (ISO-2)"
+              placeholder="MG"
               leftIcon={<Globe size={16} />}
               value={formData.country}
-              onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, country: e.target.value.slice(0, 2).toUpperCase() })}
               error={errors.country}
               required
             />

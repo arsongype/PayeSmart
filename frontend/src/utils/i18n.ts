@@ -1,5 +1,6 @@
+import { useCallback } from 'react'
 import { useSettings } from '../contexts/SettingsContext'
-import { convertCurrency } from './formatters'
+import { convertCurrency, formatCurrencySymbol } from './formatters'
 
 export type Language = 'fr' | 'en'
 
@@ -42,6 +43,11 @@ export interface Translations {
     noTransactions: string
     noAlerts: string
     noNotifications: string
+    viewAllNotifications: string
+    markAsRead: string
+    retry: string
+    cannotLoadNotifications: string
+    cannotMarkNotificationRead: string
     welcome: string
     overview: string
     analytics: string
@@ -56,6 +62,10 @@ export interface Translations {
     accountNumber: string
     cardholder: string
     expiry: string
+    eur: string
+    usd: string
+    xof: string
+    mga: string
     search: string
     refresh: string
     exportPDF: string
@@ -118,7 +128,6 @@ export interface Translations {
     nif: string
     rib: string
     front: string
-    temporaryIban: string
     qrData: string
     metadata: string
     details: string
@@ -128,18 +137,23 @@ export interface Translations {
     recipientAccount: string
     phoneNumber: string
     amountLabel: string
+    paymentCurrency: string
+    walletDebitAmount: string
+    sandboxExchangeRateNotice: string
     searchRecipient: string
     recipientInfo: string
     paymentMode: string
     selectOperator: string
-    cardToken: string
-    generateToken: string
+    cardExpiry: string
+    cvv: string
+    dynamicCvv: string
+    dynamicCvvNotice: string
+    invalidExpiry: string
+    invalidCvv: string
     payNow: string
     paymentFeePreview: string
     calculatingFee: string
     cannotCalculateFee: string
-    paymentAuthorized: string
-    sandboxToken: string
     performance: string
     channels: string
     channelsDescription: string
@@ -155,6 +169,9 @@ export interface Translations {
     transactionsToReview: string
     aiAlerts: string
     userManagement: string
+    viewDocument: string
+    close: string
+    documentPreviewUnavailable: string
     manageRoles: string
     roleUpdated: string
     userId: string
@@ -320,8 +337,12 @@ export interface Translations {
     unknownSender: string
     unknownRecipient: string
     cannotLoadFraudAlerts: string
+    cannotResolveFraudAlert: string
+    markFraudReviewed: string
+    fraudReviewed: string
     backToList: string
     accountStatusLabel: string
+    accountExpirationDate: string
     reactivationUntilDate: string
     noKycDocuments: string
     noKybDocuments: string
@@ -329,6 +350,18 @@ export interface Translations {
     blockReasonPrompt: string
     deleteAccountConfirm: string
     permanentDeleteConfirm: string
+    deleteAccount: string
+    accountDeletionDescription: string
+    confirmSelfDeletion: string
+    accountDeletionBlocked: string
+    accountDeletionScheduled: string
+    accountDeletionPending: string
+    accountDeletionRecoveryHint: string
+    restoreAccount: string
+    accountDeletionRestored: string
+    accountDeletionExpired: string
+    requestAccountDeletion: string
+    password: string
     errorLoading: string
     errorValidation: string
     errorAccountManagement: string
@@ -395,25 +428,31 @@ export interface Translations {
     transactionStatus: string
     transactionDetails: string
     direction: string
-    qrDataLabel: string
-    qrScanConfirmed: string
-    qrConfirmationSent: string
-    temporaryIbanLabel: string
+    qrScanAndConfirm: string
+    openQrConfirmation: string
     recipientPhoneNumber: string
     recipientAccountNumber: string
     searchButton: string
     refreshPayments: string
     recipientSearchHelper: string
-    qrDynamicReady: string
-    temporaryIbanInfo: string
-    bankReferenceLabel: string
-    bankReferencePlaceholder: string
+    bankName: string
+    bankAccount: string
+    beneficiary: string
+    sandboxBank: string
+    sandboxBankDetails: string
+    sandboxBankInfo: string
+    bankTransferReviewTitle: string
+    bankTransferOtpNotice: string
+    bankTransferOtpRequired: string
     cannotInitiatePayment: string
     cannotConfirmQr: string
     qrConfirmation: string
     qrConfirmationDescription: string
+    qrWaitingForRecipient: string
+    qrRecipientWillReceiveLink: string
     confirmQr: string
-    qrConfirmedByRecipient: string
+    qrPaymentConfirmed: string
+    qrNeedsTwoFactor: string
     onlyRecipientCanConfirm: string
     processing: string
     transactionNotFound: string
@@ -431,6 +470,7 @@ export interface Translations {
     cannotCancelPayment: string
     cancelPayment: string
     twoFactorExpiresIn: string
+    twoFactorExpired: string
     twoFactorAuthRequired: string
     twoFactorAuthRequiredDesc: string
     twoFactorAuthHint: string
@@ -499,6 +539,11 @@ export const translations: Record<Language, Translations> = {
       noTransactions: 'Aucune transaction',
       noAlerts: 'Aucune alerte',
       noNotifications: 'Aucune notification',
+      viewAllNotifications: 'Voir toutes les notifications',
+      markAsRead: 'Marquer comme lu',
+      retry: 'Réessayer',
+      cannotLoadNotifications: 'Impossible de charger les notifications.',
+      cannotMarkNotificationRead: 'Impossible de marquer cette notification comme lue.',
       openAction: 'Ouvrir',
       welcome: 'Bienvenue',
       overview: 'Vue d\'ensemble',
@@ -514,13 +559,17 @@ export const translations: Record<Language, Translations> = {
       accountNumber: 'Numéro de compte',
       cardholder: 'Titulaire',
       expiry: 'Expiration',
+      eur: 'Euro (€)',
+      usd: 'Dollar américain ($)',
+      xof: 'Franc CFA (FCFA)',
+      mga: 'Ariary (Ar)',
       search: 'Rechercher',
       refresh: 'Actualiser',
       exportPDF: 'Export PDF',
       print: 'Imprimer',
       downloadReceipt: 'Télécharger le reçu',
       confirmPayment: 'Confirmer le paiement',
-      twoFactorCode: 'Code de vérification',
+      twoFactorCode: 'Code OTP de confirmation (pas le CVV)',
       codeReceived: 'Code reçu dans vos notifications',
       token: 'Token',
       iban: 'IBAN',
@@ -576,7 +625,6 @@ export const translations: Record<Language, Translations> = {
       nif: 'NIF',
       rib: 'RIB',
     front: 'Recto',
-    temporaryIban: 'IBAN temporaire',
       qrData: 'Données QR',
       metadata: 'Métadonnées',
       details: 'Détails',
@@ -586,18 +634,23 @@ export const translations: Record<Language, Translations> = {
       recipientAccount: 'Compte destinataire',
       phoneNumber: 'Numéro de téléphone',
       amountLabel: 'Montant',
+      paymentCurrency: 'Devise du paiement',
+      walletDebitAmount: 'Débit estimé du portefeuille (devise du portefeuille)',
+      sandboxExchangeRateNotice: 'Taux fictifs de démonstration : 1 € = 5 000 Ar, 1 $ = 4 600 Ar, 1 FCFA = 8 Ar. Aucun cours réel.',
       searchRecipient: 'Rechercher le destinataire',
       recipientInfo: 'Information destinataire',
       paymentMode: 'Mode de paiement',
       selectOperator: 'Sélectionner',
-      cardToken: 'Token de carte bancaire',
-      generateToken: 'Générer',
+      cardExpiry: 'Date d’expiration (MM/AA)',
+      cvv: 'CVV',
+      dynamicCvv: 'Votre CVV : {{code}}',
+      dynamicCvvNotice: 'Code temporaire renouvelé toutes les 30 minutes.',
+      invalidExpiry: 'Saisissez une date d’expiration valide (MM/AA) dans le futur.',
+      invalidCvv: 'CVV invalide. Consultez le code dans Mon Portefeuille.',
       payNow: 'Payer maintenant',
       paymentFeePreview: 'Récapitulatif avant paiement',
       calculatingFee: 'Calcul des frais...',
       cannotCalculateFee: 'Impossible de calculer les frais de transaction',
-      paymentAuthorized: 'Paiement autorisé uniquement vers un compte existant et vérifié',
-      sandboxToken: 'Un token sandbox unique sera créé automatiquement pour ce paiement',
       performance: 'Performance IA',
       channels: 'Canaux',
       channelsDescription: 'Répartition des flux financiers consolidés',
@@ -613,6 +666,9 @@ export const translations: Record<Language, Translations> = {
       transactionsToReview: 'Transactions à vérifier',
       aiAlerts: 'Alertes IA ouvertes',
       userManagement: 'Gestion des utilisateurs',
+      viewDocument: 'Voir le document',
+      close: 'Fermer',
+      documentPreviewUnavailable: 'Aperçu indisponible pour ce format de fichier.',
       manageRoles: 'Gérez les rôles et les accès des utilisateurs de la plateforme',
       roleUpdated: 'Rôle mis à jour',
       userId: 'ID: {{id}}',
@@ -777,8 +833,12 @@ export const translations: Record<Language, Translations> = {
       unknownSender: 'Expéditeur inconnu',
       unknownRecipient: 'Destinataire inconnu',
       cannotLoadFraudAlerts: 'Impossible de charger les alertes de fraude',
+      cannotResolveFraudAlert: 'Impossible de marquer cette alerte comme traitée',
+      markFraudReviewed: 'Marquer comme traitée',
+      fraudReviewed: 'Alerte traitée',
       backToList: 'Retour à la liste',
       accountStatusLabel: 'Compte : {{status}}',
+      accountExpirationDate: 'Expiration du compte : {{date}}',
       reactivationUntilDate: 'Réactivation jusqu\'au {{date}}',
       noKycDocuments: 'Aucun document KYC',
       noKybDocuments: 'Aucun document KYB',
@@ -786,10 +846,22 @@ export const translations: Record<Language, Translations> = {
       blockReasonPrompt: 'Motif du blocage :',
       deleteAccountConfirm: 'Supprimer ce compte ? Une réactivation sera possible pendant 30 jours.',
       permanentDeleteConfirm: 'Supprimer définitivement ce compte ?',
+      deleteAccount: 'Supprimer mon compte',
+      accountDeletionDescription: 'Le compte sera bloqué immédiatement. La vérification de sécurité peut bloquer la demande en cas de fraude ou d’opérations en cours. Après 30 jours, les données personnelles seront anonymisées et l’historique financier conservé.',
+      confirmSelfDeletion: 'Confirmer la demande ? Votre compte sera bloqué immédiatement et pourra être récupéré pendant 30 jours.',
+      accountDeletionBlocked: 'Demande bloquée par la vérification de sécurité :',
+      accountDeletionScheduled: 'Suppression programmée. Vous pouvez récupérer votre compte en vous reconnectant avant le {{date}}.',
+      accountDeletionPending: 'Ce compte est en cours de suppression. Récupérez-le avec votre email et votre mot de passe avant la fin du délai de 30 jours.',
+      accountDeletionRecoveryHint: 'Une suppression est programmée. Vous pouvez encore récupérer votre compte pendant le délai de 30 jours.',
+      restoreAccount: 'Annuler la suppression et récupérer mon compte',
+      accountDeletionRestored: 'Suppression annulée. Reconnectez-vous pour accéder à votre compte.',
+      accountDeletionExpired: 'Le délai de 30 jours est expiré. La suppression ne peut plus être annulée.',
+      requestAccountDeletion: 'Demander la suppression',
+      password: 'Mot de passe',
       errorLoading: 'Erreur lors du chargement',
       errorValidation: 'Erreur lors de la validation',
       errorAccountManagement: 'Erreur lors de la gestion du compte',
-      accountCreatedSuccess: 'Compte créé avec succès ! Vous pouvez maintenant vous connecter.',
+      accountCreatedSuccess: 'Compte créé avec succès ! Il expire le {{date}}. Vous pouvez maintenant vous connecter.',
       enterEmailForReset: 'Entrez votre email pour recevoir un lien de réinitialisation.',
       emailPlaceholder: 'vous@exemple.com',
       passwordPlaceholder: '••••••••',
@@ -852,26 +924,32 @@ export const translations: Record<Language, Translations> = {
       transactionStatus: 'Transaction {{ref}} : {{status}}',
     transactionDetails: 'Détails de la transaction',
     direction: 'Direction',
-      qrDataLabel: 'QR : {{data}}',
-      temporaryIbanLabel: 'IBAN temporaire : {{iban}}',
       recipientPhoneNumber: 'Numéro de téléphone destinataire',
-      recipientAccountNumber: 'Numéro du compte destinataire',
+      recipientAccountNumber: 'Numéro du compte PayeSmart destinataire',
       searchButton: 'Rechercher',
       refreshPayments: 'Actualiser les paiements',
       recipientSearchHelper: 'Le compte destinataire est recherché avec ce numéro. Les opérateurs sont proposés ci-dessus.',
-      qrDynamicReady: 'QR dynamique prêt à être généré pour le compte {{wallet}}.',
-      qrScanConfirmed: 'J\'ai scanné le QR code',
-      qrConfirmationSent: 'Le lien de confirmation QR a été envoyé au destinataire.',
-      temporaryIbanInfo: 'Un IBAN temporaire et une référence seront associés à ce virement.',
-      bankReferenceLabel: 'Référence bancaire (optionnel)',
-      bankReferencePlaceholder: 'Référence du virement',
+      qrScanAndConfirm: 'Scannez ce QR code, vérifiez le bénéficiaire et le montant, puis confirmez.',
+      openQrConfirmation: 'Ouvrir la confirmation dans PayeSmart',
+      bankName: 'Banque destinataire',
+      bankAccount: 'Compte destinataire',
+      beneficiary: 'Bénéficiaire',
+      sandboxBank: 'Banque de démonstration PayeSmart',
+      sandboxBankDetails: 'Récapitulatif du virement',
+      sandboxBankInfo: 'Ces coordonnées ne correspondent pas à une banque réelle. Le transfert reste une simulation.',
+      bankTransferReviewTitle: 'Vérifiez le bénéficiaire, la banque et le montant avant de continuer.',
+      bankTransferOtpNotice: 'Un code OTP PayeSmart sera envoyé dans vos notifications pour confirmer le virement. Aucune authentification bancaire réelle n’est connectée.',
+      bankTransferOtpRequired: 'Saisissez le code OTP PayeSmart reçu dans vos notifications pour confirmer ce virement.',
       cannotInitiatePayment: 'Impossible d\'initier le paiement',
       cannotConfirmQr: 'Impossible de confirmer le QR',
       qrConfirmation: 'Confirmation du paiement QR',
-      qrConfirmationDescription: 'Vous êtes sur le point de confirmer la demande de paiement reçue par QR code.',
+      qrConfirmationDescription: 'Vérifiez les informations du paiement avant de confirmer.',
+      qrWaitingForRecipient: 'En attente de la confirmation du destinataire.',
+      qrRecipientWillReceiveLink: 'Le destinataire recevra le lien et le QR code de confirmation par notification.',
       confirmQr: 'Confirmer le paiement QR',
-      qrConfirmedByRecipient: 'Paiement QR confirmé pour la transaction {{ref}}.',
-      onlyRecipientCanConfirm: 'Seul le destinataire connecté peut confirmer cette demande.',
+      qrPaymentConfirmed: 'Paiement QR confirmé pour la transaction {{ref}}.',
+      qrNeedsTwoFactor: 'Une vérification supplémentaire est requise. Saisissez le code reçu dans vos notifications.',
+      onlyRecipientCanConfirm: 'Connectez-vous avec le compte du destinataire pour confirmer ce paiement.',
       processing: 'En cours',
       transactionNotFound: 'Transaction non trouvée',
       documentNonCompliant: 'Document non conforme',
@@ -885,6 +963,7 @@ export const translations: Record<Language, Translations> = {
       completed: 'Terminé',
       failed: 'Échoué',
       twoFactorExpiresIn: 'Expire dans {{seconds}}s',
+      twoFactorExpired: 'Code expiré. Annulez ce paiement et recommencez pour recevoir un nouveau code.',
       twoFactorAuthRequired: 'Vérification en deux étapes requise',
       twoFactorAuthRequiredDesc: 'Un code de vérification a été envoyé à votre application d\'authentification',
       twoFactorAuthHint: 'Code de connexion pour {{email}}',
@@ -953,6 +1032,11 @@ export const translations: Record<Language, Translations> = {
       noTransactions: 'No transactions',
       noAlerts: 'No alerts',
       noNotifications: 'No notifications',
+      viewAllNotifications: 'View all notifications',
+      markAsRead: 'Mark as read',
+      retry: 'Retry',
+      cannotLoadNotifications: 'Unable to load notifications.',
+      cannotMarkNotificationRead: 'Unable to mark this notification as read.',
       openAction: 'Open',
       welcome: 'Welcome',
       overview: 'Overview',
@@ -968,13 +1052,17 @@ export const translations: Record<Language, Translations> = {
       accountNumber: 'Account number',
       cardholder: 'Cardholder',
       expiry: 'Expiry',
+      eur: 'Euro (€)',
+      usd: 'US dollar ($)',
+      xof: 'CFA franc (FCFA)',
+      mga: 'Malagasy ariary (Ar)',
       search: 'Search',
       refresh: 'Refresh',
       exportPDF: 'Export PDF',
       print: 'Print',
       downloadReceipt: 'Download receipt',
       confirmPayment: 'Confirm payment',
-      twoFactorCode: 'Verification code',
+      twoFactorCode: 'Payment confirmation OTP (not the CVV)',
       codeReceived: 'Code received in your notifications',
       token: 'Token',
       iban: 'IBAN',
@@ -1030,7 +1118,6 @@ export const translations: Record<Language, Translations> = {
       nif: 'NIF',
       rib: 'RIB',
     front: 'Front',
-    temporaryIban: 'Temporary IBAN',
       qrData: 'QR data',
       metadata: 'Metadata',
       details: 'Details',
@@ -1040,18 +1127,23 @@ export const translations: Record<Language, Translations> = {
       recipientAccount: 'Recipient account',
       phoneNumber: 'Phone number',
       amountLabel: 'Amount',
+      paymentCurrency: 'Payment currency',
+      walletDebitAmount: 'Estimated wallet debit (wallet currency)',
+      sandboxExchangeRateNotice: 'Fictional demo rates: 1 € = 5,000 Ar, 1 $ = 4,600 Ar, 1 FCFA = 8 Ar. These are not live rates.',
       searchRecipient: 'Search recipient',
       recipientInfo: 'Recipient information',
       paymentMode: 'Payment mode',
       selectOperator: 'Select',
-      cardToken: 'Card token',
-      generateToken: 'Generate',
+      cardExpiry: 'Expiry date (MM/YY)',
+      cvv: 'CVV',
+      dynamicCvv: 'Your CVV: {{code}}',
+      dynamicCvvNotice: 'Temporary code renewed every 30 minutes.',
+      invalidExpiry: 'Enter a valid future expiry date (MM/YY).',
+      invalidCvv: 'Invalid CVV. Check the code in My Wallet.',
       payNow: 'Pay now',
       paymentFeePreview: 'Payment summary',
       calculatingFee: 'Calculating fees...',
       cannotCalculateFee: 'Unable to calculate transaction fees',
-      paymentAuthorized: 'Payment is only authorized to an existing and verified account',
-      sandboxToken: 'A unique sandbox token will be automatically created for this payment',
       performance: 'AI performance',
       channels: 'Channels',
       channelsDescription: 'Consolidated financial flows breakdown',
@@ -1067,6 +1159,9 @@ export const translations: Record<Language, Translations> = {
       transactionsToReview: 'Transactions to review',
       aiAlerts: 'Open AI alerts',
       userManagement: 'User management',
+      viewDocument: 'View document',
+      close: 'Close',
+      documentPreviewUnavailable: 'Preview is unavailable for this file type.',
       manageRoles: 'Manage roles and access of platform users',
       roleUpdated: 'Role updated',
       userId: 'ID: {{id}}',
@@ -1231,8 +1326,12 @@ export const translations: Record<Language, Translations> = {
       unknownSender: 'Unknown sender',
       unknownRecipient: 'Unknown recipient',
       cannotLoadFraudAlerts: 'Unable to load fraud alerts',
+      cannotResolveFraudAlert: 'Unable to mark this alert as reviewed',
+      markFraudReviewed: 'Mark as reviewed',
+      fraudReviewed: 'Alert reviewed',
       backToList: 'Back to list',
       accountStatusLabel: 'Account: {{status}}',
+      accountExpirationDate: 'Account expires on {{date}}',
       reactivationUntilDate: 'Reactivation until {{date}}',
       noKycDocuments: 'No KYC documents',
       noKybDocuments: 'No KYB documents',
@@ -1240,10 +1339,22 @@ export const translations: Record<Language, Translations> = {
       blockReasonPrompt: 'Reason for blocking:',
       deleteAccountConfirm: 'Delete this account? Reactivation will be possible for 30 days.',
       permanentDeleteConfirm: 'Permanently delete this account?',
+      deleteAccount: 'Delete my account',
+      accountDeletionDescription: 'The account will be locked immediately. Security checks can block the request if fraud or pending operations are detected. After 30 days, personal data will be anonymized and financial history retained.',
+      confirmSelfDeletion: 'Confirm this request? Your account will be locked immediately and can be restored for 30 days.',
+      accountDeletionBlocked: 'Request blocked by the security review:',
+      accountDeletionScheduled: 'Deletion scheduled. Sign in to restore your account before {{date}}.',
+      accountDeletionPending: 'This account is pending deletion. Restore it with your email and password before the 30-day deadline.',
+      accountDeletionRecoveryHint: 'Deletion is scheduled. You can still restore your account during the 30-day grace period.',
+      restoreAccount: 'Cancel deletion and restore my account',
+      accountDeletionRestored: 'Deletion cancelled. Sign in again to access your account.',
+      accountDeletionExpired: 'The 30-day period has expired. Deletion can no longer be cancelled.',
+      requestAccountDeletion: 'Request account deletion',
+      password: 'Password',
       errorLoading: 'Error loading',
       errorValidation: 'Error during validation',
       errorAccountManagement: 'Error managing account',
-      accountCreatedSuccess: 'Account created successfully! You can now log in.',
+      accountCreatedSuccess: 'Account created successfully! It expires on {{date}}. You can now log in.',
       enterEmailForReset: 'Enter your email to receive a reset link.',
       emailPlaceholder: 'you@example.com',
       passwordPlaceholder: '••••••••',
@@ -1306,26 +1417,32 @@ export const translations: Record<Language, Translations> = {
       transactionStatus: 'Transaction {{ref}}: {{status}}',
     transactionDetails: 'Transaction Details',
     direction: 'Direction',
-      qrDataLabel: 'QR: {{data}}',
-      temporaryIbanLabel: 'Temporary IBAN: {{iban}}',
       recipientPhoneNumber: 'Recipient phone number',
-      recipientAccountNumber: 'Recipient account number',
+      recipientAccountNumber: 'Recipient PayeSmart account number',
       searchButton: 'Search',
       refreshPayments: 'Refresh payments',
       recipientSearchHelper: 'The recipient account is searched with this number. Operators are proposed above.',
-      qrDynamicReady: 'Dynamic QR ready to be generated for account {{wallet}}.',
-      qrScanConfirmed: 'I have scanned the QR code',
-      qrConfirmationSent: 'The QR confirmation link has been sent to the recipient.',
-      temporaryIbanInfo: 'A temporary IBAN and reference will be associated with this transfer.',
-      bankReferenceLabel: 'Bank reference (optional)',
-      bankReferencePlaceholder: 'Transfer reference',
+      qrScanAndConfirm: 'Scan this QR code, verify the beneficiary and amount, then confirm.',
+      openQrConfirmation: 'Open the confirmation in PayeSmart',
+      bankName: 'Recipient bank',
+      bankAccount: 'Recipient account',
+      beneficiary: 'Beneficiary',
+      sandboxBank: 'PayeSmart demo bank',
+      sandboxBankDetails: 'Transfer summary',
+      sandboxBankInfo: 'These details do not belong to a real bank. The transfer remains a simulation.',
+      bankTransferReviewTitle: 'Review the beneficiary, bank, and amount before continuing.',
+      bankTransferOtpNotice: 'A PayeSmart OTP will be sent in your notifications to confirm the transfer. No real bank authentication is connected.',
+      bankTransferOtpRequired: 'Enter the PayeSmart OTP received in your notifications to confirm this transfer.',
       cannotInitiatePayment: 'Unable to initiate payment',
       cannotConfirmQr: 'Unable to confirm QR',
       qrConfirmation: 'QR Payment Confirmation',
-      qrConfirmationDescription: 'You are about to confirm the payment request received via QR code.',
+      qrConfirmationDescription: 'Review the payment details before confirming.',
+      qrWaitingForRecipient: 'Waiting for the recipient to confirm.',
+      qrRecipientWillReceiveLink: 'The recipient will receive the confirmation link and QR code in a notification.',
       confirmQr: 'Confirm QR Payment',
-      qrConfirmedByRecipient: 'QR payment confirmed for transaction {{ref}}.',
-      onlyRecipientCanConfirm: 'Only the connected recipient can confirm this request.',
+      qrPaymentConfirmed: 'QR payment confirmed for transaction {{ref}}.',
+      qrNeedsTwoFactor: 'An additional check is required. Enter the code received in your notifications.',
+      onlyRecipientCanConfirm: 'Sign in with the recipient account to confirm this payment.',
       processing: 'Processing',
       transactionNotFound: 'Transaction not found',
       documentNonCompliant: 'Document non-compliant',
@@ -1339,6 +1456,7 @@ export const translations: Record<Language, Translations> = {
       completed: 'Completed',
       failed: 'Failed',
       twoFactorExpiresIn: 'Expires in {{seconds}}s',
+      twoFactorExpired: 'Code expired. Cancel this payment and start again to receive a new code.',
       twoFactorAuthRequired: 'Two-factor authentication required',
       twoFactorAuthRequiredDesc: 'A verification code has been sent to your authenticator app',
       twoFactorAuthHint: 'Login code for {{email}}',
@@ -1374,7 +1492,7 @@ export function useTranslation() {
   const lang = settings.language
   const locale = lang === 'en' ? 'en-US' : 'fr-FR'
 
-  const t = (key: string, params?: Record<string, string | number>): string => {
+  const t = useCallback((key: string, params?: Record<string, string | number>): string => {
     const keys = key.split('.')
     let value: unknown = translations[lang]
     for (const k of keys) {
@@ -1390,28 +1508,19 @@ export function useTranslation() {
       if (match in params) return String(params[match])
       return `{{${match}}}`
     })
-  }
+  }, [lang])
 
-  const tc = (key: string, params?: Record<string, string | number>): string => {
+  const tc = useCallback((key: string, params?: Record<string, string | number>): string => {
     const direct = t(key, params)
     if (direct !== key) return direct
     const nested = t(`common.${key}`, params)
     return nested !== `common.${key}` ? nested : key
-  }
+  }, [t])
 
-  const formatMoney = (amount: number, sourceCurrency?: string, targetCurrency = settings.currency) => {
+  const formatMoney = useCallback((amount: number, sourceCurrency?: string, targetCurrency = settings.currency) => {
     const convertedAmount = convertCurrency(amount, sourceCurrency, targetCurrency)
-    try {
-      return new Intl.NumberFormat(locale, {
-        style: 'currency',
-        currency: targetCurrency,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-      }).format(convertedAmount)
-    } catch {
-      return `${convertedAmount.toLocaleString(locale)} ${targetCurrency}`
-    }
-  }
+    return formatCurrencySymbol(convertedAmount, targetCurrency, locale)
+  }, [locale, settings.currency])
 
   return { t: tc, lang, locale, formatMoney }
 }
