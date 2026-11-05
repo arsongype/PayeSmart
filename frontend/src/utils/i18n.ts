@@ -59,6 +59,7 @@ export interface Translations {
     dailyLimit: string
     monthlyLimit: string
     walletNumber: string
+    cardNumber: string
     accountNumber: string
     cardholder: string
     expiry: string
@@ -167,7 +168,12 @@ export interface Translations {
     adminDescription: string
     activeUsers: string
     transactionsToReview: string
+    transactionsToReviewDescription: string
+    backToDashboard: string
     aiAlerts: string
+    collectedTransactionFees: string
+    viewDetails: string
+    hideDetails: string
     userManagement: string
     viewDocument: string
     close: string
@@ -397,6 +403,8 @@ export interface Translations {
     notCalculated: string
     hidePassword: string
     showPassword: string
+    hideSensitiveData: string
+    showSensitiveData: string
     searchPlaceholder: string
     unread: string
     paysmart: string
@@ -556,6 +564,7 @@ export const translations: Record<Language, Translations> = {
       dailyLimit: 'Limite journalière',
       monthlyLimit: 'Limite mensuelle',
       walletNumber: 'Numéro de portefeuille',
+      cardNumber: 'Numéro de carte',
       accountNumber: 'Numéro de compte',
       cardholder: 'Titulaire',
       expiry: 'Expiration',
@@ -664,7 +673,12 @@ export const translations: Record<Language, Translations> = {
       adminDescription: 'Supervision des utilisateurs, transactions et alertes IA',
       activeUsers: 'Utilisateurs actifs',
       transactionsToReview: 'Transactions à vérifier',
+      transactionsToReviewDescription: 'Toutes les transactions en attente ou en cours de traitement.',
+      backToDashboard: 'Retour au tableau de bord',
       aiAlerts: 'Alertes IA ouvertes',
+      collectedTransactionFees: 'Frais de transaction encaissés',
+      viewDetails: 'Voir',
+      hideDetails: 'Masquer',
       userManagement: 'Gestion des utilisateurs',
       viewDocument: 'Voir le document',
       close: 'Fermer',
@@ -893,6 +907,8 @@ export const translations: Record<Language, Translations> = {
       notCalculated: 'Non calculé',
       hidePassword: 'Masquer le mot de passe',
       showPassword: 'Afficher le mot de passe',
+      hideSensitiveData: 'Masquer les données sensibles',
+      showSensitiveData: 'Afficher les données sensibles',
       searchPlaceholder: 'Rechercher...',
       unread: 'Non lu',
       paysmart: 'Paysmart',
@@ -1049,6 +1065,7 @@ export const translations: Record<Language, Translations> = {
       dailyLimit: 'Daily limit',
       monthlyLimit: 'Monthly limit',
       walletNumber: 'Wallet number',
+      cardNumber: 'Card number',
       accountNumber: 'Account number',
       cardholder: 'Cardholder',
       expiry: 'Expiry',
@@ -1157,7 +1174,12 @@ export const translations: Record<Language, Translations> = {
       adminDescription: 'Supervision of users, transactions and AI alerts',
       activeUsers: 'Active users',
       transactionsToReview: 'Transactions to review',
+      transactionsToReviewDescription: 'All transactions pending or currently processing.',
+      backToDashboard: 'Back to dashboard',
       aiAlerts: 'Open AI alerts',
+      collectedTransactionFees: 'Collected transaction fees',
+      viewDetails: 'View',
+      hideDetails: 'Hide',
       userManagement: 'User management',
       viewDocument: 'View document',
       close: 'Close',
@@ -1386,6 +1408,8 @@ export const translations: Record<Language, Translations> = {
       notCalculated: 'Not calculated',
       hidePassword: 'Hide password',
       showPassword: 'Show password',
+      hideSensitiveData: 'Hide sensitive data',
+      showSensitiveData: 'Show sensitive data',
       searchPlaceholder: 'Search...',
       unread: 'Unread',
       paysmart: 'Paysmart',

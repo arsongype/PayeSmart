@@ -13,9 +13,9 @@ $env:AI_API_KEY = "local-development-ai-key"
 .\.venv\Scripts\python.exe main.py
 ```
 
-Le serveur démarre normalement sur `http://localhost:8101`. En développement local, le backend et le service IA partagent cette clé de démonstration par défaut. En production, configurez la **même clé aléatoire d’au moins 32 caractères** dans les deux services ; le service refuse de démarrer sans cette configuration.
+Le serveur démarre normalement sur `http://localhost:8120` (port choisi hors des plages réservées courantes de Windows). En développement local, le backend et le service IA partagent cette clé de démonstration par défaut. En production, configurez la **même clé aléatoire d’au moins 32 caractères** dans les deux services ; le service refuse de démarrer sans cette configuration.
 
-La page `http://localhost:8101/health` permet de vérifier que le serveur répond. Elle indique aussi si le moteur OCR est disponible.
+La page `http://localhost:8120/health` permet de vérifier que le serveur répond. Elle indique aussi si le moteur OCR est disponible.
 
 ## Fonctions et adresses
 

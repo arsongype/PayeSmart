@@ -2,18 +2,33 @@ import { BadRequestException, Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { InjectRepository } from '@nestjs/typeorm'
 import axios from 'axios'
-import { Repository } from 'typeorm'
+import { In, Repository } from 'typeorm'
 import { Transaction } from '../auth/entities/transaction.entity.js'
 import { User } from '../auth/entities/user.entity.js'
 import { Wallet } from '../auth/entities/wallet.entity.js'
 
 type ReportRow = {
   id: number
+  senderWalletId: number
+  recipientWalletId: number
   amount: number
   currency: string
   channel: string
   status: string
   riskScore: number
+  metadata: Record<string, unknown> | null
+  failureReason: string | null
+  createdAt: Date
+}
+
+type DashboardTransactionDetail = {
+  id: number
+  sender: string | null
+  recipient: string | null
+  amount: number
+  currency: string
+  channel: string
+  status: string
   createdAt: Date
 }
 
@@ -33,6 +48,34 @@ export class ReportingService {
     const fraudCount = transactions.filter((transaction) => transaction.riskScore >= 40 || transaction.status === 'FAILED').length
     const aiMetrics = await this.getAiMetrics(transactions)
     const channels = this.aggregateChannels(successful)
+    const transactionFees = this.aggregateTransactionFees(successful)
+    const transactionsToReview = transactions.filter((transaction) => transaction.status === 'PENDING' || transaction.status === 'PROCESSING')
+    const aiAlertTransactions = transactions.filter((transaction) => transaction.riskScore >= 40 || transaction.status === 'FAILED')
+    const transactionParticipants = await this.getTransactionParticipants(role === 'ADMIN'
+      ? [...transactionsToReview, ...aiAlertTransactions]
+      : [])
+    const getTransactionDetail = (transaction: ReportRow): DashboardTransactionDetail => ({
+      id: transaction.id,
+      sender: transactionParticipants.get(transaction.senderWalletId) ?? null,
+      recipient: transactionParticipants.get(transaction.recipientWalletId) ?? null,
+      amount: transaction.amount,
+      currency: transaction.currency,
+      channel: transaction.channel,
+      status: transaction.status,
+      createdAt: transaction.createdAt,
+    })
+    const pendingTransactions = transactionsToReview.map(getTransactionDetail)
+    const aiAlertDetails = aiAlertTransactions.map((transaction) => {
+      const metadata = transaction.metadata ?? {}
+      const reasons = Array.isArray(metadata.riskReasons)
+        ? metadata.riskReasons.filter((reason): reason is string => typeof reason === 'string')
+        : []
+      return {
+        ...getTransactionDetail(transaction),
+        riskScore: transaction.riskScore,
+        reason: reasons[0] ?? transaction.failureReason ?? 'Transaction signalée par l’analyse de risque.',
+      }
+    })
 
     return {
       totals: {
@@ -45,8 +88,11 @@ export class ReportingService {
       aiMetrics,
       admin: role === 'ADMIN' ? {
         activeUsers: await this.userRepository.count(),
-        transactionsToReview: transactions.filter((transaction) => transaction.status === 'PENDING' || transaction.status === 'PROCESSING').length,
-        aiAlerts: fraudCount,
+        transactionsToReview: transactionsToReview.length,
+        aiAlerts: aiAlertTransactions.length,
+        transactionFees,
+        pendingTransactions,
+        aiAlertDetails,
       } : null,
       generatedAt: new Date().toISOString(),
     }
@@ -71,7 +117,18 @@ export class ReportingService {
       ? null
       : await this.walletRepository.find({ where: { userId } })
     const query = this.transactionRepository.createQueryBuilder('transaction')
-      .select(['transaction.id', 'transaction.amount', 'transaction.currency', 'transaction.channel', 'transaction.status', 'transaction.metadata', 'transaction.createdAt'])
+      .select([
+        'transaction.id',
+        'transaction.senderWalletId',
+        'transaction.recipientWalletId',
+        'transaction.amount',
+        'transaction.currency',
+        'transaction.channel',
+        'transaction.status',
+        'transaction.metadata',
+        'transaction.failureReason',
+        'transaction.createdAt',
+      ])
       .orderBy('transaction.createdAt', 'DESC')
     if (wallets) {
       const walletIds = wallets.map((wallet) => wallet.id)
@@ -86,6 +143,16 @@ export class ReportingService {
     })
   }
 
+  private async getTransactionParticipants(transactions: ReportRow[]) {
+    const walletIds = [...new Set(transactions.flatMap((transaction) => [transaction.senderWalletId, transaction.recipientWalletId]))]
+    if (walletIds.length === 0) return new Map<number, string>()
+    const wallets = await this.walletRepository.find({ where: { id: In(walletIds) } })
+    const userIds = [...new Set(wallets.map((wallet) => wallet.userId))]
+    const users = await this.userRepository.find({ where: { id: In(userIds) } })
+    const usersById = new Map(users.map((user) => [user.id, [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || user.email]))
+    return new Map(wallets.map((wallet) => [wallet.id, usersById.get(wallet.userId) ?? `Utilisateur #${wallet.userId}`]))
+  }
+
   private aggregateChannels(transactions: ReportRow[]) {
     const grouped = new Map<string, { amount: number; transactions: number }>()
     for (const transaction of transactions) {
@@ -97,9 +164,23 @@ export class ReportingService {
     return [...grouped.entries()].map(([channel, data]) => ({ channel, amount: Number(data.amount.toFixed(2)), transactions: data.transactions }))
   }
 
+  private aggregateTransactionFees(transactions: ReportRow[]) {
+    const grouped = new Map<string, number>()
+    for (const transaction of transactions) {
+      const metadata = transaction.metadata ?? {}
+      const currency = typeof metadata.adminFeeCurrency === 'string' ? metadata.adminFeeCurrency : null
+      const amount = Number(metadata.adminFeeCreditAmount)
+      if (!currency || !Number.isFinite(amount) || amount <= 0) continue
+      grouped.set(currency, (grouped.get(currency) ?? 0) + amount)
+    }
+    return [...grouped.entries()]
+      .map(([currency, amount]) => ({ currency, amount: Number(amount.toFixed(2)) }))
+      .sort((left, right) => left.currency.localeCompare(right.currency))
+  }
+
   private async getAiMetrics(transactions: ReportRow[]) {
     try {
-      const url = this.configService.get<string>('aiService.url', 'http://localhost:8101')
+      const url = this.configService.get<string>('aiService.url', 'http://localhost:8120')
       const apiKey = this.configService.getOrThrow<string>('aiService.apiKey')
       const { data } = await axios.get<{ precision: number | null; recall: number | null; f1Score: number | null; analyzedTransactions: number }>(`${url}/api/v1/metrics`, {
         headers: { 'X-API-Key': apiKey },

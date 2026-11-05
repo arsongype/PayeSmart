@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowUpRight, ArrowDownLeft, RefreshCcw } from 'lucide-react'
 import { paymentService, type PaymentTransaction } from '../../services/payment.service'
+import { getDashboardReport, type DashboardTransactionDetail } from '../../services/reporting.service'
+import { ROUTES } from '../../utils/constants'
 import { FullPageLoader } from '../../components/common/Loader'
+import { useLocale } from '../../hooks/useLocale'
 import { useTranslation } from '../../utils/i18n'
 import { Button } from '../../components/common/Button'
 
 export default function AdminTransactionsPage() {
+  const locale = useLocale()
   const { t, formatMoney } = useTranslation()
+  const [searchParams] = useSearchParams()
+  const reviewMode = searchParams.get('filter') === 'review'
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([])
+  const [reviewTransactions, setReviewTransactions] = useState<DashboardTransactionDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
@@ -19,6 +27,12 @@ export default function AdminTransactionsPage() {
     const load = async () => {
       try {
         setLoading(true)
+        setError(null)
+        if (reviewMode) {
+          const report = await getDashboardReport()
+          setReviewTransactions(report.admin?.pendingTransactions ?? [])
+          return
+        }
         const data = await paymentService.history()
         setTransactions(data.reverse())
       } catch (err) {
@@ -27,10 +41,62 @@ export default function AdminTransactionsPage() {
         setLoading(false)
       }
     }
-    load()
-  }, [t])
+    void load()
+  }, [reviewMode, t])
 
   if (loading) return <FullPageLoader />
+
+  if (reviewMode) {
+    return (
+      <div className="page-enter min-h-screen bg-white p-4 lg:p-8">
+        <div className="mx-auto max-w-6xl space-y-8">
+          <div>
+            <div className="mb-2 flex items-center gap-3">
+              <div className="rounded-2xl bg-primary-500/10 p-2.5 text-black">
+                <RefreshCcw className="h-7 w-7" />
+              </div>
+              <h1 className="text-3xl font-bold text-black">{t('transactionsToReview')}</h1>
+            </div>
+            <p className="text-lg text-black">{t('transactionsToReviewDescription')}</p>
+          </div>
+
+          {error && <div role="alert" className="rounded-2xl border border-red-500/50 bg-red-500/10 p-4 text-base text-black">{error}</div>}
+
+          <div className="overflow-hidden rounded-3xl border border-gray-300 bg-gray-50 shadow-lg shadow-black/20">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-white">
+                    {[t('id'), t('sender'), t('recipient'), t('amount'), t('channel'), t('status'), t('date')].map((heading) => (
+                      <th key={heading} className="whitespace-nowrap px-6 py-4 text-left text-base font-medium text-black">{heading}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {reviewTransactions.map((transaction) => (
+                    <tr key={transaction.id} className="transition-colors hover:bg-gray-100">
+                      <td className="px-6 py-4 text-base text-black">#{transaction.id}</td>
+                      <td className="px-6 py-4 text-base text-black">{transaction.sender ?? t('unknownSender')}</td>
+                      <td className="px-6 py-4 text-base text-black">{transaction.recipient ?? t('unknownRecipient')}</td>
+                      <td className="whitespace-nowrap px-6 py-4 text-base text-black">{formatMoney(transaction.amount, transaction.currency)}</td>
+                      <td className="px-6 py-4 text-base text-black">{transaction.channel}</td>
+                      <td className="px-6 py-4 text-base text-black">{transaction.status}</td>
+                      <td className="whitespace-nowrap px-6 py-4 text-base text-black">{new Date(transaction.createdAt).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                    </tr>
+                  ))}
+                  {reviewTransactions.length === 0 && (
+                    <tr><td colSpan={7} className="px-6 py-12 text-center text-black">{t('noTransactions')}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <Link to={ROUTES.DASHBOARD} className="inline-flex text-sm font-semibold text-primary-700 underline underline-offset-2">{t('backToDashboard')}</Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="page-enter min-h-screen bg-white p-4 lg:p-8">

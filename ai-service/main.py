@@ -261,7 +261,7 @@ async def predict_fraud_risk(request: FraudDetectionRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", 8101))
+    port = int(os.getenv("PORT", 8120))
     host = os.getenv("HOST", "0.0.0.0")
 
     try:

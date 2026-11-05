@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Wallet, CreditCard, TrendingUp, AlertCircle, ArrowUpRight, ArrowDownLeft, Eye } from 'lucide-react'
+import { Wallet, CreditCard, TrendingUp, AlertCircle, ArrowUpRight, ArrowDownLeft, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { walletService } from '../../services/wallet.service'
 import { paymentService } from '../../services/payment.service'
@@ -8,11 +8,15 @@ import type { Wallet as WalletType } from '../../models/User.model'
 import type { PaymentTransaction } from '../../services/payment.service'
 import { useTranslation } from '../../utils/i18n'
 import { useSandboxDynamicCvv } from '../../hooks/useSandboxDynamicCvv'
+import { formatAccountNumber, maskAccountNumber } from '../../utils/formatters'
 
 export default function WalletPage() {
   const { user } = useAuth()
   const { t, locale, formatMoney } = useTranslation()
   const dynamicCvv = useSandboxDynamicCvv(user?.id ?? 0)
+  const [showWalletNumber, setShowWalletNumber] = useState(false)
+  const [showCardNumber, setShowCardNumber] = useState(false)
+  const [showDynamicCvv, setShowDynamicCvv] = useState(false)
   const [wallet, setWallet] = useState<WalletType | null>(null)
   const [history, setHistory] = useState<PaymentTransaction[]>([])
   const [loading, setLoading] = useState(true)
@@ -139,7 +143,29 @@ export default function WalletPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="rounded-2xl border border-gray-200 bg-white p-4">
                <p className="text-sm text-black">{t('walletNumber')}</p>
-              <p className="mt-1 text-base font-medium text-black font-mono">{wallet?.walletNumber || '-'}</p>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <p className="break-all font-mono text-base font-medium text-black">
+                  {wallet?.walletNumber
+                    ? showWalletNumber ? formatAccountNumber(wallet.walletNumber) : maskAccountNumber(wallet.walletNumber)
+                    : '-'}
+                </p>
+                {wallet?.walletNumber && <button type="button" onClick={() => setShowWalletNumber((visible) => !visible)} aria-label={t(showWalletNumber ? 'hideSensitiveData' : 'showSensitiveData')} title={t(showWalletNumber ? 'hideSensitiveData' : 'showSensitiveData')} className="shrink-0 rounded-lg p-2 text-black hover:bg-gray-100">
+                  {showWalletNumber ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+              <p className="text-sm text-black">{t('cardNumber')}</p>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <p className="break-all font-mono text-base font-medium text-black">
+                  {wallet?.cardNumber
+                    ? showCardNumber ? formatAccountNumber(wallet.cardNumber) : maskAccountNumber(wallet.cardNumber)
+                    : '-'}
+                </p>
+                {wallet?.cardNumber && <button type="button" onClick={() => setShowCardNumber((visible) => !visible)} aria-label={t(showCardNumber ? 'hideSensitiveData' : 'showSensitiveData')} title={t(showCardNumber ? 'hideSensitiveData' : 'showSensitiveData')} className="shrink-0 rounded-lg p-2 text-black hover:bg-gray-100">
+                  {showCardNumber ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>}
+              </div>
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white p-4">
                <p className="text-sm text-black">{t('status')}</p>
@@ -163,7 +189,12 @@ export default function WalletPage() {
               </p>
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white p-4">
-              <p className="text-sm font-medium text-black">{t('dynamicCvv', { code: dynamicCvv })}</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium text-black">{t('dynamicCvv', { code: showDynamicCvv ? dynamicCvv : '•••' })}</p>
+                <button type="button" onClick={() => setShowDynamicCvv((visible) => !visible)} aria-label={t(showDynamicCvv ? 'hideSensitiveData' : 'showSensitiveData')} title={t(showDynamicCvv ? 'hideSensitiveData' : 'showSensitiveData')} className="shrink-0 rounded-lg p-2 text-black hover:bg-gray-100">
+                  {showDynamicCvv ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <p className="mt-1 text-xs text-gray-600">{t('dynamicCvvNotice')}</p>
             </div>
           </div>

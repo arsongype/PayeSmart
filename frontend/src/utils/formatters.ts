@@ -1,5 +1,13 @@
 export type SupportedCurrency = 'EUR' | 'USD' | 'XOF' | 'MGA'
 
+export const formatAccountNumber = (accountNumber: string): string =>
+  accountNumber.replace(/\D/g, '').match(/.{1,4}/g)?.join(' ') ?? ''
+
+export const maskAccountNumber = (accountNumber: string): string => {
+  const masked = accountNumber.replace(/\D/g, '').replace(/\d(?=\d{4})/g, '•')
+  return masked.match(/.{1,4}/g)?.join(' ') ?? ''
+}
+
 const currencySymbols: Record<SupportedCurrency, string> = {
   EUR: '€',
   USD: '$',

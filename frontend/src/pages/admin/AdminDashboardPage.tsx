@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react'
-import { BarChart3, Users, Wallet, AlertTriangle, ArrowUpRight } from 'lucide-react'
-import { getDashboardReport } from '../../services/reporting.service'
+import { BarChart3, Users, Wallet, AlertTriangle, ArrowUpRight, Coins } from 'lucide-react'
+import { getDashboardReport, type DashboardReport } from '../../services/reporting.service'
 import { FullPageLoader } from '../../components/common/Loader'
 import { useTranslation } from '../../utils/i18n'
 
 export default function AdminDashboardPage() {
   const { t, formatMoney } = useTranslation()
-  const [stats, setStats] = useState<{ totals: { volume: number; transactions: number; fraudRate: number; revenue: number }; channels: Array<{ channel: string; amount: number; transactions: number }>; aiMetrics: { precision: number | null; recall: number | null; f1Score: number | null; analyzedTransactions: number } | null; admin: { activeUsers: number; transactionsToReview: number; aiAlerts: number } | null } | null>(null)
+  const [stats, setStats] = useState<DashboardReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const transactionFees = stats?.admin?.transactionFees ?? []
+  const transactionFeesDisplay = transactionFees.length > 0
+    ? transactionFees.map((fee) => formatMoney(fee.amount, fee.currency, fee.currency)).join(' · ')
+    : formatMoney(0)
 
   useEffect(() => {
     const load = async () => {
@@ -46,25 +50,26 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {[
             { label: t('totalVolume'), value: formatMoney(stats?.totals.volume ?? 0), icon: Wallet },
             { label: t('totalTransactions'), value: String(stats?.totals.transactions ?? 0), icon: ArrowUpRight },
             { label: t('fraudRate'), value: `${stats?.totals.fraudRate ?? 0}%`, icon: AlertTriangle },
             { label: t('revenue'), value: formatMoney(stats?.totals.revenue ?? 0), icon: BarChart3 },
+            { label: t('collectedTransactionFees'), value: transactionFeesDisplay, icon: Coins },
           ].map((item) => (
             <div key={item.label} className="rounded-3xl border border-gray-300 bg-gray-50 p-5 shadow-lg shadow-black/20">
               <div className="flex items-center gap-2 text-black">
                 <item.icon className="h-5 w-5" />
                 <span className="text-sm font-medium">{item.label}</span>
               </div>
-              <p className="mt-3 text-2xl font-bold text-black">{item.value}</p>
+              <p className="mt-3 wrap-break-word text-2xl font-bold text-black">{item.value}</p>
             </div>
           ))}
         </div>
 
         {stats?.admin && (
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="rounded-3xl border border-gray-300 bg-gray-50 p-5 shadow-lg shadow-black/20">
               <div className="flex items-center gap-2 text-black">
                 <Users className="h-5 w-5" />

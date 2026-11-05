@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
-import { AlertCircle, ArrowDownLeft, ArrowUpRight, BadgeCheck, Building2, CheckCircle2, Clock3, CreditCard, Printer, QrCode, RefreshCw, Send, ShieldCheck, UserRound } from 'lucide-react'
+import { AlertCircle, ArrowDownLeft, ArrowUpRight, BadgeCheck, Building2, CheckCircle2, Clock3, CreditCard, Eye, EyeOff, Printer, QrCode, RefreshCw, Send, ShieldCheck, UserRound } from 'lucide-react'
 import { Button } from '../../components/common/Button'
 import { useAuth } from '../../contexts/AuthContext'
 import { paymentService, type PaymentChannel, type PaymentCurrency, type PaymentQuote, type PaymentTransaction, type RecipientAccount } from '../../services/payment.service'
@@ -8,7 +8,7 @@ import { useSettings } from '../../contexts/SettingsContext'
 import { useTranslation } from '../../utils/i18n'
 import { isSandboxCardCvvValid, isSandboxCardExpiryValid } from '../../utils/sandbox-card'
 import { useSandboxDynamicCvv } from '../../hooks/useSandboxDynamicCvv'
-import { getCurrencySymbol } from '../../utils/formatters'
+import { formatAccountNumber, getCurrencySymbol } from '../../utils/formatters'
 
 type PaymentMode = 'CARD' | 'QR' | 'BANK_TRANSFER'
 
@@ -36,6 +36,8 @@ export default function PaymentsPage() {
   const [amount, setAmount] = useState('')
   const [cardExpiry, setCardExpiry] = useState('')
   const [cardCvv, setCardCvv] = useState('')
+  const [showCardCvv, setShowCardCvv] = useState(false)
+  const [showDynamicCvv, setShowDynamicCvv] = useState(false)
   const [paymentCurrency, setPaymentCurrency] = useState<PaymentCurrency>('MGA')
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('CARD')
   const [paymentQuote, setPaymentQuote] = useState<PaymentQuote | null>(null)
@@ -472,7 +474,7 @@ export default function PaymentsPage() {
                 <div className="rounded-xl bg-white p-2 text-emerald-700"><UserRound className="h-5 w-5" /></div>
                 <div>
                   <p className="font-semibold text-emerald-950">{recipient.cardHolderName}</p>
-                  <p className="mt-0.5 text-sm text-emerald-800">{recipient.role} · <span className="font-mono">{recipient.walletNumber}</span></p>
+                  <p className="mt-0.5 text-sm text-emerald-800">{recipient.role} · <span className="font-mono">{formatAccountNumber(recipient.walletNumber)}</span></p>
                 </div>
                 <CheckCircle2 className="ml-auto h-5 w-5 text-emerald-700" />
               </div>
@@ -494,6 +496,7 @@ export default function PaymentsPage() {
                       setPaymentMode(mode)
                       setCardExpiry('')
                       setCardCvv('')
+                      setShowCardCvv(false)
                       setError(null)
                     }}
                     className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition focus:outline-none focus:ring-4 focus:ring-teal-500/15 ${paymentMode === mode ? 'border-teal-600 bg-teal-50 text-teal-900 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}
@@ -555,11 +558,12 @@ export default function PaymentsPage() {
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-slate-900 outline-none focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10"
                   />
                 </label>
-                <label className="text-sm font-semibold text-slate-700" htmlFor="card-cvv">
-                  {t('cvv')}
+                <div>
+                  <label className="text-sm font-semibold text-slate-700" htmlFor="card-cvv">{t('cvv')}</label>
+                  <div className="relative mt-1">
                   <input
                     id="card-cvv"
-                    type="password"
+                    type={showCardCvv ? 'text' : 'password'}
                     inputMode="numeric"
                     required
                     value={cardCvv}
@@ -567,9 +571,20 @@ export default function PaymentsPage() {
                     placeholder="•••"
                     maxLength={4}
                     autoComplete="off"
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-slate-900 outline-none focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 font-mono text-slate-900 outline-none focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10"
                   />
-                </label>
+                    <button type="button" onClick={() => setShowCardCvv((visible) => !visible)} aria-label={t(showCardCvv ? 'hideSensitiveData' : 'showSensitiveData')} title={t(showCardCvv ? 'hideSensitiveData' : 'showSensitiveData')} className="absolute inset-y-0 right-2 inline-flex items-center rounded-lg px-2 text-slate-600 hover:bg-white">
+                      {showCardCvv ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-600">
+                    <span>{t('dynamicCvv', { code: showDynamicCvv ? dynamicCvv : '•••' })}</span>
+                    <button type="button" onClick={() => setShowDynamicCvv((visible) => !visible)} aria-label={t(showDynamicCvv ? 'hideSensitiveData' : 'showSensitiveData')} title={t(showDynamicCvv ? 'hideSensitiveData' : 'showSensitiveData')} className="inline-flex shrink-0 items-center gap-1 rounded-lg p-1 text-slate-700 hover:bg-slate-100">
+                      {showDynamicCvv ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      {t('dynamicCvvNotice')}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
             {currentQuote && (
@@ -600,7 +615,7 @@ export default function PaymentsPage() {
             {paymentMode === 'BANK_TRANSFER' && (
               <div className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
                 <p className="flex justify-between gap-3"><span className="text-slate-500">{t('beneficiary')}</span><strong className="text-right text-slate-900">{recipient?.cardHolderName ?? '—'}</strong></p>
-                <p className="flex justify-between gap-3"><span className="text-slate-500">{t('bankAccount')}</span><strong className="font-mono text-slate-900">{recipient?.walletNumber ?? '—'}</strong></p>
+                <p className="flex justify-between gap-3"><span className="text-slate-500">{t('bankAccount')}</span><strong className="font-mono text-slate-900">{recipient ? formatAccountNumber(recipient.walletNumber) : '—'}</strong></p>
                 <p className="flex justify-between gap-3"><span className="text-slate-500">{t('transactionAmount')}</span><strong className="text-slate-900">{amount ? formatMoney(Number(amount), paymentCurrency, paymentCurrency) : '—'}</strong></p>
                 {currentQuote && (
                   <>

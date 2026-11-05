@@ -3,6 +3,7 @@ import { useParams, Navigate } from 'react-router-dom'
 import axios from 'axios'
 import { paymentService, type PaymentTransaction } from '../../services/payment.service'
 import { useTranslation } from '../../utils/i18n'
+import { formatAccountNumber } from '../../utils/formatters'
 
 export default function ConfirmQrPage() {
   const { id } = useParams<{ id: string }>()
@@ -99,7 +100,7 @@ export default function ConfirmQrPage() {
           <div className="space-y-4">
             <div className="space-y-2 rounded-2xl border border-gray-300 bg-white p-4 text-sm">
               <p>{t('beneficiary')}: <strong>{transaction.recipient?.name || '—'}</strong></p>
-              <p>{t('bankAccount')}: <strong className="font-mono">{transaction.recipient?.walletNumber || '—'}</strong></p>
+              <p>{t('bankAccount')}: <strong className="font-mono">{transaction.recipient?.walletNumber ? formatAccountNumber(transaction.recipient.walletNumber) : '—'}</strong></p>
               <p>{t('transactionAmount')}: <strong>{formatMoney(Number(transaction.amount), transaction.currency)}</strong></p>
               <p>{t('transactionFee')}: <strong>{formatMoney(Number(transaction.feeAmount ?? 0), transaction.currency)}</strong></p>
               <p className="border-t border-gray-200 pt-2">{t('transactionTotal')}: <strong>{formatMoney(Number(transaction.totalAmount ?? transaction.amount), transaction.currency)}</strong></p>

@@ -12,6 +12,9 @@ import { KycStatus } from '../auth/enums/kyc-status.enum.js'
 import { KybStatus } from '../auth/enums/kyb-status.enum.js'
 import { PaymentChannel } from '../auth/enums/payment-channel.enum.js'
 import { TransactionStatus } from '../auth/enums/transaction-status.enum.js'
+import { Role } from '../auth/enums/role.enum.js'
+import { UserStatus } from '../auth/enums/user-status.enum.js'
+import { WalletStatus } from '../auth/enums/wallet-status.enum.js'
 import { InitiatePaymentDto } from './dto/initiate-payment.dto.js'
 import { QuotePaymentDto } from './dto/quote-payment.dto.js'
 import { NotificationService } from '../../notifications/services/notification.service.js'
@@ -434,27 +437,69 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       transaction.externalReference = gatewayResult.providerReference
       if (transaction.metadata) delete transaction.metadata.cardToken
       await this.transactionRepository.save(transaction)
+      let adminFeeRecipientUserId: number | null = null
       await this.dataSource.transaction(async (manager) => {
         const senderWallet = await manager.findOne(Wallet, { where: { id: transaction.senderWalletId }, lock: { mode: 'pessimistic_write' } })
         const recipientWallet = await manager.findOne(Wallet, { where: { id: transaction.recipientWalletId }, lock: { mode: 'pessimistic_write' } })
         if (!senderWallet || !recipientWallet) throw new BadRequestException('Portefeuille indisponible')
+        const admins = await manager.find(User, { where: { role: Role.ADMIN, accountStatus: UserStatus.ACTIVE }, order: { id: 'ASC' } })
+        let adminUser: User | undefined
+        let adminWallet: Wallet | null = null
+        for (const candidate of admins) {
+          adminWallet = await manager.findOne(Wallet, {
+            where: { userId: candidate.id, status: WalletStatus.ACTIVE },
+            lock: { mode: 'pessimistic_write' },
+          })
+          if (adminWallet) {
+            adminUser = candidate
+            break
+          }
+        }
+        if (!adminUser || !adminWallet) throw new BadRequestException('Portefeuille de frais admin introuvable')
+        adminFeeRecipientUserId = adminUser.id
         const senderDebitAmount = Number(transaction.metadata?.senderDebitAmount)
         const recipientCreditAmount = Number(transaction.metadata?.recipientCreditAmount)
+        const feeAmount = Number(transaction.feeAmount)
         const debitAmount = Number.isFinite(senderDebitAmount) && senderDebitAmount > 0
           ? senderDebitAmount
           : Number(transaction.totalAmount) > 0 ? Number(transaction.totalAmount) : Number(transaction.amount)
         const creditAmount = Number.isFinite(recipientCreditAmount) && recipientCreditAmount > 0
           ? recipientCreditAmount
           : Number(transaction.amount)
+        const adminFeeCurrency = adminWallet.currency || transaction.currency
+        const adminFeeCreditAmount = feeAmount > 0
+          ? convertPaymentCurrency(feeAmount, transaction.currency, adminFeeCurrency)
+          : 0
         if (Number(senderWallet.balance) < debitAmount) throw new BadRequestException('Solde insuffisant')
 
         senderWallet.balance = Number(senderWallet.balance) - debitAmount
         recipientWallet.balance = Number(recipientWallet.balance) + creditAmount
-        await manager.save([senderWallet, recipientWallet])
-        await manager.save(Ledger, [
+        const feeWallet = adminWallet.id === senderWallet.id
+          ? senderWallet
+          : adminWallet.id === recipientWallet.id ? recipientWallet : adminWallet
+        feeWallet.balance = Number(feeWallet.balance) + adminFeeCreditAmount
+        const walletsToSave = [...new Map([senderWallet, recipientWallet, feeWallet].map((wallet) => [wallet.id, wallet])).values()]
+        await manager.save(walletsToSave)
+        const ledgerEntries = [
           manager.create(Ledger, { transactionId: transaction.id, walletId: senderWallet.id, amount: debitAmount, currency: senderWallet.currency || transaction.currency, direction: 'DEBIT', entryReference: `${transaction.externalReference}-D` }),
           manager.create(Ledger, { transactionId: transaction.id, walletId: recipientWallet.id, amount: creditAmount, currency: recipientWallet.currency || transaction.currency, direction: 'CREDIT', entryReference: `${transaction.externalReference}-C` }),
-        ])
+        ]
+        if (adminFeeCreditAmount > 0) {
+          ledgerEntries.push(manager.create(Ledger, {
+            transactionId: transaction.id,
+            walletId: feeWallet.id,
+            amount: adminFeeCreditAmount,
+            currency: adminFeeCurrency,
+            direction: 'CREDIT',
+            entryReference: `${transaction.externalReference}-FEE`,
+          }))
+        }
+        await manager.save(Ledger, ledgerEntries)
+        transaction.metadata = {
+          ...transaction.metadata,
+          adminFeeCreditAmount,
+          adminFeeCurrency,
+        }
         transaction.status = TransactionStatus.COMPLETED
         transaction.failureReason = null
         await manager.save(transaction)
@@ -467,6 +512,13 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         const notifications = await Promise.allSettled([
           ...(recipient ? [this.notificationService.create(recipient.userId, 'Paiement reçu', `Vous avez reçu ${transaction.amount} ${transaction.currency}.`)] : []),
           ...(sender ? [this.notificationService.create(sender.userId, 'Paiement confirmé', `Votre paiement de ${transaction.amount} ${transaction.currency} a été confirmé et enregistré.`)] : []),
+          ...(adminFeeRecipientUserId !== null
+            ? [this.notificationService.create(
+              adminFeeRecipientUserId,
+              'Frais de transaction reçu',
+              `Transaction #${transaction.id} : vous avez reçu ${transaction.metadata?.adminFeeCreditAmount} ${transaction.metadata?.adminFeeCurrency} de frais.`,
+            )]
+            : []),
         ])
         for (const result of notifications) {
           if (result.status === 'rejected') {
@@ -533,7 +585,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async evaluateTransactionRisk(senderUserId: number, transaction: Transaction) {
-    const baseUrl = this.configService.get<string>('aiService.url', 'http://localhost:8101')
+    const baseUrl = this.configService.get<string>('aiService.url', 'http://localhost:8120')
     const apiKey = this.configService.getOrThrow<string>('aiService.apiKey')
     const thresholdRule = await this.securityRuleRepository.findOne({ where: { ruleType: 'AI_THRESHOLDS', isActive: true }, order: { priority: 'DESC', updatedAt: 'DESC' } })
     const thresholdConditions = thresholdRule?.conditions ?? {}

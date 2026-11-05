@@ -1,5 +1,17 @@
 import axios from 'axios'
 import { apiClient } from '../config/axios.config'
+import type { SupportedCurrency } from '../utils/formatters'
+
+export interface DashboardTransactionDetail {
+  id: number
+  sender: string | null
+  recipient: string | null
+  amount: number
+  currency: string
+  channel: string
+  status: string
+  createdAt: string
+}
 
 export interface DashboardReport {
   totals: {
@@ -19,6 +31,9 @@ export interface DashboardReport {
     activeUsers: number
     transactionsToReview: number
     aiAlerts: number
+    transactionFees?: Array<{ currency: SupportedCurrency; amount: number }>
+    pendingTransactions?: DashboardTransactionDetail[]
+    aiAlertDetails?: Array<DashboardTransactionDetail & { riskScore: number; reason: string }>
   } | null
 }
 

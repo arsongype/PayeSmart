@@ -29,7 +29,7 @@ export class AiService {
   private readonly apiKey: string
 
   constructor(private configService: ConfigService) {
-    this.baseUrl = this.configService.get<string>('aiService.url', 'http://localhost:8101')
+    this.baseUrl = this.configService.get<string>('aiService.url', 'http://localhost:8120')
     this.apiKey = this.configService.getOrThrow<string>('aiService.apiKey')
   }
 

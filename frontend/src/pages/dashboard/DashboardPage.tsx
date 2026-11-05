@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   AlertTriangle,
   BarChart3,
   CreditCard,
+  Coins,
+  Eye,
   FileBarChart,
   FileText,
   ShieldCheck,
@@ -11,6 +14,7 @@ import {
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { downloadReport, getDashboardReport, type DashboardReport } from '../../services/reporting.service'
+import { ROUTES } from '../../utils/constants'
 import { useLocale } from '../../hooks/useLocale'
 import { useTranslation } from '../../utils/i18n'
 
@@ -44,9 +48,19 @@ export default function DashboardPage() {
   const totals = report?.totals ?? { volume: 0, transactions: 0, fraudRate: 0, revenue: 0 }
   const aiMetrics = report?.aiMetrics ?? { precision: null, recall: null, f1Score: null, analyzedTransactions: 0 }
   const reportCurrency = user?.wallet?.currency || 'EUR'
+  const transactionFees = report?.admin?.transactionFees ?? []
+  const transactionFeesDisplay = transactionFees.length > 0
+    ? transactionFees.map((fee) => formatMoney(fee.amount, fee.currency, fee.currency)).join(' · ')
+    : formatMoney(0)
   const formatMetric = (value: number | null) => value === null ? 'N/D' : `${(value * 100).toFixed(1)}%`
 
   const metricLabels = [t('precision'), t('recall'), t('f1Score'), t('analyzed')]
+  const adminMetrics: Array<{ label: string; value: number | string; icon: typeof Users; details?: 'pending' | 'alerts' }> = [
+    { label: t('activeUsers'), value: report?.admin?.activeUsers ?? 0, icon: Users },
+    { label: t('transactionsToReview'), value: report?.admin?.transactionsToReview ?? 0, icon: CreditCard, details: 'pending' },
+    { label: t('aiAlerts'), value: report?.admin?.aiAlerts ?? 0, icon: AlertTriangle, details: 'alerts' },
+    { label: t('collectedTransactionFees'), value: transactionFeesDisplay, icon: Coins },
+  ]
 
   return (
     <div className="page-enter min-w-0 space-y-8">
@@ -153,14 +167,13 @@ export default function DashboardPage() {
                <p className="wrap-break-word text-sm text-black sm:text-base">{t('adminDescription')}</p>
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            {[
-              [t('activeUsers'), report?.admin?.activeUsers ?? 0, Users],
-              [t('transactionsToReview'), report?.admin?.transactionsToReview ?? 0, CreditCard],
-              [t('aiAlerts'), report?.admin?.aiAlerts ?? 0, AlertTriangle],
-            ].map(([label, value, Icon]) => {
-              const ItemIcon = Icon as typeof Users
-                 return <div key={label as string} className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 transition hover:border-gray-300 sm:p-5"><div className="min-w-0"><p className="wrap-break-word text-sm text-black sm:text-base">{label as string}</p><p className="mt-2 text-2xl font-bold text-black sm:text-3xl">{(value as number).toLocaleString(locale)}</p></div><div className="shrink-0 rounded-2xl bg-amber-500/10 p-2.5 text-black"><ItemIcon size={22} /></div></div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {adminMetrics.map(({ label, value, icon: ItemIcon, details }) => {
+              const formattedValue = typeof value === 'number' ? value.toLocaleString(locale) : value
+              const detailsRoute = details === 'pending'
+                ? `${ROUTES.ADMIN_TRANSACTIONS}?filter=review`
+                : ROUTES.ADMIN_FRAUD
+              return <div key={label} className="min-w-0 rounded-2xl border border-gray-200 bg-gray-50 p-4 transition hover:border-gray-300 sm:p-5"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="wrap-break-word text-sm text-black sm:text-base">{label}</p><p className="mt-2 wrap-break-word text-2xl font-bold text-black sm:text-3xl">{formattedValue}</p></div><div className="shrink-0 rounded-2xl bg-amber-500/10 p-2.5 text-black"><ItemIcon size={22} /></div></div>{details && <Link to={detailsRoute} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-primary-700 underline underline-offset-2"><Eye size={16} />{t('viewDetails')}</Link>}</div>
             })}
           </div>
         </section>

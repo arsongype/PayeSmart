@@ -11,6 +11,7 @@ import { AnalysisResult, type DocumentAnalysis } from '../../components/common/A
 import { TrustScorePanel, type TrustScoreData } from '../../components/common/TrustScorePanel'
 import { useLocale } from '../../hooks/useLocale'
 import { useTranslation } from '../../utils/i18n'
+import { formatAccountNumber } from '../../utils/formatters'
 
 export default function AdminUserDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -310,7 +311,7 @@ export default function AdminUserDetailPage() {
               {selectedUser.wallet ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
-                    [t('number'), selectedUser.wallet.walletNumber],
+                    [t('number'), formatAccountNumber(selectedUser.wallet.walletNumber)],
                     [t('balance'), formatMoney(Number(selectedUser.wallet.balance), selectedUser.wallet.currency)],
                     [t('status'), selectedUser.wallet.status],
                    ].map(([label, value]) => (

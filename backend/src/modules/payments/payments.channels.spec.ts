@@ -5,6 +5,9 @@ import { PaymentChannel } from '../auth/enums/payment-channel.enum.js'
 import { KycStatus } from '../auth/enums/kyc-status.enum.js'
 import { KybStatus } from '../auth/enums/kyb-status.enum.js'
 import { Role } from '../auth/enums/role.enum.js'
+import { User } from '../auth/entities/user.entity.js'
+import { Wallet } from '../auth/entities/wallet.entity.js'
+import { Ledger } from '../auth/entities/ledger.entity.js'
 
 const buildService = (
   role: Role = Role.USER,
@@ -16,8 +19,21 @@ const buildService = (
 ) => {
   const sender = { id: 1, role, kycStatus, kybStatus }
   const recipient = { id: 2, phone: '0340000000', role: Role.USER }
-  const senderWallet = { id: 11, userId: 1, status: 'ACTIVE', currency: 'EUR' }
-  const recipientWallet = { id: 22, userId: 2, status: 'ACTIVE', currency: 'EUR' }
+  const admin = { id: 3, role: Role.ADMIN, accountStatus: 'ACTIVE' }
+  const senderWallet = { id: 11, userId: 1, status: 'ACTIVE', currency: 'EUR', balance: 100 }
+  const recipientWallet = { id: 22, userId: 2, status: 'ACTIVE', currency: 'EUR', balance: 100 }
+  const adminWallet = { id: 33, userId: 3, status: 'ACTIVE', currency: 'MGA', balance: 0 }
+  const wallets = [senderWallet, recipientWallet, adminWallet]
+  const manager = {
+    findOne: vi.fn(async (entity: unknown, options: { where: Record<string, unknown> }) => {
+      if (entity !== Wallet) return null
+      return wallets.find((wallet) => wallet.id === options.where.id || wallet.userId === options.where.userId) ?? null
+    }),
+    find: vi.fn(async (entity: unknown) => entity === User ? [admin] : []),
+    create: vi.fn((_entity: unknown, value: Record<string, unknown>) => value),
+    save: vi.fn(async (...args: unknown[]) => Array.isArray(args[0]) ? args[0] : args[1] ?? args[0]),
+  }
+  const dataSource = { transaction: vi.fn(async (work: (manager: typeof manager) => Promise<void>) => work(manager)) }
   const transactionRepository = {
     create: vi.fn((value) => value),
     save: vi.fn(async (value) => ({ id: 100, ...value })),
@@ -33,6 +49,8 @@ const buildService = (
     findOne: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
       if (where.userId === 1) return senderWallet
       if (where.userId === 2 || where.walletNumber === '2222222222') return recipientWallet
+      if (where.id === 11) return senderWallet
+      if (where.id === 22) return recipientWallet
       return null
     }),
   }
@@ -47,14 +65,14 @@ const buildService = (
     {} as never,
     {} as never,
     securityRuleRepository as never,
-    {} as never,
+    dataSource as never,
     notificationService as never,
-    { authorize: vi.fn() } as never,
+    { authorize: vi.fn(async () => ({ providerReference: 'PROVIDER-100' })) } as never,
     { get: () => 'http://localhost:5173' } as never,
     { encrypt: (value: string) => `enc:${value}` } as never,
   )
   ;(service as unknown as { redisQueue: { add: ReturnType<typeof vi.fn> } }).redisQueue = { add: vi.fn() }
-  return { service, transactionRepository, notificationService }
+  return { service, transactionRepository, notificationService, manager, senderWallet, recipientWallet, adminWallet }
 }
 
 describe('payment channel contracts', () => {
@@ -140,6 +158,39 @@ describe('payment channel contracts', () => {
     expect(transactionRepository.create).toHaveBeenCalledWith(expect.objectContaining({
       metadata: expect.objectContaining({ cardToken: 'enc:tok_test_simulated' }),
     }))
+  })
+
+  it('credits the admin fee wallet, records the fee, and notifies the admin', async () => {
+    const { service, transactionRepository, notificationService, manager, senderWallet, recipientWallet, adminWallet } = buildService()
+    const transaction = {
+      id: 100,
+      senderWalletId: 11,
+      recipientWalletId: 22,
+      amount: 25,
+      feeAmount: 0.25,
+      totalAmount: 25.25,
+      currency: 'EUR',
+      channel: PaymentChannel.BANK_TRANSFER,
+      status: 'PENDING',
+      externalReference: 'PAY-100',
+      failureReason: null,
+      metadata: { senderDebitAmount: 25.25, recipientCreditAmount: 25 },
+    }
+    transactionRepository.findOne.mockResolvedValue(transaction as never)
+
+    await service.process(100, true)
+
+    expect(senderWallet.balance).toBe(74.75)
+    expect(recipientWallet.balance).toBe(125)
+    expect(adminWallet.balance).toBe(1250)
+    expect(manager.save).toHaveBeenCalledWith(Ledger, expect.arrayContaining([
+      expect.objectContaining({ walletId: 33, amount: 1250, currency: 'MGA', direction: 'CREDIT', entryReference: 'PROVIDER-100-FEE' }),
+    ]))
+    expect(notificationService.create).toHaveBeenCalledWith(
+      3,
+      'Frais de transaction reçu',
+      expect.stringContaining('1250 MGA'),
+    )
   })
 
   it('converts payer-selected currency into sender and recipient wallet currencies', async () => {

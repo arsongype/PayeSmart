@@ -10,6 +10,7 @@ import { FullPageLoader } from '../../components/common/Loader'
 import { Button } from '../../components/common/Button'
 import type { Profile, Wallet as WalletType, KycDocument, KybDocument, User } from '../../models/User.model'
 import { useTranslation } from '../../utils/i18n'
+import { formatAccountNumber } from '../../utils/formatters'
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuth()
@@ -343,7 +344,7 @@ export default function ProfilePage() {
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-gray-200 bg-white p-4">
                      <p className="text-sm text-black">{t('number')}</p>
-                    <p className="text-base font-medium text-black font-mono">{wallet.walletNumber}</p>
+                    <p className="text-base font-medium text-black font-mono">{formatAccountNumber(wallet.walletNumber)}</p>
                   </div>
                   <div className="rounded-2xl border border-gray-200 bg-white p-4">
                      <p className="text-sm text-black">{t('balance')}</p>

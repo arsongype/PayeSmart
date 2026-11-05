@@ -31,6 +31,10 @@ const totp = new TOTP({
   base32: new ScureBase32Plugin(),
 })
 
+export function normalizeRegistrationRole(role?: Role): Role {
+  return role === Role.MERCHANT ? Role.MERCHANT : Role.USER
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -76,7 +80,7 @@ export class AuthService {
         }
       }
 
-      const normalizedRole: Role = dto.role ?? Role.USER
+      const normalizedRole = normalizeRegistrationRole(dto.role)
       const normalizedKycStatus: typeof KycStatus[keyof typeof KycStatus] = dto.kycStatus ?? KycStatus.NON_VERIFIE
       const passwordHash = await argon2.hash(dto.password)
       const accountExpiresAt = new Date()
