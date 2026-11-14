@@ -22,12 +22,20 @@ import { SandboxGatewayService } from './sandbox-gateway.service.js'
 import { Queue, Worker } from 'bullmq'
 import { Redis } from 'ioredis'
 import { createHash, randomInt } from 'node:crypto'
+import * as argon2 from 'argon2'
+import { TOTP, NobleCryptoPlugin, ScureBase32Plugin } from 'otplib'
 import { CryptoService } from '../../security/services/crypto.service.js'
 import { SecurityRule } from '../auth/entities/security-rule.entity.js'
-import { convertPaymentCurrency, PAYMENT_CURRENCIES } from './payment-currency.js'
+import { OtpCode } from '../auth/entities/otp-code.entity.js'
+import { convertPaymentCurrency, normalizeFraudRiskAmount, PAYMENT_CURRENCIES } from './payment-currency.js'
 
 export type FraudRiskDecision = 'APPROVE' | 'REQUIRE_2FA' | 'BLOCK'
 export const PAYMENT_TWO_FACTOR_TTL_MS = 30 * 60 * 1000
+const PAYMENT_NOTIFICATION_OTP_TTL_MS = 2 * 60 * 1000
+const PAYMENT_NOTIFICATION_OTP_RESEND_DELAY_MS = 60 * 1000
+const PAYMENT_NOTIFICATION_OTP_MAX_ATTEMPTS = 5
+const PAYMENT_NOTIFICATION_OTP_PURPOSE = 'PAYMENT_CONFIRMATION'
+const totp = new TOTP({ crypto: new NobleCryptoPlugin(), base32: new ScureBase32Plugin() })
 
 function normalizePhoneNumber(phoneNumber: string): string {
   const digits = phoneNumber.replace(/\D/g, '')
@@ -40,31 +48,6 @@ export function evaluateRiskDecision(score: number, lowThreshold = 30, mediumThr
   if (score < lowThreshold) return 'APPROVE'
   if (score < mediumThreshold) return 'REQUIRE_2FA'
   return 'BLOCK'
-}
-
-function normalizeCountryLabel(country: string) {
-  return country.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
-}
-
-function isIsoCountryCode(countryCode: string) {
-  if (!/^[A-Z]{2}$/.test(countryCode)) return false
-  return ['fr-FR', 'en-US'].some((locale) => {
-    const displayName = new Intl.DisplayNames([locale], { type: 'region' }).of(countryCode)
-    return displayName !== undefined && displayName !== 'Unknown Region' && displayName !== 'Région inconnue'
-  })
-}
-
-export function isMonitoredCountry(country: string | null | undefined, countryCodes: string[]) {
-  if (!country?.trim()) return false
-  const normalizedCountry = normalizeCountryLabel(country)
-  return countryCodes.some((countryCode) => {
-    const code = countryCode.trim().toUpperCase()
-    if (normalizedCountry === code.toLowerCase()) return true
-    const displayNames = ['fr-FR', 'en-US'].map((locale) =>
-      new Intl.DisplayNames([locale], { type: 'region' }).of(code),
-    )
-    return displayNames.some((displayName) => displayName && normalizeCountryLabel(displayName) === normalizedCountry)
-  })
 }
 
 @Injectable()
@@ -81,6 +64,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(Ledger) private ledgerRepository: Repository<Ledger>,
     @InjectRepository(FraudAlert) private fraudAlertRepository: Repository<FraudAlert>,
     @InjectRepository(SecurityRule) private securityRuleRepository: Repository<SecurityRule>,
+    @InjectRepository(OtpCode) private otpCodeRepository: Repository<OtpCode>,
     @InjectDataSource() private dataSource: DataSource,
     private notificationService: NotificationService,
     private sandboxGateway: SandboxGatewayService,
@@ -313,17 +297,12 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     }))
 
     if (dto.channel === PaymentChannel.QR) {
-      transaction.metadata = {
-        ...transaction.metadata,
-        qrData: `${frontendBaseUrl}/payments/confirm/${transaction.id}`,
-      }
-      await this.transactionRepository.save(transaction)
       const notificationLink = `${frontendBaseUrl}/payments/confirm/${transaction.id}`
       try {
         await this.notificationService.create(
           recipientWallet.userId,
           'Demande de paiement QR',
-          `Scannez ce QR code, vérifiez le bénéficiaire et le montant, puis confirmez le paiement.`,
+          `Vérifiez le bénéficiaire et le montant, puis confirmez le paiement avec votre code Google Authenticator.`,
           notificationLink,
         )
       } catch (error) {
@@ -375,6 +354,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           riskLevel: risk.riskLevel,
           riskDecision: risk.decision,
           riskReasons: risk.reasons,
+          riskFeatures: risk.features,
         }
         await this.transactionRepository.save(transaction)
       } catch (error) {
@@ -413,7 +393,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     return this.findOne(userId, transactionId)
   }
 
-  async confirmQr(recipientUserId: number, transactionId: number) {
+  async confirmQr(recipientUserId: number, transactionId: number, code: string) {
     const recipientWallet = await this.walletRepository.findOne({ where: { userId: recipientUserId } })
     if (!recipientWallet) throw new NotFoundException('Portefeuille destinataire non trouvé')
     const transaction = await this.transactionRepository.findOne({ where: { id: transactionId } })
@@ -421,7 +401,19 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (transaction.channel !== PaymentChannel.QR) throw new BadRequestException('Ce paiement n\'est pas un paiement QR')
     if (transaction.recipientWalletId !== recipientWallet.id) throw new BadRequestException('Seul le destinataire peut confirmer ce paiement')
     if (transaction.status !== TransactionStatus.PENDING) throw new BadRequestException('Cette demande n\'est plus en attente de confirmation')
-    transaction.metadata = { ...transaction.metadata, qrConfirmedAt: new Date().toISOString() }
+    const recipient = await this.userRepository.findOne({ where: { id: recipientUserId } })
+    if (!recipient?.isTwoFactorEnabled || !recipient.twoFactorSecret) {
+      throw new BadRequestException('Activez Google Authenticator dans les paramètres de sécurité avant de confirmer ce paiement')
+    }
+    const verification = await totp.verify(code.trim(), { secret: recipient.twoFactorSecret, epochTolerance: 30 })
+    if (!verification.valid) throw new BadRequestException('Code Google Authenticator invalide ou expiré')
+
+    transaction.metadata = {
+      ...transaction.metadata,
+      qrConfirmedAt: new Date().toISOString(),
+      twoFactorVerified: true,
+      twoFactorVerifiedAt: new Date().toISOString(),
+    }
     await this.transactionRepository.save(transaction)
     const result = await this.process(transactionId)
     return result ? this.withoutSensitiveTransactionData(result) : null
@@ -450,10 +442,11 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
             where: { userId: candidate.id, status: WalletStatus.ACTIVE },
             lock: { mode: 'pessimistic_write' },
           })
-          if (adminWallet) {
+          if (adminWallet && adminWallet.id !== senderWallet.id && adminWallet.id !== recipientWallet.id) {
             adminUser = candidate
             break
           }
+          adminWallet = null
         }
         if (!adminUser || !adminWallet) throw new BadRequestException('Portefeuille de frais admin introuvable')
         adminFeeRecipientUserId = adminUser.id
@@ -474,9 +467,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
 
         senderWallet.balance = Number(senderWallet.balance) - debitAmount
         recipientWallet.balance = Number(recipientWallet.balance) + creditAmount
-        const feeWallet = adminWallet.id === senderWallet.id
-          ? senderWallet
-          : adminWallet.id === recipientWallet.id ? recipientWallet : adminWallet
+        const feeWallet = adminWallet
         feeWallet.balance = Number(feeWallet.balance) + adminFeeCreditAmount
         const walletsToSave = [...new Map([senderWallet, recipientWallet, feeWallet].map((wallet) => [wallet.id, wallet])).values()]
         await manager.save(walletsToSave)
@@ -509,14 +500,35 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           this.walletRepository.findOne({ where: { id: transaction.recipientWalletId } }),
           this.walletRepository.findOne({ where: { id: transaction.senderWalletId } }),
         ])
+        const senderName = sender?.cardHolderName?.trim() || 'le payeur'
+        const recipientName = recipient?.cardHolderName?.trim() || 'le destinataire'
+        const recipientCreditAmount = Number(transaction.metadata?.recipientCreditAmount)
+        const recipientAmount = Number.isFinite(recipientCreditAmount) && recipientCreditAmount > 0
+          ? recipientCreditAmount
+          : Number(transaction.amount)
+        const recipientCurrency = typeof transaction.metadata?.recipientCurrency === 'string'
+          ? transaction.metadata.recipientCurrency
+          : transaction.currency
+        const adminFeeCreditAmount = Number(transaction.metadata?.adminFeeCreditAmount)
+        const adminFeeCurrency = typeof transaction.metadata?.adminFeeCurrency === 'string'
+          ? transaction.metadata.adminFeeCurrency
+          : transaction.currency
         const notifications = await Promise.allSettled([
-          ...(recipient ? [this.notificationService.create(recipient.userId, 'Paiement reçu', `Vous avez reçu ${transaction.amount} ${transaction.currency}.`)] : []),
-          ...(sender ? [this.notificationService.create(sender.userId, 'Paiement confirmé', `Votre paiement de ${transaction.amount} ${transaction.currency} a été confirmé et enregistré.`)] : []),
-          ...(adminFeeRecipientUserId !== null
+          ...(recipient ? [this.notificationService.create(
+            recipient.userId,
+            'Paiement reçu',
+            `Vous avez reçu ${recipientAmount.toFixed(2)} ${recipientCurrency} de ${senderName}.`,
+          )] : []),
+          ...(sender ? [this.notificationService.create(
+            sender.userId,
+            'Paiement réussi',
+            `Votre paiement de ${Number(transaction.amount).toFixed(2)} ${transaction.currency} vers ${recipientName} a réussi.`,
+          )] : []),
+          ...(adminFeeRecipientUserId !== null && Number.isFinite(adminFeeCreditAmount) && adminFeeCreditAmount > 0
             ? [this.notificationService.create(
               adminFeeRecipientUserId,
-              'Frais de transaction reçu',
-              `Transaction #${transaction.id} : vous avez reçu ${transaction.metadata?.adminFeeCreditAmount} ${transaction.metadata?.adminFeeCurrency} de frais.`,
+              'Frais de transaction reçus',
+              `Frais de transaction de ${adminFeeCreditAmount.toFixed(2)} ${adminFeeCurrency} reçus pour le paiement de ${senderName} vers ${recipientName} (#${transaction.id}).`,
             )]
             : []),
         ])
@@ -533,8 +545,43 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       transaction.status = TransactionStatus.FAILED
       transaction.failureReason = error instanceof Error ? error.message : 'Paiement échoué'
       await this.transactionRepository.save(transaction)
+      await this.notifyPaymentFailure(transaction)
     }
     return this.withoutSensitiveTransactionData(transaction)
+  }
+
+  private async notifyPaymentFailure(transaction: Transaction) {
+    try {
+      const senderWallet = await this.walletRepository.findOne({ where: { id: transaction.senderWalletId } })
+      if (!senderWallet) {
+        this.logger.error(`Payment ${transaction.id} failed, but the sender wallet could not be found for notification`)
+        return
+      }
+
+      const isBlocked = Boolean(transaction.failureReason?.startsWith('Transaction bloquée par la détection de fraude')
+        || transaction.failureReason?.startsWith('Paiement bloqué par le contrôle de sécurité')
+      )
+      const title = isBlocked ? 'Paiement bloqué' : 'Paiement échoué'
+      const summary = this.getPaymentFailureSummary(transaction.failureReason, isBlocked)
+      await this.notificationService.create(
+        senderWallet.userId,
+        title,
+        `Paiement #${transaction.id} ${isBlocked ? 'bloqué' : 'échoué'} : ${summary}`,
+      )
+    } catch (error) {
+      this.logger.error(`Payment ${transaction.id} failed, but its sender notification could not be saved`, error)
+    }
+  }
+
+  private getPaymentFailureSummary(reason: string | null, isBlocked: boolean) {
+    if (isBlocked) return 'contrôle de sécurité requis.'
+    if (!reason) return 'veuillez réessayer.'
+    const normalizedReason = reason.toLowerCase()
+    if (normalizedReason.includes('solde insuffisant')) return 'solde insuffisant.'
+    if (normalizedReason.includes('délai') || normalizedReason.includes('expiré')) return 'confirmation expirée.'
+    if (normalizedReason.includes('portefeuille')) return 'portefeuille indisponible.'
+    const conciseReason = reason.replace(/\s+/g, ' ').trim()
+    return `${conciseReason.slice(0, 100)}${conciseReason.length > 100 ? '...' : ''}`
   }
 
   private withoutSensitiveTransactionData(transaction: Transaction): Transaction {
@@ -567,6 +614,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     transaction.status = TransactionStatus.FAILED
     transaction.failureReason = 'Le délai de confirmation 2FA est expiré.'
     await this.transactionRepository.save(transaction)
+    await this.notifyPaymentFailure(transaction)
   }
 
   private runQueue() {
@@ -596,22 +644,32 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     }
     const senderWallet = await this.walletRepository.findOne({ where: { id: transaction.senderWalletId } })
     const userId = senderWallet?.userId ?? senderUserId
+    const storedDebitAmount = Number(transaction.metadata?.senderDebitAmount)
+    const riskAmount = Number.isFinite(storedDebitAmount) && storedDebitAmount > 0
+      ? normalizeFraudRiskAmount(storedDebitAmount, String(transaction.metadata?.senderCurrency ?? senderWallet?.currency ?? 'EUR'))
+      : normalizeFraudRiskAmount(Number(transaction.amount), transaction.currency)
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
     const riskPayload = {
       user_id: userId,
-      amount: Number(transaction.metadata?.senderDebitAmount ?? transaction.amount),
+      amount: riskAmount,
       channel: transaction.channel,
       transaction_count_24h: await this.transactionRepository.count({
         where: { senderWalletId: transaction.senderWalletId, createdAt: MoreThanOrEqual(since) },
       }),
-      device_id: transaction.metadata?.deviceId ?? 'unknown-device',
-      ip_address: transaction.metadata?.ipAddress ?? '0.0.0.0',
+      device_id: transaction.metadata?.deviceId ?? null,
+      ip_address: transaction.metadata?.ipAddress ?? null,
       recipient_wallet_id: transaction.recipientWalletId,
       hour: new Date().getHours(),
       low_risk_threshold: lowThreshold,
       medium_risk_threshold: mediumThreshold,
     }
-    const response = await axios.post<{ risk_score: number; risk_level: string; decision: FraudRiskDecision; reasons: string[] }>(
+    const response = await axios.post<{
+      risk_score: number
+      risk_level: string
+      decision: FraudRiskDecision
+      reasons: string[]
+      features?: Record<string, unknown>
+    }>(
       `${baseUrl}/api/v1/fraud-detection/predict`,
       riskPayload,
       { headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' } },
@@ -620,39 +678,33 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (!Number.isFinite(riskScore) || riskScore < 0 || riskScore > 100) {
       throw new BadRequestException('Le service de détection de fraude a renvoyé un score invalide')
     }
-    const configuredCountryCodes = thresholdConditions.monitoredCountryCodes ?? []
-    if (
-      !Array.isArray(configuredCountryCodes)
-      || configuredCountryCodes.some((country) => typeof country !== 'string' || !isIsoCountryCode(country))
-      || new Set(configuredCountryCodes).size !== configuredCountryCodes.length
-    ) {
-      throw new BadRequestException('La liste des pays surveillés est invalide')
-    }
-    const monitoredCountryCodes = configuredCountryCodes as string[]
-    const sender = monitoredCountryCodes.length > 0
-      ? await this.userRepository.findOne({ where: { id: userId }, relations: { profile: true } })
-      : null
-    const countryIsMonitored = isMonitoredCountry(sender?.profile?.country, monitoredCountryCodes)
     const baseDecision = evaluateRiskDecision(riskScore, lowThreshold, mediumThreshold)
     if (response.data.decision !== baseDecision) {
-      throw new BadRequestException('La décision du service de détection de fraude ne correspond pas aux seuils configurés')
+      this.logger.warn(
+        `Fraud service decision mismatch for payment ${transaction.id}: score ${riskScore}, `
+        + `service decision ${response.data.decision}, configured decision ${baseDecision}`,
+      )
     }
-    const decision: FraudRiskDecision = countryIsMonitored && baseDecision === 'APPROVE'
-      ? 'REQUIRE_2FA'
-      : baseDecision
-    const decisionReason = countryIsMonitored && decision === 'REQUIRE_2FA'
-      ? `Pays surveillé (${sender?.profile?.country}) : confirmation OTP requise.`
-      : decision === 'APPROVE'
+    const decisionReason = baseDecision === 'APPROVE'
       ? `Risque faible : score de ${riskScore.toFixed(1)}/100, validation automatique selon les seuils configurés.`
-      : decision === 'REQUIRE_2FA'
+      : baseDecision === 'REQUIRE_2FA'
         ? `Risque intermédiaire : score de ${riskScore.toFixed(1)}/100, confirmation OTP requise selon les seuils configurés.`
         : `Risque élevé : score de ${riskScore.toFixed(1)}/100, transaction bloquée selon les seuils configurés.`
     return {
       riskScore,
-      riskLevel: decision === 'APPROVE' ? 'LOW' : decision === 'REQUIRE_2FA' ? 'MEDIUM' : 'HIGH',
-      decision,
-      reasons: [decisionReason, ...(response.data.reasons ?? [])],
+      riskLevel: baseDecision === 'APPROVE' ? 'LOW' : baseDecision === 'REQUIRE_2FA' ? 'MEDIUM' : 'HIGH',
+      decision: baseDecision,
+      reasons: [...(response.data.reasons ?? []), decisionReason],
       reason: decisionReason,
+      features: response.data.features
+        ? {
+            model: response.data.features.model,
+            amount: response.data.features.amount,
+            transaction_count_24h: response.data.features.transaction_count_24h,
+            hour: response.data.features.hour,
+            channel: response.data.features.channel,
+          }
+        : null,
     }
 
   }
@@ -678,16 +730,30 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         const requirePaymentTwoFactor = transactionRule?.actions?.twoFactorEnabled === true
           || transaction.channel === PaymentChannel.BANK_TRANSFER
           || transaction.channel === PaymentChannel.CARD
-        const effectiveDecision: FraudRiskDecision = requirePaymentTwoFactor && risk.decision === 'APPROVE' ? 'REQUIRE_2FA' : risk.decision
-        transaction.metadata = { ...transaction.metadata, riskScore: risk.riskScore, riskLevel: risk.riskLevel, riskDecision: effectiveDecision, riskReasons: risk.reasons }
+        const qrTotpVerified = transaction.channel === PaymentChannel.QR
+          && (transaction.metadata ?? {}).twoFactorVerified === true
+        const effectiveDecision: FraudRiskDecision = qrTotpVerified && risk.decision !== 'BLOCK'
+          ? 'APPROVE'
+          : requirePaymentTwoFactor && risk.decision === 'APPROVE'
+            ? 'REQUIRE_2FA'
+            : risk.decision
+        transaction.metadata = {
+          ...transaction.metadata,
+          riskScore: risk.riskScore,
+          riskLevel: risk.riskLevel,
+          riskDecision: effectiveDecision,
+          riskReasons: risk.reasons,
+          riskFeatures: risk.features,
+        }
         transaction.riskScore = risk.riskScore
         transaction.riskLevel = risk.riskLevel
         await this.transactionRepository.save(transaction)
 
         if (effectiveDecision === 'BLOCK') {
           transaction.status = TransactionStatus.FAILED
-          transaction.failureReason = `Transaction bloquée par la détection de fraude : ${risk.reason}`
+          transaction.failureReason = 'Paiement bloqué par le contrôle de sécurité.'
           await this.transactionRepository.save(transaction)
+          await this.notifyPaymentFailure(transaction)
           await this.fraudAlertRepository.save(
             this.fraudAlertRepository.create({
               transactionId: transaction.id,
@@ -705,38 +771,27 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           const existingExpiry = typeof existingMetadata.twoFactorExpiresAt === 'string'
             ? Date.parse(existingMetadata.twoFactorExpiresAt)
             : 0
-          if (typeof existingMetadata.twoFactorCodeHash === 'string' && existingExpiry > Date.now()) {
+          if (existingExpiry > Date.now()) {
             transaction.status = TransactionStatus.PENDING
             transaction.failureReason = 'Vérification 2FA requise avant exécution.'
             await this.transactionRepository.save(transaction)
             return transaction
           }
-          if (existingMetadata.twoFactorCodeHash) {
+          if (existingExpiry > 0) {
             transaction.status = TransactionStatus.FAILED
             transaction.failureReason = 'Le délai de confirmation 2FA est expiré.'
             await this.transactionRepository.save(transaction)
+            await this.notifyPaymentFailure(transaction)
             return transaction
           }
-          const code = String(randomInt(0, 1_000_000)).padStart(6, '0')
+          const { twoFactorCodeHash: _codeHash, ...safeMetadata } = existingMetadata
           transaction.metadata = {
-            ...transaction.metadata,
-            twoFactorCodeHash: createHash('sha256').update(code).digest('hex'),
+            ...safeMetadata,
             twoFactorExpiresAt: new Date(Date.now() + PAYMENT_TWO_FACTOR_TTL_MS).toISOString(),
           }
           transaction.status = TransactionStatus.PENDING
           transaction.failureReason = 'Vérification 2FA requise avant exécution.'
           await this.transactionRepository.save(transaction)
-          const confirmationWalletId = transaction.channel === PaymentChannel.QR
-            ? transaction.recipientWalletId
-            : transaction.senderWalletId
-          const confirmationWallet = await this.walletRepository.findOne({ where: { id: confirmationWalletId } })
-          if (confirmationWallet) {
-            await this.notificationService.create(
-              confirmationWallet.userId,
-              'Confirmation 2FA requise',
-              `Votre code OTP de confirmation pour le paiement #${transaction.id} est ${code}. Il expire dans 30 minutes. Ne le partagez avec personne.`,
-            )
-          }
           return transaction
         }
       }
@@ -748,6 +803,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       transaction.status = TransactionStatus.FAILED
       transaction.failureReason = error instanceof Error ? error.message : 'Paiement échoué'
       await this.transactionRepository.save(transaction)
+      await this.notifyPaymentFailure(transaction)
     }
     return transaction
   }
@@ -769,30 +825,131 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     return result && wallet ? this.withoutQrConfirmationLinkForPayer(result, wallet.id) : null
   }
 
-  async confirmTwoFactor(userId: number, transactionId: number, code: string) {
+  async confirmTwoFactor(
+    userId: number,
+    transactionId: number,
+    code: string,
+    method: 'AUTHENTICATOR' | 'NOTIFICATION_OTP' = 'AUTHENTICATOR',
+  ) {
+    return this.completeTwoFactorPayment(userId, transactionId, code, method)
+  }
+
+  async requestNotificationOtp(userId: number, transactionId: number) {
+    const { expiresAt } = await this.getPendingPaymentTwoFactor(userId, transactionId)
+    const previousCode = await this.otpCodeRepository.findOne({
+      where: { userId, transactionId, purpose: PAYMENT_NOTIFICATION_OTP_PURPOSE },
+      order: { createdAt: 'DESC' },
+    })
+    const now = new Date()
+    if (previousCode && now.getTime() - previousCode.createdAt.getTime() < PAYMENT_NOTIFICATION_OTP_RESEND_DELAY_MS) {
+      throw new BadRequestException('Attendez une minute avant de demander un nouveau code')
+    }
+
+    await this.otpCodeRepository.update(
+      { userId, transactionId, purpose: PAYMENT_NOTIFICATION_OTP_PURPOSE, isUsed: false },
+      { isUsed: true, usedAt: now },
+    )
+    const code = randomInt(0, 1_000_000).toString().padStart(6, '0')
+    const otpExpiresAt = new Date(Math.min(now.getTime() + PAYMENT_NOTIFICATION_OTP_TTL_MS, expiresAt))
+    const otp = this.otpCodeRepository.create({
+      userId,
+      transactionId,
+      codeHash: await argon2.hash(code),
+      purpose: PAYMENT_NOTIFICATION_OTP_PURPOSE,
+      expiresAt: otpExpiresAt,
+      isUsed: false,
+      failedAttempts: 0,
+      usedAt: null,
+      ipAddress: null,
+    })
+    const savedOtp = await this.otpCodeRepository.save(otp)
+    try {
+      await this.notificationService.create(
+        userId,
+        'Code OTP de confirmation',
+        `Votre code OTP pour le paiement #${transactionId} est ${code}. Il expire dans 2 minutes ou à l’expiration du paiement si celle-ci survient plus tôt.`,
+      )
+    } catch (error) {
+      savedOtp.isUsed = true
+      savedOtp.usedAt = new Date()
+      await this.otpCodeRepository.save(savedOtp)
+      throw error
+    }
+
+    return { sent: true, expiresAt: otpExpiresAt.toISOString() }
+  }
+
+  private async getPendingPaymentTwoFactor(userId: number, transactionId: number) {
     await this.findOne(userId, transactionId)
     const transaction = await this.transactionRepository.findOne({ where: { id: transactionId } })
     if (!transaction) throw new NotFoundException('Transaction non trouvée')
+    if (transaction.channel === PaymentChannel.QR) {
+      throw new BadRequestException('La confirmation QR ne prend pas en charge le code OTP par notification')
+    }
     if (transaction.status !== TransactionStatus.PENDING || transaction.failureReason !== 'Vérification 2FA requise avant exécution.') {
       throw new BadRequestException('Cette transaction ne demande pas de confirmation 2FA')
     }
 
-    const confirmationWalletId = transaction.channel === PaymentChannel.QR
-      ? transaction.recipientWalletId
-      : transaction.senderWalletId
-    const confirmationWallet = await this.walletRepository.findOne({ where: { id: confirmationWalletId } })
+    const confirmationWallet = await this.walletRepository.findOne({ where: { id: transaction.senderWalletId } })
     if (!confirmationWallet || confirmationWallet.userId !== userId) {
-      throw new BadRequestException(transaction.channel === PaymentChannel.QR
-        ? 'Seul le destinataire peut confirmer ce paiement'
-        : 'Seul l\'émetteur peut confirmer ce paiement')
+      throw new BadRequestException('Seul l\'émetteur peut confirmer ce paiement')
     }
-
     const metadata = (transaction.metadata ?? {}) as Record<string, unknown>
     const expiresAt = typeof metadata.twoFactorExpiresAt === 'string' ? Date.parse(metadata.twoFactorExpiresAt) : 0
-    const expectedHash = typeof metadata.twoFactorCodeHash === 'string' ? metadata.twoFactorCodeHash : ''
-    const receivedHash = createHash('sha256').update(code.trim()).digest('hex')
-    if (!expectedHash || !expiresAt || expiresAt <= Date.now() || receivedHash !== expectedHash) {
-      throw new BadRequestException('Code 2FA invalide ou expiré')
+    if (!expiresAt || expiresAt <= Date.now()) {
+      throw new BadRequestException('Le délai de confirmation 2FA est expiré')
+    }
+    return { transaction, metadata, expiresAt }
+  }
+
+  private async completeTwoFactorPayment(
+    userId: number,
+    transactionId: number,
+    code: string,
+    method: 'AUTHENTICATOR' | 'NOTIFICATION_OTP',
+  ) {
+    const { transaction, metadata } = await this.getPendingPaymentTwoFactor(userId, transactionId)
+    if (method === 'NOTIFICATION_OTP') {
+      const otp = await this.otpCodeRepository.findOne({
+        where: { userId, transactionId, purpose: PAYMENT_NOTIFICATION_OTP_PURPOSE, isUsed: false },
+        order: { createdAt: 'DESC' },
+      })
+      if (!otp || otp.expiresAt <= new Date()) {
+        if (otp) {
+          otp.isUsed = true
+          otp.usedAt = new Date()
+          await this.otpCodeRepository.save(otp)
+        }
+        throw new BadRequestException('Le code e-mail est expiré ou introuvable. Demandez un nouveau code.')
+      }
+      if (otp.failedAttempts >= PAYMENT_NOTIFICATION_OTP_MAX_ATTEMPTS) {
+        otp.isUsed = true
+        otp.usedAt = new Date()
+        await this.otpCodeRepository.save(otp)
+        throw new BadRequestException('Trop de tentatives. Demandez un nouveau code.')
+      }
+      if (!(await argon2.verify(otp.codeHash, code.trim()))) {
+        otp.failedAttempts += 1
+        if (otp.failedAttempts >= PAYMENT_NOTIFICATION_OTP_MAX_ATTEMPTS) {
+          otp.isUsed = true
+          otp.usedAt = new Date()
+        }
+        await this.otpCodeRepository.save(otp)
+        throw new BadRequestException('Code OTP invalide')
+      }
+      otp.isUsed = true
+      otp.usedAt = new Date()
+      await this.otpCodeRepository.save(otp)
+    } else {
+      const sender = await this.userRepository.findOne({ where: { id: userId } })
+      if (!sender?.isTwoFactorEnabled || !sender.twoFactorSecret) {
+        throw new BadRequestException('Activez Google Authenticator dans les paramètres de sécurité avant de confirmer ce paiement')
+      }
+
+      const verification = await totp.verify(code.trim(), { secret: sender.twoFactorSecret, epochTolerance: 30 })
+      if (!verification.valid) {
+        throw new BadRequestException('Code Google Authenticator invalide ou expiré')
+      }
     }
 
     const { twoFactorCodeHash: _codeHash, twoFactorExpiresAt: _expiresAt, ...safeMetadata } = metadata

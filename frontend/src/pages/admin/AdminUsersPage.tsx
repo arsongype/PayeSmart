@@ -70,6 +70,30 @@ export default function AdminUsersPage() {
     }
   }
 
+  const handleApproveRegistration = async (userId: number) => {
+    try {
+      setUpdatingId(userId)
+      await adminService.approveRegistration(userId)
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, accountStatus: 'ACTIVE' } : u)))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('errorAccountManagement'))
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const handleRejectRegistration = async (userId: number) => {
+    try {
+      setUpdatingId(userId)
+      await adminService.rejectRegistration(userId)
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, accountStatus: 'REJECTED' } : u)))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('errorAccountManagement'))
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
   if (loading) {
     return <FullPageLoader />
   }
@@ -88,7 +112,7 @@ export default function AdminUsersPage() {
         </div>
 
           {error && (
-            <div className="rounded-2xl bg-red-500/10 border border-red-500/50 p-4 text-base text-black">
+            <div role="alert" className="rounded-2xl border border-red-300 bg-red-50 p-4 text-base text-red-800">
               {error}
             </div>
           )}
@@ -101,6 +125,7 @@ export default function AdminUsersPage() {
                    <th className="text-left px-6 py-4 text-base font-medium text-black">{t('user')}</th>
                    <th className="text-left px-6 py-4 text-base font-medium text-black">{t('email')}</th>
                    <th className="text-left px-6 py-4 text-base font-medium text-black">{t('role')}</th>
+                   <th className="text-left px-6 py-4 text-base font-medium text-black">{t('accountStatus')}</th>
                    <th className="text-left px-6 py-4 text-base font-medium text-black">{t('kyc')}</th>
                    <th className="text-right px-6 py-4 text-base font-medium text-black">{t('actions')}</th>
                 </tr>
@@ -135,13 +160,20 @@ export default function AdminUsersPage() {
                          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-black pointer-events-none" />
                       </div>
                     </td>
+                    <td className="px-6 py-4 text-sm text-black">
+                      {u.accountStatus === 'PENDING_VERIFICATION'
+                        ? t('pendingApproval')
+                        : u.accountStatus === 'REJECTED'
+                          ? t('registrationRejected')
+                          : u.accountStatus}
+                    </td>
                     <td className="px-6 py-4">
                       <span
                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium ${
                           u.kycStatus === 'VERIFIE' || u.kycStatus === 'APPROVED'
-                            ? 'bg-emerald-500/10 text-black border border-emerald-500/30'
+                            ? 'bg-blue-500/10 text-black border border-blue-500/30'
                             : u.kycStatus === 'EN_COURS'
-                              ? 'bg-amber-500/10 text-black border border-amber-500/30'
+                              ? 'bg-blue-500/10 text-black border border-blue-500/30'
                                : 'bg-gray-200 text-black border border-gray-200'
                         }`}
                       >
@@ -150,6 +182,28 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                          {u.accountStatus === 'PENDING_VERIFICATION' && (
+                            <>
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => handleApproveRegistration(u.id)}
+                                disabled={updatingId === u.id}
+                                className="text-sm rounded-xl"
+                              >
+                                {t('approve')}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRejectRegistration(u.id)}
+                                disabled={updatingId === u.id}
+                                className="text-sm rounded-xl border-red-300 text-red-700"
+                              >
+                                {t('reject')}
+                              </Button>
+                            </>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -175,7 +229,7 @@ export default function AdminUsersPage() {
                 ))}
                 {users.length === 0 && (
                   <tr>
-                     <td colSpan={5} className="px-6 py-12 text-center text-black">
+                     <td colSpan={6} className="px-6 py-12 text-center text-black">
                       <UsersIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p className="text-base">{t('userNotFound')}</p>
                     </td>

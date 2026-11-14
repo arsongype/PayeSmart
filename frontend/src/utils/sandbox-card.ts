@@ -1,9 +1,9 @@
 export function isSandboxCardExpiryValid(expiry: string, currentDate = new Date()): boolean {
-  if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(expiry)) return false
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(expiry)
+  if (!match) return false
 
-  const [monthText, yearText] = expiry.split('/')
-  const year = 2000 + Number(yearText)
-  const month = Number(monthText)
+  const year = Number(match[1])
+  const month = Number(match[2])
   const currentYear = currentDate.getFullYear()
   const currentMonth = currentDate.getMonth() + 1
   return year > currentYear || (year === currentYear && month >= currentMonth)

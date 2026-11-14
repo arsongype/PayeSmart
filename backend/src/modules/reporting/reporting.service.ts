@@ -1,9 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
 import { InjectRepository } from '@nestjs/typeorm'
-import axios from 'axios'
-import { In, Repository } from 'typeorm'
+import { In, IsNull, Not, Repository } from 'typeorm'
 import { Transaction } from '../auth/entities/transaction.entity.js'
+import { FraudAlert } from '../auth/entities/fraud-alert.entity.js'
 import { User } from '../auth/entities/user.entity.js'
 import { Wallet } from '../auth/entities/wallet.entity.js'
 
@@ -16,6 +15,7 @@ type ReportRow = {
   channel: string
   status: string
   riskScore: number
+  hasRiskScore: boolean
   metadata: Record<string, unknown> | null
   failureReason: string | null
   createdAt: Date
@@ -32,13 +32,24 @@ type DashboardTransactionDetail = {
   createdAt: Date
 }
 
+type AiMetrics = {
+  precision: number | null
+  recall: number | null
+  f1Score: number | null
+  analyzedTransactions: number
+  evaluationSamples: number
+  metricSource: 'reviewed_transactions' | 'transaction_status_proxy' | 'unconfigured'
+}
+
+const FRAUD_SCORE_THRESHOLD = 40
+
 @Injectable()
 export class ReportingService {
   constructor(
     @InjectRepository(Transaction) private readonly transactionRepository: Repository<Transaction>,
     @InjectRepository(User) private readonly userRepository: Repository<User>,
     @InjectRepository(Wallet) private readonly walletRepository: Repository<Wallet>,
-    private readonly configService: ConfigService,
+    @InjectRepository(FraudAlert) private readonly fraudAlertRepository: Repository<FraudAlert>,
   ) {}
 
   async getDashboard(userId: number, role: string) {
@@ -46,7 +57,7 @@ export class ReportingService {
     const successful = transactions.filter((transaction) => transaction.status === 'COMPLETED')
     const totalVolume = successful.reduce((sum, transaction) => sum + Number(transaction.amount), 0)
     const fraudCount = transactions.filter((transaction) => transaction.riskScore >= 40 || transaction.status === 'FAILED').length
-    const aiMetrics = await this.getAiMetrics(transactions)
+    const aiMetrics = await this.getAiMetrics(userId, role, transactions)
     const channels = this.aggregateChannels(successful)
     const transactionFees = this.aggregateTransactionFees(successful)
     const transactionsToReview = transactions.filter((transaction) => transaction.status === 'PENDING' || transaction.status === 'PROCESSING')
@@ -91,6 +102,7 @@ export class ReportingService {
         transactionsToReview: transactionsToReview.length,
         aiAlerts: aiAlertTransactions.length,
         transactionFees,
+        transactionRates: this.aggregateTransactionRates(transactions),
         pendingTransactions,
         aiAlertDetails,
       } : null,
@@ -125,6 +137,7 @@ export class ReportingService {
         'transaction.currency',
         'transaction.channel',
         'transaction.status',
+        'transaction.riskScore',
         'transaction.metadata',
         'transaction.failureReason',
         'transaction.createdAt',
@@ -138,8 +151,16 @@ export class ReportingService {
     const transactions = await query.getMany()
     return transactions.map((transaction) => {
       const metadata = (transaction.metadata ?? {}) as Record<string, unknown>
-      const riskScore = Number(metadata.riskScore ?? metadata.risk_score ?? 0)
-      return { ...transaction, amount: Number(transaction.amount), riskScore: Number.isFinite(riskScore) ? riskScore : 0 }
+      const rawRiskScore = metadata.riskScore ?? metadata.risk_score ?? transaction.riskScore
+      const riskScore = Number(rawRiskScore)
+      const hasRiskScore = rawRiskScore !== null && rawRiskScore !== undefined
+        && rawRiskScore !== '' && Number.isFinite(riskScore)
+      return {
+        ...transaction,
+        amount: Number(transaction.amount),
+        riskScore: hasRiskScore ? riskScore : 0,
+        hasRiskScore,
+      }
     })
   }
 
@@ -164,6 +185,19 @@ export class ReportingService {
     return [...grouped.entries()].map(([channel, data]) => ({ channel, amount: Number(data.amount.toFixed(2)), transactions: data.transactions }))
   }
 
+  private aggregateTransactionRates(transactions: ReportRow[]) {
+    const grouped = new Map<string, number>()
+    for (const transaction of transactions) {
+      grouped.set(transaction.channel, (grouped.get(transaction.channel) ?? 0) + 1)
+    }
+
+    return [...grouped.entries()].map(([channel, transactionCount]) => ({
+      channel,
+      transactions: transactionCount,
+      rate: transactions.length ? Number(((transactionCount / transactions.length) * 100).toFixed(2)) : 0,
+    }))
+  }
+
   private aggregateTransactionFees(transactions: ReportRow[]) {
     const grouped = new Map<string, number>()
     for (const transaction of transactions) {
@@ -178,36 +212,78 @@ export class ReportingService {
       .sort((left, right) => left.currency.localeCompare(right.currency))
   }
 
-  private async getAiMetrics(transactions: ReportRow[]) {
-    try {
-      const url = this.configService.get<string>('aiService.url', 'http://localhost:8120')
-      const apiKey = this.configService.getOrThrow<string>('aiService.apiKey')
-      const { data } = await axios.get<{ precision: number | null; recall: number | null; f1Score: number | null; analyzedTransactions: number }>(`${url}/api/v1/metrics`, {
-        headers: { 'X-API-Key': apiKey },
-        timeout: 3000,
-      })
-      if (data.precision !== null && data.recall !== null && data.f1Score !== null) return data
-      return this.calculateOperationalAiMetrics(transactions)
-    } catch {
-      return this.calculateOperationalAiMetrics(transactions)
+  private async getAiMetrics(userId: number, role: string, transactions: ReportRow[]): Promise<AiMetrics> {
+    const ownWalletIds = role === 'ADMIN'
+      ? null
+      : new Set((await this.walletRepository.find({ where: { userId } })).map((wallet) => wallet.id))
+    const analyzedTransactions = transactions.filter((transaction) => transaction.hasRiskScore
+      && (ownWalletIds === null || ownWalletIds.has(transaction.senderWalletId)))
+    const emptyMetrics: AiMetrics = {
+      precision: null,
+      recall: null,
+      f1Score: null,
+      analyzedTransactions: analyzedTransactions.length,
+      evaluationSamples: 0,
+      metricSource: 'unconfigured',
     }
-  }
+    if (analyzedTransactions.length === 0) return emptyMetrics
 
-  private calculateOperationalAiMetrics(transactions: ReportRow[]) {
-    const predictedFraud = transactions.filter((transaction) => transaction.riskScore >= 40)
-    const observedFraud = transactions.filter((transaction) => transaction.status === 'FAILED')
-    const truePositive = predictedFraud.filter((transaction) => transaction.status === 'FAILED').length
-    const falsePositive = predictedFraud.length - truePositive
-    const falseNegative = observedFraud.length - truePositive
-    const precision = truePositive + falsePositive > 0 ? truePositive / (truePositive + falsePositive) : 0
-    const recall = truePositive + falseNegative > 0 ? truePositive / (truePositive + falseNegative) : 0
-    const f1Score = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0
+    const transactionById = new Map(analyzedTransactions.map((transaction) => [transaction.id, transaction]))
+    const reviews = await this.fraudAlertRepository.find({
+      where: ownWalletIds === null
+        ? { fraudOutcome: Not(IsNull()) }
+        : { userId, fraudOutcome: Not(IsNull()) },
+    })
+    let truePositives = 0
+    let falsePositives = 0
+    let falseNegatives = 0
+    let evaluationSamples = 0
+    const reviewedTransactionIds = new Set<number>()
 
+    for (const review of reviews) {
+      if (!review.fraudOutcome) continue
+      const transaction = transactionById.get(review.transactionId)
+      if (!transaction) continue
+      reviewedTransactionIds.add(transaction.id)
+      evaluationSamples += 1
+      const predictedFraud = transaction.riskScore >= FRAUD_SCORE_THRESHOLD
+      const confirmedFraud = review.fraudOutcome === 'CONFIRMED_FRAUD'
+      if (predictedFraud && confirmedFraud) truePositives += 1
+      else if (predictedFraud) falsePositives += 1
+      else if (confirmedFraud) falseNegatives += 1
+    }
+
+    let proxySamples = 0
+    for (const transaction of analyzedTransactions) {
+      if (reviewedTransactionIds.has(transaction.id)) continue
+      if (transaction.status !== 'COMPLETED' && transaction.status !== 'FAILED') continue
+      proxySamples += 1
+      evaluationSamples += 1
+      const predictedFraud = transaction.riskScore >= FRAUD_SCORE_THRESHOLD
+      const isFraudProxy = transaction.status === 'FAILED'
+      if (predictedFraud && isFraudProxy) truePositives += 1
+      else if (predictedFraud) falsePositives += 1
+      else if (isFraudProxy) falseNegatives += 1
+    }
+
+    const precisionDenominator = truePositives + falsePositives
+    const recallDenominator = truePositives + falseNegatives
+    const precision = precisionDenominator ? truePositives / precisionDenominator : null
+    const recall = recallDenominator ? truePositives / recallDenominator : null
+    const f1Score = precision === null || recall === null
+      ? null
+      : precision + recall ? 2 * precision * recall / (precision + recall) : 0
     return {
-      precision: Number(precision.toFixed(4)),
-      recall: Number(recall.toFixed(4)),
-      f1Score: Number(f1Score.toFixed(4)),
-      analyzedTransactions: transactions.length,
+      precision: precision === null ? null : Number(precision.toFixed(4)),
+      recall: recall === null ? null : Number(recall.toFixed(4)),
+      f1Score: f1Score === null ? null : Number(f1Score.toFixed(4)),
+      analyzedTransactions: analyzedTransactions.length,
+      evaluationSamples,
+      metricSource: proxySamples > 0
+        ? 'transaction_status_proxy'
+        : evaluationSamples > 0
+          ? 'reviewed_transactions'
+          : 'unconfigured',
     }
   }
 

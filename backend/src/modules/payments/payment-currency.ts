@@ -13,3 +13,7 @@ export function convertPaymentCurrency(amount: number, fromCurrency: string, toC
   if (!fromRate || !toRate) throw new Error('Devise non prise en charge par le sandbox')
   return Math.round((amount * fromRate / toRate) * 100) / 100
 }
+
+export function normalizeFraudRiskAmount(amount: number, currency: string): number {
+  return convertPaymentCurrency(amount, currency, 'EUR')
+}

@@ -13,6 +13,12 @@ class FraudDetectionServiceTests(unittest.TestCase):
         self.assertEqual(result.risk_level, "LOW")
         self.assertLess(result.risk_score, 40.0)
 
+    def test_typical_madagascar_wallet_debit_normalized_to_eur_is_not_high_risk(self) -> None:
+        # 50,500 MGA (including the demo fee) is EUR 10.10 at the sandbox rate.
+        result = self.service.predict(1, 10.10, "QR", transaction_count_24h=1, hour=12)
+        self.assertEqual(result.decision, "APPROVE")
+        self.assertLess(result.risk_score, 30.0)
+
     def test_unusual_transaction_requires_two_factor(self) -> None:
         result = self.service.predict(1, 1500, "CARD", transaction_count_24h=4, hour=12)
         self.assertEqual(result.decision, "REQUIRE_2FA")

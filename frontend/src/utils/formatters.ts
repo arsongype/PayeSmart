@@ -92,13 +92,13 @@ export const formatRelativeTime = (dateString: string): string => {
 
 export const getStatusColor = (status: string): string => {
   const colors: Record<string, string> = {
-    pending: 'bg-yellow-100 text-yellow-800',
+    pending: 'bg-blue-100 text-blue-800',
     completed: 'bg-green-100 text-green-800',
     failed: 'bg-red-100 text-red-800',
     breaching_sla: 'bg-red-100 text-red-800',
-    review: 'bg-orange-100 text-orange-800',
+    review: 'bg-blue-100 text-blue-800',
     waiting: 'bg-gray-100 text-gray-800',
-    needs_review: 'bg-orange-100 text-orange-800',
+    needs_review: 'bg-blue-100 text-blue-800',
     unassigned: 'bg-gray-100 text-gray-800',
     assigned: 'bg-blue-100 text-blue-800',
   }
@@ -107,10 +107,10 @@ export const getStatusColor = (status: string): string => {
 
 export const getRiskColor = (level: string): string => {
   const colors: Record<string, string> = {
-    low: 'text-green-600 bg-green-50',
-    medium: 'text-yellow-600 bg-yellow-50',
-    high: 'text-orange-600 bg-orange-50',
-    critical: 'text-red-600 bg-red-50',
+    low: 'text-green-700 bg-green-50',
+    medium: 'text-blue-600 bg-blue-50',
+    high: 'text-blue-700 bg-blue-50',
+    critical: 'text-red-700 bg-red-50',
   }
   return colors[level] || 'text-gray-600 bg-gray-50'
 }

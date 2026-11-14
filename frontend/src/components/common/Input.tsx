@@ -23,7 +23,7 @@ export function Input({
       {label && (
         <label className="ml-1 block text-xs font-medium text-black">
           {label}
-          {required && <span className="ml-1 text-red-500" aria-hidden="true">*</span>}
+          {required && <span className="ml-1 text-blue-500" aria-hidden="true">*</span>}
         </label>
       )}
       <div className="relative">
@@ -40,7 +40,7 @@ export function Input({
             hover:border-gray-300
             ${leftIcon ? 'pl-10' : ''}
             ${rightIcon ? 'pr-10' : ''}
-            ${error ? 'border-rose-500/50 focus:ring-rose-500/50 focus:border-rose-500' : 'border-gray-300/50'}
+            ${error ? 'border-red-500/50 focus:ring-red-500/50 focus:border-red-500' : 'border-gray-300/50'}
             ${className}
           `}
           {...props}
@@ -52,7 +52,7 @@ export function Input({
         )}
       </div>
       {error && (
-        <p className="text-xs text-black ml-1 animate-fade-in">{error}</p>
+        <p role="alert" className="ml-1 animate-fade-in text-xs text-red-700">{error}</p>
       )}
       {helperText && !error && (
          <p className="text-xs text-black ml-1">{helperText}</p>
@@ -60,6 +60,5 @@ export function Input({
     </div>
   )
 }
-
 
 

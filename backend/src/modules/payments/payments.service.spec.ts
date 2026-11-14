@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { evaluateRiskDecision, isMonitoredCountry, PAYMENT_TWO_FACTOR_TTL_MS } from './payments.service.js'
+import { evaluateRiskDecision, PAYMENT_TWO_FACTOR_TTL_MS } from './payments.service.js'
 import { getCurrencyForCountry } from '../auth/services/wallet-defaults.js'
 
 describe('payments fraud risk evaluation', () => {
@@ -31,13 +31,6 @@ describe('payments fraud risk evaluation', () => {
 
   it('expires payment confirmation codes after thirty minutes', () => {
     expect(PAYMENT_TWO_FACTOR_TTL_MS).toBe(1_800_000)
-  })
-
-  it('matches ISO country codes against profile codes and localized country names', () => {
-    expect(isMonitoredCountry('MG', ['MG'])).toBe(true)
-    expect(isMonitoredCountry('Madagascar', ['MG'])).toBe(true)
-    expect(isMonitoredCountry('États-Unis', ['US'])).toBe(true)
-    expect(isMonitoredCountry('France', ['US'])).toBe(false)
   })
 
   it('keeps wallet currency selection correct when profiles use ISO-2 codes', () => {

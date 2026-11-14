@@ -36,7 +36,7 @@ export function PasswordInput({
       {label && (
         <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium text-black">
           {label}
-          {required && <span className="ml-1 text-red-500" aria-hidden="true">*</span>}
+          {required && <span className="ml-1 text-blue-500" aria-hidden="true">*</span>}
         </label>
       )}
       <div className="relative">
@@ -72,11 +72,10 @@ export function PasswordInput({
           {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
         </button>
       </div>
-      {error && <p className="mt-1.5 text-sm text-black">{error}</p>}
+      {error && <p role="alert" className="mt-1.5 text-sm text-red-700">{error}</p>}
       {hint && !error && <p className="mt-1.5 text-sm text-black">{hint}</p>}
     </div>
   )
 }
-
 
 

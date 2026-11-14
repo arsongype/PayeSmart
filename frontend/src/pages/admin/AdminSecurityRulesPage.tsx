@@ -6,10 +6,13 @@ import { FullPageLoader } from '../../components/common/Loader'
 
 interface SecurityRule {
   id: number
+  ruleName: string
   ruleType: string
   conditions: Record<string, unknown>
   actions: Record<string, unknown>
   isActive: boolean
+  priority: number
+  description: string | null
 }
 
 interface AuditLog {
@@ -70,7 +73,6 @@ interface SecuritySettings {
   twoFactorEnabled: boolean
   lowRiskThreshold: number
   mediumRiskThreshold: number
-  monitoredCountryCodes: string
 }
 
 const defaults: SecuritySettings = {
@@ -83,7 +85,6 @@ const defaults: SecuritySettings = {
   twoFactorEnabled: true,
   lowRiskThreshold: 0.3,
   mediumRiskThreshold: 0.7,
-  monitoredCountryCodes: '',
 }
 
 function numberValue(value: unknown, fallback: number) {
@@ -106,11 +107,6 @@ function getSettings(rules: SecurityRule[]) {
   settings.twoFactorEnabled = typeof transaction?.actions.twoFactorEnabled === 'boolean' ? transaction.actions.twoFactorEnabled : defaults.twoFactorEnabled
   settings.lowRiskThreshold = numberValue(fraudConditions.lowRiskThreshold, defaults.lowRiskThreshold)
   settings.mediumRiskThreshold = numberValue(fraudConditions.mediumRiskThreshold, defaults.mediumRiskThreshold)
-  settings.monitoredCountryCodes = Array.isArray(fraudConditions.monitoredCountryCodes)
-    ? fraudConditions.monitoredCountryCodes.filter((country): country is string => typeof country === 'string').join(', ')
-    : typeof fraudConditions.monitoredCountryCodes === 'string'
-      ? fraudConditions.monitoredCountryCodes
-      : defaults.monitoredCountryCodes
   return settings
 }
 
@@ -137,14 +133,6 @@ function validateSettings(settings: SecuritySettings) {
     || settings.lowRiskThreshold >= settings.mediumRiskThreshold
   ) {
     return 'Les seuils de risque doivent respecter 0 ≤ faible < moyen ≤ 1.'
-  }
-  const countryCodes = settings.monitoredCountryCodes.split(',').map((country) => country.trim())
-  if (
-    (settings.monitoredCountryCodes.trim() && countryCodes.some((country) => !country))
-    || countryCodes.some((country) => country && !/^[A-Za-z]{2}$/.test(country))
-    || new Set(countryCodes.map((country) => country.toUpperCase()).filter(Boolean)).size !== countryCodes.filter(Boolean).length
-  ) {
-    return 'Saisissez des codes pays ISO-2 distincts, séparés par des virgules (ex. MG, FR, US).'
   }
   return null
 }
@@ -260,14 +248,14 @@ export default function AdminSecurityRulesPage() {
         ruleName: 'Seuils du modèle IA',
         ruleType: 'AI_THRESHOLDS',
         conditions: {
-          ...fraud?.conditions,
+          ...Object.fromEntries(Object.entries(fraud?.conditions ?? {}).filter(([key]) => key !== 'monitoredCountryCodes')),
           lowRiskThreshold: settings.lowRiskThreshold,
           mediumRiskThreshold: settings.mediumRiskThreshold,
-          monitoredCountryCodes: settings.monitoredCountryCodes.split(',').map((country) => country.trim().toUpperCase()).filter(Boolean),
         },
         actions: { ...fraud?.actions, mediumRiskAction: 'OTP', highRiskAction: 'BLOCK' },
         isActive: true,
         priority: 90,
+        description: 'Les seuils du modèle IA sont appliqués à tous les utilisateurs.',
       }
       if (transaction) await adminService.updateSecurityRule(transaction.id, transactionPayload)
       else if (!hasTransactionRule) await adminService.createSecurityRule(transactionPayload)
@@ -287,7 +275,7 @@ export default function AdminSecurityRulesPage() {
   const field = (label: string, key: keyof SecuritySettings, suffix: string) => (
     <label className="block space-y-2 text-sm font-medium text-slate-700">
       <span>{label}</span>
-      <span className="flex items-center rounded-xl border border-slate-200 bg-slate-50 transition focus-within:border-teal-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-teal-500/10">
+      <span className="flex items-center rounded-xl border border-slate-200 bg-slate-50 transition focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/10">
         <input
           type="number"
           min="1"
@@ -304,27 +292,29 @@ export default function AdminSecurityRulesPage() {
   const activeRuleCount = rules.filter((rule) => rule.isActive).length
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-teal-50/40 p-4 text-slate-900 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/40 p-4 text-slate-900 lg:p-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        <header className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-emerald-50/70 p-6 text-slate-900 shadow-xl shadow-slate-900/5 sm:p-8">
-          <div className="absolute -right-12 -top-20 h-64 w-64 rounded-full bg-emerald-300/20 blur-3xl" />
+        <header className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-blue-50/70 p-6 text-slate-900 shadow-xl shadow-slate-900/5 sm:p-8">
+          <div className="absolute -right-12 -top-20 h-64 w-64 rounded-full bg-blue-300/20 blur-3xl" />
           <div className="relative flex flex-wrap items-center justify-between gap-5">
             <div className="flex items-center gap-4">
-              <div className="rounded-2xl border border-emerald-100 bg-white p-3 text-emerald-700 shadow-sm"><ShieldCheck className="h-7 w-7" /></div>
+              <div className="rounded-2xl border border-blue-100 bg-white p-3 text-blue-700 shadow-sm"><ShieldCheck className="h-7 w-7" /></div>
               <div>
                 <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t('securityRules')}</h1>
                 <p className="mt-1 max-w-xl text-sm text-slate-600">{t('securityRulesDescription')}</p>
               </div>
             </div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-4 py-2 text-sm font-semibold text-emerald-800">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]" />
-              {activeRuleCount} règle{activeRuleCount === 1 ? '' : 's'} active{activeRuleCount === 1 ? '' : 's'}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/80 px-4 py-2 text-sm font-semibold text-blue-800">
+                <span className="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]" />
+                {activeRuleCount} règle{activeRuleCount === 1 ? '' : 's'} active{activeRuleCount === 1 ? '' : 's'}
+              </div>
             </div>
           </div>
         </header>
 
-        {error && <div role="alert" className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0" />{error}</div>}
-        {saved && <div role="status" className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800"><BadgeCheck className="h-5 w-5 shrink-0" />Modifications enregistrées.</div>}
+        {error && <div role="alert" className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0" />{error}</div>}
+        {saved && <div role="status" className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm font-medium text-blue-800"><BadgeCheck className="h-5 w-5 shrink-0" />Modifications enregistrées.</div>}
 
         <div className="grid gap-5 lg:grid-cols-2">
           <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm shadow-slate-900/5">
@@ -347,26 +337,26 @@ export default function AdminSecurityRulesPage() {
                   <p className="text-sm font-semibold text-slate-800">Authentification à deux facteurs</p>
                   <p className="mt-0.5 text-xs text-slate-500">{settings.twoFactorEnabled ? 'Demandée pour les opérations concernées' : 'Désactivée par la règle de transaction'}</p>
                 </div>
-                <button type="button" role="switch" aria-label="Authentification à deux facteurs" aria-checked={settings.twoFactorEnabled} onClick={() => update('twoFactorEnabled', !settings.twoFactorEnabled)} className={`relative h-7 w-12 shrink-0 rounded-full transition focus:outline-none focus:ring-4 focus:ring-teal-500/20 ${settings.twoFactorEnabled ? 'bg-emerald-600' : 'bg-slate-300'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${settings.twoFactorEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+                <button type="button" role="switch" aria-label="Authentification à deux facteurs" aria-checked={settings.twoFactorEnabled} onClick={() => update('twoFactorEnabled', !settings.twoFactorEnabled)} className={`relative h-7 w-12 shrink-0 rounded-full transition focus:outline-none focus:ring-4 focus:ring-blue-500/20 ${settings.twoFactorEnabled ? 'bg-blue-600' : 'bg-slate-300'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${settings.twoFactorEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button>
               </div>
             </div>
           </section>
 
           <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm shadow-slate-900/5">
             <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
-              <div className="rounded-xl bg-violet-50 p-2.5 text-violet-700"><BrainCircuit className="h-5 w-5" /></div>
+              <div className="rounded-xl bg-blue-50 p-2.5 text-blue-700"><BrainCircuit className="h-5 w-5" /></div>
               <div>
                 <h2 className="font-bold text-slate-900">Seuils du modèle IA</h2>
-                <p className="text-xs text-slate-500">Ajustez la réponse selon le score de risque</p>
+                <p className="text-xs text-slate-500">Ajustez la réponse selon le score de risque, pour tous les utilisateurs</p>
               </div>
             </div>
             <div className="space-y-5 p-5 sm:p-6">
               <div className="grid grid-cols-3 gap-2 text-center text-xs font-semibold">
-                <div className="rounded-xl bg-emerald-50 px-2 py-3 text-emerald-800">Faible · auto</div>
-                <div className="rounded-xl bg-amber-50 px-2 py-3 text-amber-800">Moyen · OTP</div>
-                <div className="rounded-xl bg-rose-50 px-2 py-3 text-rose-800">Élevé · blocage</div>
+                <div className="rounded-xl bg-blue-50 px-2 py-3 text-blue-800">Faible · auto</div>
+                <div className="rounded-xl bg-blue-50 px-2 py-3 text-blue-800">Moyen · OTP</div>
+                <div className="rounded-xl bg-blue-50 px-2 py-3 text-blue-800">Élevé · blocage</div>
               </div>
-              <div className="relative h-2 overflow-hidden rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500">
+              <div className="relative h-2 overflow-hidden rounded-full bg-gradient-to-r from-blue-400 via-blue-400 to-blue-500">
                 <span className="absolute -top-1 h-4 w-1 rounded bg-slate-900 shadow" style={{ left: `${settings.lowRiskThreshold * 100}%` }} />
                 <span className="absolute -top-1 h-4 w-1 rounded bg-slate-900 shadow" style={{ left: `${settings.mediumRiskThreshold * 100}%` }} />
               </div>
@@ -374,28 +364,24 @@ export default function AdminSecurityRulesPage() {
                 <label className="flex items-center justify-between gap-4 text-sm font-medium text-slate-700">
                   Seuil de risque faible
                   <span className="flex items-center gap-2 text-slate-500">&lt;
-                    <input className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right font-semibold text-slate-900 outline-none focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10" min="0" max="1" step="0.01" type="number" value={settings.lowRiskThreshold} onChange={(event) => update('lowRiskThreshold', Number(event.target.value))} />
+                    <input className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" min="0" max="1" step="0.01" type="number" value={settings.lowRiskThreshold} onChange={(event) => update('lowRiskThreshold', Number(event.target.value))} />
                   </span>
                 </label>
                 <label className="flex items-center justify-between gap-4 text-sm font-medium text-slate-700">
                   Seuil de risque moyen
                   <span className="flex items-center gap-2 text-slate-500">{settings.lowRiskThreshold.toFixed(2)} –
-                    <input className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right font-semibold text-slate-900 outline-none focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10" min="0" max="1" step="0.01" type="number" value={settings.mediumRiskThreshold} onChange={(event) => update('mediumRiskThreshold', Number(event.target.value))} />
+                    <input className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" min="0" max="1" step="0.01" type="number" value={settings.mediumRiskThreshold} onChange={(event) => update('mediumRiskThreshold', Number(event.target.value))} />
                   </span>
                 </label>
-                <label className="block space-y-2 text-sm font-medium text-slate-700">
-                  Codes pays surveillés <span className="font-normal text-slate-500">(ISO-2, séparés par des virgules)</span>
-                  <input className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 font-medium uppercase text-slate-900 outline-none focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10" type="text" value={settings.monitoredCountryCodes} onChange={(event) => update('monitoredCountryCodes', event.target.value)} placeholder="MG, FR, US" autoCapitalize="characters" />
-                </label>
               </div>
-              {validationError && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{validationError}</p>}
+              {validationError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{validationError}</p>}
             </div>
           </section>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-sm text-slate-500">Les règles sont appliquées aux opérations dès leur enregistrement.</p>
-          <button type="button" disabled={saving || !rulesLoaded || Boolean(validationError)} onClick={() => void save()} className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 font-semibold text-white shadow-lg shadow-teal-700/15 transition hover:bg-teal-800 focus:outline-none focus:ring-4 focus:ring-teal-700/20 disabled:cursor-not-allowed disabled:opacity-50"><Save className="h-4 w-4" />{saving ? 'Enregistrement...' : 'Enregistrer les modifications'}</button>
+          <button type="button" disabled={saving || !rulesLoaded || Boolean(validationError)} onClick={() => void save()} className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-5 py-2.5 font-semibold text-white shadow-lg shadow-blue-700/15 transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-700/20 disabled:cursor-not-allowed disabled:opacity-50"><Save className="h-4 w-4" />{saving ? 'Enregistrement...' : 'Enregistrer les modifications'}</button>
         </div>
 
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm shadow-slate-900/5">

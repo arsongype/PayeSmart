@@ -11,6 +11,7 @@ import { Button } from '../../components/common/Button'
 import type { Profile, Wallet as WalletType, KycDocument, KybDocument, User } from '../../models/User.model'
 import { useTranslation } from '../../utils/i18n'
 import { formatAccountNumber } from '../../utils/formatters'
+import { CopyableValue } from '../../components/common/CopyableValue'
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuth()
@@ -199,7 +200,7 @@ export default function ProfilePage() {
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-black">{t('profilePhoto')}</p>
                 <p className="mt-1 text-xs text-black">{t('profilePhotoHint')}</p>
-                {avatarError && <p className="mt-2 text-xs text-red-600">{avatarError}</p>}
+                {avatarError && <p role="alert" className="mt-2 text-xs text-red-700">{avatarError}</p>}
               </div>
               <label className="flex shrink-0 cursor-pointer items-center gap-2 rounded-2xl bg-primary-600 px-4 py-2.5 text-sm font-medium text-black hover:bg-primary-500">
                 <Camera size={16} />
@@ -257,8 +258,8 @@ export default function ProfilePage() {
                 </p>
               )}
               <div className="mt-6 flex items-center justify-between gap-3">
-                {personalInfoError && <span className="text-sm text-red-600">{personalInfoError}</span>}
-                {personalInfoSaved && !personalInfoError && <span className="text-sm text-black">{t('personalInfoSaved')}</span>}
+                {personalInfoError && <span role="alert" className="text-sm text-red-700">{personalInfoError}</span>}
+                {personalInfoSaved && !personalInfoError && <span role="status" className="text-sm text-blue-700">{t('personalInfoSaved')}</span>}
                 <button
                   type="button"
                   onClick={() => void savePersonalInfo()}
@@ -298,8 +299,8 @@ export default function ProfilePage() {
                 ))}
               </div>
               <div className="mt-6 flex items-center justify-between gap-3">
-                {addressError && <span role="alert" className="text-sm text-red-600">{addressError}</span>}
-                {saved && <span className="text-sm text-black">{t('addressSaved')}</span>}
+                {addressError && <span role="alert" className="text-sm text-red-700">{addressError}</span>}
+                {saved && <span role="status" className="text-sm text-blue-700">{t('addressSaved')}</span>}
                 <button type="button" onClick={() => void saveAddress()} disabled={saving} className="ml-auto flex items-center gap-2 rounded-2xl bg-primary-600 px-5 py-2.5 text-sm font-medium text-black hover:bg-primary-500 disabled:opacity-50">
                   <Save size={16} /> {saving ? t('saving') : t('saveAddress')}
                 </button>
@@ -344,7 +345,12 @@ export default function ProfilePage() {
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-gray-200 bg-white p-4">
                      <p className="text-sm text-black">{t('number')}</p>
-                    <p className="text-base font-medium text-black font-mono">{formatAccountNumber(wallet.walletNumber)}</p>
+                    <CopyableValue
+                      value={wallet.walletNumber}
+                      displayValue={formatAccountNumber(wallet.walletNumber)}
+                      label={t('walletNumber')}
+                      className="text-base font-medium text-black font-mono"
+                    />
                   </div>
                   <div className="rounded-2xl border border-gray-200 bg-white p-4">
                      <p className="text-sm text-black">{t('balance')}</p>
@@ -352,7 +358,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-4">
                      <span className="text-sm text-black">{t('status')}</span>
-                    <span className="text-sm px-3 py-1.5 rounded-full bg-emerald-500/10 text-black border border-emerald-500/30 font-medium">
+                    <span className="text-sm px-3 py-1.5 rounded-full bg-blue-500/10 text-black border border-blue-500/30 font-medium">
                       {wallet.status}
                     </span>
                   </div>
@@ -372,7 +378,7 @@ export default function ProfilePage() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-4">
                   <span className="text-sm text-black">{t('kyc')}</span>
-                  <span className="text-sm px-3 py-1.5 rounded-full bg-amber-500/10 text-black border border-amber-500/30 font-medium">
+                  <span className="text-sm px-3 py-1.5 rounded-full bg-blue-500/10 text-black border border-blue-500/30 font-medium">
                     {user?.kycStatus || 'NON_VERIFIE'}
                   </span>
                 </div>
@@ -384,7 +390,7 @@ export default function ProfilePage() {
                   <>
                     <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-4">
                       <span className="text-sm text-black">{t('kyb')}</span>
-                      <span className="text-sm px-3 py-1.5 rounded-full bg-amber-500/10 text-black border border-amber-500/30 font-medium">
+                      <span className="text-sm px-3 py-1.5 rounded-full bg-blue-500/10 text-black border border-blue-500/30 font-medium">
                         {user?.kybStatus || 'NON_VERIFIE'}
                       </span>
                     </div>

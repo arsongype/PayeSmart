@@ -9,6 +9,7 @@ import {
   AdminFraudPage,
   AdminSecurityRulesPage,
   AdminTransactionsPage,
+  AdminWithdrawalsPage,
   AdminUserDetailPage,
   AdminUsersPage,
   ConfirmQrPage,
@@ -28,7 +29,7 @@ import {
 } from './lazy-pages'
 
 const loader = (
-  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50">
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-50">
     <FullPageLoader />
   </div>
 )
@@ -134,6 +135,16 @@ export const router = createBrowserRouter([
       <AdminRoute>
         <Suspense fallback={loader}>
           <AdminTransactionsPage />
+        </Suspense>
+      </AdminRoute>
+    ),
+  },
+  {
+    path: '/admin/withdrawals',
+    element: (
+      <AdminRoute>
+        <Suspense fallback={loader}>
+          <AdminWithdrawalsPage />
         </Suspense>
       </AdminRoute>
     ),

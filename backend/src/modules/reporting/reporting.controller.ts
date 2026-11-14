@@ -1,6 +1,9 @@
 import { Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import type { Request, Response } from 'express'
+import { RolesGuard } from '../../common/guards/roles.guard.js'
+import { Roles } from '../auth/controllers/auth.controller.js'
+import { Role } from '../auth/enums/role.enum.js'
 import { ReportingService } from './reporting.service.js'
 
 interface RequestWithUser extends Request {
@@ -18,6 +21,8 @@ export class ReportingController {
   }
 
   @Get('export')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
   async exportReport(
     @Query('format') format = 'pdf',
     @Req() request: RequestWithUser,

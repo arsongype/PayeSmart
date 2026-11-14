@@ -31,9 +31,17 @@ Les routes, sauf `/health`, nécessitent l’en-tête `X-API-Key` :
 | `GET /api/v1/trust-score/{user_id}` | Renvoie un score de confiance de démonstration. |
 | `POST /api/v1/trust-score/recalculate/{user_id}` | Recalcule ce score de démonstration. |
 | `POST /api/v1/fraud-detection/predict` | Renvoie un score de risque, une décision et les raisons associées. |
-| `GET /api/v1/metrics` | Renvoie les compteurs d’analyse et, si configurées, des métriques du modèle. |
+| `GET /api/v1/metrics` | Renvoie les compteurs et les métriques calculées sur un jeu d’évaluation labellisé. |
 
 Le backend contacte ces routes automatiquement lorsque l’utilisateur demande une vérification depuis l’application.
+
+## Configuration des métriques
+
+Aucun jeu de données synthétique n’est chargé automatiquement. Sans `AI_EVALUATION_DATASET`, `/api/v1/metrics` renvoie des métriques nulles avec `metricSource: "unconfigured"`.
+
+Le tableau de bord calcule les métriques par payeur et l’administrateur voit l’agrégat global. Un verdict de revue enregistré par un administrateur est prioritaire. Pour les transactions sans verdict, le mode proxy choisi par l’application traite `COMPLETED` comme non-fraude et `FAILED` comme fraude; cette approximation peut compter à tort un refus bancaire ou un incident technique comme fraude. La source de métriques est affichée dans le tableau de bord. Le seuil de prédiction fraude est 40/100. Les transactions non signalées peuvent être incluses dans l’écran « Alertes fraude » afin que les faux négatifs puissent aussi être identifiés.
+
+Pour évaluer séparément le modèle sur un jeu labellisé, définissez `AI_EVALUATION_DATASET` dans `ai-service/.env`. Les chemins relatifs sont résolus depuis le dossier `ai-service`. Les formats CSV, JSON (tableau d’objets) et JSONL sont acceptés. Chaque ligne doit fournir `is_fraud` (booléen), `amount` et `channel`; les autres variables du modèle sont facultatives. Le jeu doit contenir au moins un exemple frauduleux et un exemple non frauduleux.
 
 ## Analyse de risque : limites à connaître
 
@@ -43,7 +51,7 @@ Le modèle local de régression logistique est initialisé à partir de quelques
 - score de 30 à moins de 70 : `REQUIRE_2FA` ;
 - score de 70 ou plus : `BLOCK`.
 
-Ces seuils et ces exemples ne constituent pas une évaluation sur des opérations réelles. Aucune précision, aucun rappel ni score F1 n’est disponible sans jeu de données étiqueté et test indépendant. Le service ne doit donc pas servir seul à autoriser ou refuser de vrais paiements. Le score de confiance renvoyé est également une démonstration, pas une décision financière certifiée.
+Les données de démonstration ne constituent pas une évaluation sur des opérations réelles. Les métriques d’un jeu de démonstration sont uniquement illustratives; les performances réelles exigent un jeu indépendant, représentatif et labellisé. Le service ne doit donc pas servir seul à autoriser ou refuser de vrais paiements. Le score de confiance renvoyé est également une démonstration, pas une décision financière certifiée.
 
 ## Reconnaissance de documents
 

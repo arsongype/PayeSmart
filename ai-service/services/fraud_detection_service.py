@@ -23,7 +23,7 @@ def evaluate_risk_decision(risk_score: float, low_threshold: float = 30.0, mediu
 
 
 class FraudDetectionService:
-    """Explainable fraud decisions backed by a local logistic-regression model and ensemble alternatives."""
+    """Risk decisions use EUR-normalized amounts with the baseline model's EUR-scale thresholds."""
 
     def __init__(self, model_type: str = "logistic_regression") -> None:
         self.model_type = model_type.lower()

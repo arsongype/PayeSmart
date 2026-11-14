@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger'
+  variant?: 'primary' | 'success' | 'secondary' | 'outline' | 'ghost' | 'danger'
   size?: 'sm' | 'md' | 'lg' | 'xl'
   isLoading?: boolean
   leftIcon?: ReactNode
@@ -24,10 +24,11 @@ export function Button({
 
   const variants = {
     primary: 'bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-400 hover:to-primary-600 text-black shadow-lg shadow-primary-500/25 hover:shadow-xl hover:shadow-primary-500/35 active:scale-[0.98]',
+    success: 'bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-700/20 active:scale-[0.98]',
     secondary: 'bg-gray-100 hover:bg-gray-200 text-black border border-gray-300/50 hover:border-gray-300',
     outline: 'bg-transparent border-2 border-gray-300 text-black hover:border-primary-500 hover:text-black hover:bg-primary-500/5',
     ghost: 'bg-transparent text-black hover:text-black hover:bg-gray-50',
-    danger: 'bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 text-black shadow-lg shadow-rose-500/25 hover:shadow-xl hover:shadow-rose-500/35 active:scale-[0.98]',
+    danger: 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg shadow-red-700/25 hover:shadow-xl hover:shadow-red-700/35 active:scale-[0.98]',
   }
 
   const sizes = {
@@ -55,6 +56,5 @@ export function Button({
     </button>
   )
 }
-
 
 

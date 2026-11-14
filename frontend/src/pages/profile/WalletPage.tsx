@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Wallet, CreditCard, TrendingUp, AlertCircle, ArrowUpRight, ArrowDownLeft, Eye, EyeOff } from 'lucide-react'
+import { useState, useEffect, useCallback, type FormEvent } from 'react'
+import { Wallet, CreditCard, TrendingUp, AlertCircle, ArrowUpRight, ArrowDownLeft, Eye, EyeOff, X } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { walletService } from '../../services/wallet.service'
 import { paymentService } from '../../services/payment.service'
@@ -9,6 +9,27 @@ import type { PaymentTransaction } from '../../services/payment.service'
 import { useTranslation } from '../../utils/i18n'
 import { useSandboxDynamicCvv } from '../../hooks/useSandboxDynamicCvv'
 import { formatAccountNumber, maskAccountNumber } from '../../utils/formatters'
+import { CopyableValue } from '../../components/common/CopyableValue'
+import axios from 'axios'
+import { Button } from '../../components/common/Button'
+import { withdrawalService, type WithdrawalOptions, type WithdrawalRequest } from '../../services/withdrawal.service'
+
+function getWithdrawalError(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const message = error.response?.data?.message
+    if (typeof message === 'string') return message
+    if (Array.isArray(message)) return message.join(', ')
+  }
+  return error instanceof Error ? error.message : fallback
+}
+
+function withdrawalStatusLabel(status: WithdrawalRequest['status'], t: ReturnType<typeof useTranslation>['t']): string {
+  if (status === 'PENDING') return t('withdrawalPending')
+  if (status === 'APPROVED') return t('withdrawalApproved')
+  if (status === 'PAID') return t('withdrawalPaid')
+  if (status === 'CANCELLED') return t('withdrawalCancelledStatus')
+  return t('withdrawalRejected')
+}
 
 export default function WalletPage() {
   const { user } = useAuth()
@@ -23,6 +44,16 @@ export default function WalletPage() {
   const [detailTransaction, setDetailTransaction] = useState<PaymentTransaction | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [historyPage, setHistoryPage] = useState(1)
+  const [withdrawalOptions, setWithdrawalOptions] = useState<WithdrawalOptions | null>(null)
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([])
+  const [withdrawalAmount, setWithdrawalAmount] = useState('')
+  const [withdrawalRecipient, setWithdrawalRecipient] = useState('')
+  const [withdrawalDestination, setWithdrawalDestination] = useState('')
+  const [withdrawalNote, setWithdrawalNote] = useState('')
+  const [withdrawalError, setWithdrawalError] = useState<string | null>(null)
+  const [withdrawalSuccess, setWithdrawalSuccess] = useState<string | null>(null)
+  const [withdrawalSubmitting, setWithdrawalSubmitting] = useState(false)
+  const [withdrawalModalOpen, setWithdrawalModalOpen] = useState(false)
   const historyPageSize = 5
   const historyTotalPages = Math.max(1, Math.ceil(history.length / historyPageSize))
   const visibleHistory = history.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize)
@@ -51,6 +82,79 @@ export default function WalletPage() {
     return undefined
   }, [user])
 
+  const loadWithdrawals = useCallback(async () => {
+    setWithdrawalError(null)
+    const [optionsResult, requestsResult] = await Promise.allSettled([
+      withdrawalService.getOptions(),
+      withdrawalService.listMine(),
+    ])
+
+    if (optionsResult.status === 'fulfilled') {
+      setWithdrawalOptions(optionsResult.value)
+    } else {
+      setWithdrawalOptions(null)
+      setWithdrawalError(getWithdrawalError(optionsResult.reason, t('withdrawalUnavailable')))
+    }
+
+    if (requestsResult.status === 'fulfilled') {
+      setWithdrawals(requestsResult.value)
+    } else {
+      setWithdrawalError(getWithdrawalError(requestsResult.reason, t('withdrawalUnavailable')))
+    }
+  }, [t])
+
+  useEffect(() => {
+    if (!user) return
+    const timeoutId = window.setTimeout(() => void loadWithdrawals(), 0)
+    return () => window.clearTimeout(timeoutId)
+  }, [user, loadWithdrawals])
+
+  const submitWithdrawal = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const amount = Number(withdrawalAmount)
+    if (!Number.isFinite(amount) || amount <= 0 || Math.round(amount * 100) !== amount * 100) {
+      setWithdrawalError(t('withdrawalAmountInvalid'))
+      return
+    }
+    setWithdrawalSubmitting(true)
+    setWithdrawalError(null)
+    setWithdrawalSuccess(null)
+    try {
+      await withdrawalService.create({
+        amount,
+        method: 'ORANGE_MONEY',
+        recipientName: withdrawalRecipient,
+        destinationAccount: withdrawalDestination,
+        ...(withdrawalNote.trim() ? { note: withdrawalNote.trim() } : {}),
+      })
+      setWithdrawalAmount('')
+      setWithdrawalRecipient('')
+      setWithdrawalDestination('')
+      setWithdrawalNote('')
+      setWithdrawalSuccess(t('withdrawalSubmitted'))
+      setWithdrawalModalOpen(false)
+      await loadWithdrawals()
+      if (user) setWallet(await walletService.getWalletWithEffectiveLimits(user.id))
+    } catch (error) {
+      setWithdrawalError(getWithdrawalError(error, t('withdrawalUnavailable')))
+    } finally {
+      setWithdrawalSubmitting(false)
+    }
+  }
+
+  const cancelWithdrawal = async (id: number) => {
+    setWithdrawalError(null)
+    setWithdrawalSuccess(null)
+    try {
+      await withdrawalService.cancel(id)
+      setWithdrawalSuccess(t('withdrawalCancelled'))
+      await loadWithdrawals()
+      if (user) setWallet(await walletService.getWalletWithEffectiveLimits(user.id))
+    } catch (error) {
+      setWithdrawalError(getWithdrawalError(error, t('withdrawalUnavailable')))
+    }
+  }
+
   const openDetail = async (transaction: PaymentTransaction) => {
     setDetailLoading(true)
     setDetailTransaction(transaction)
@@ -74,7 +178,7 @@ export default function WalletPage() {
     doc.text(t('receiptTitle'), 20, 31)
     doc.setTextColor(62, 58, 54)
     doc.setFontSize(10)
-    doc.text(t('receiptReference', { ref: transaction.externalReference ?? `#${transaction.id}` }), 16, 54)
+    doc.text(t('receiptReference', { ref: transaction.externalReference ?? String(transaction.id) }), 16, 54)
     doc.text(t('receiptDate', { date: new Date(transaction.createdAt).toLocaleString() }), 16, 62)
     doc.setDrawColor(220, 218, 212)
     doc.line(16, 68, 194, 68)
@@ -115,7 +219,7 @@ export default function WalletPage() {
           </div>
           <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
             <div className="flex items-center gap-3 mb-4">
-              <div className="rounded-2xl bg-emerald-500/10 p-2.5 text-black">
+              <div className="rounded-2xl bg-blue-500/10 p-2.5 text-black">
                 <TrendingUp className="h-5 w-5" />
               </div>
                <p className="text-base font-medium text-black">{t('dailyLimit')}</p>
@@ -124,7 +228,7 @@ export default function WalletPage() {
           </div>
           <div className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
             <div className="flex items-center gap-3 mb-4">
-              <div className="rounded-2xl bg-amber-500/10 p-2.5 text-black">
+              <div className="rounded-2xl bg-blue-500/10 p-2.5 text-black">
                 <CreditCard className="h-5 w-5" />
               </div>
                <p className="text-base font-medium text-black">{t('monthlyLimit')}</p>
@@ -144,11 +248,12 @@ export default function WalletPage() {
             <div className="rounded-2xl border border-gray-200 bg-white p-4">
                <p className="text-sm text-black">{t('walletNumber')}</p>
               <div className="mt-1 flex items-center justify-between gap-3">
-                <p className="break-all font-mono text-base font-medium text-black">
-                  {wallet?.walletNumber
-                    ? showWalletNumber ? formatAccountNumber(wallet.walletNumber) : maskAccountNumber(wallet.walletNumber)
-                    : '-'}
-                </p>
+                {wallet?.walletNumber && <CopyableValue
+                  value={wallet.walletNumber}
+                  displayValue={showWalletNumber ? formatAccountNumber(wallet.walletNumber) : maskAccountNumber(wallet.walletNumber)}
+                  label={t('walletNumber')}
+                  className="font-mono text-base font-medium text-black"
+                />}
                 {wallet?.walletNumber && <button type="button" onClick={() => setShowWalletNumber((visible) => !visible)} aria-label={t(showWalletNumber ? 'hideSensitiveData' : 'showSensitiveData')} title={t(showWalletNumber ? 'hideSensitiveData' : 'showSensitiveData')} className="shrink-0 rounded-lg p-2 text-black hover:bg-gray-100">
                   {showWalletNumber ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>}
@@ -157,11 +262,12 @@ export default function WalletPage() {
             <div className="rounded-2xl border border-gray-200 bg-white p-4">
               <p className="text-sm text-black">{t('cardNumber')}</p>
               <div className="mt-1 flex items-center justify-between gap-3">
-                <p className="break-all font-mono text-base font-medium text-black">
-                  {wallet?.cardNumber
-                    ? showCardNumber ? formatAccountNumber(wallet.cardNumber) : maskAccountNumber(wallet.cardNumber)
-                    : '-'}
-                </p>
+                {wallet?.cardNumber && <CopyableValue
+                  value={wallet.cardNumber}
+                  displayValue={showCardNumber ? formatAccountNumber(wallet.cardNumber) : maskAccountNumber(wallet.cardNumber)}
+                  label={t('cardNumber')}
+                  className="font-mono text-base font-medium text-black"
+                />}
                 {wallet?.cardNumber && <button type="button" onClick={() => setShowCardNumber((visible) => !visible)} aria-label={t(showCardNumber ? 'hideSensitiveData' : 'showSensitiveData')} title={t(showCardNumber ? 'hideSensitiveData' : 'showSensitiveData')} className="shrink-0 rounded-lg p-2 text-black hover:bg-gray-100">
                   {showCardNumber ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>}
@@ -171,9 +277,9 @@ export default function WalletPage() {
                <p className="text-sm text-black">{t('status')}</p>
               <div className="mt-1">
                 <span className={`inline-flex text-sm px-3 py-1.5 rounded-full font-medium ${
-                  wallet?.status === 'ACTIVE' ? 'bg-emerald-500/10 text-black border border-emerald-500/30' :
-                  wallet?.status === 'SUSPENDED' ? 'bg-amber-500/10 text-black border border-amber-500/30' :
-                  'bg-red-500/10 text-black border border-red-500/30'
+                  wallet?.status === 'ACTIVE' ? 'bg-green-50 text-green-800 border border-green-200' :
+                  wallet?.status === 'SUSPENDED' ? 'bg-red-50 text-red-800 border border-red-200' :
+                  'bg-blue-500/10 text-black border border-blue-500/30'
                 }`}>
                   {wallet?.status || '-'}
                 </span>
@@ -190,7 +296,12 @@ export default function WalletPage() {
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white p-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium text-black">{t('dynamicCvv', { code: showDynamicCvv ? dynamicCvv : '•••' })}</p>
+                <CopyableValue
+                  value={dynamicCvv}
+                  displayValue={t('dynamicCvv', { code: showDynamicCvv ? dynamicCvv : '•••' })}
+                  label={t('cvv')}
+                  className="text-sm font-medium text-black"
+                />
                 <button type="button" onClick={() => setShowDynamicCvv((visible) => !visible)} aria-label={t(showDynamicCvv ? 'hideSensitiveData' : 'showSensitiveData')} title={t(showDynamicCvv ? 'hideSensitiveData' : 'showSensitiveData')} className="shrink-0 rounded-lg p-2 text-black hover:bg-gray-100">
                   {showDynamicCvv ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -199,6 +310,81 @@ export default function WalletPage() {
             </div>
           </div>
         </div>
+
+        <section className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
+          <div className="mb-5">
+            <h2 className="text-xl font-semibold text-black">{t('withdrawalRequests')}</h2>
+            {withdrawalOptions && <p className="mt-2 text-sm font-medium text-primary-700">{t('withdrawalCountry')}: {withdrawalOptions.countryCode}</p>}
+          </div>
+          {withdrawalError && <p role="alert" className="mb-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{withdrawalError}</p>}
+          {withdrawalSuccess && <p role="status" className="mb-4 rounded-xl border border-green-300 bg-green-50 p-3 text-sm text-green-800">{withdrawalSuccess}</p>}
+
+          <Button type="button" variant="success" onClick={() => { setWithdrawalError(null); setWithdrawalModalOpen(true) }}>
+            {t('requestWithdrawal')}
+          </Button>
+
+          <div className="mt-5 space-y-3">
+            {withdrawals.length === 0 ? (
+              <p className="text-sm text-gray-700">{t('noWithdrawalRequests')}</p>
+            ) : withdrawals.map((request) => (
+              <article key={request.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-4">
+                <div>
+                  <p className="font-semibold text-black">{formatMoney(request.amount, request.currency)} · {request.method}</p>
+                  <p className="text-sm text-gray-700">{request.destinationSummary} · {new Date(request.createdAt).toLocaleString(locale === 'en' ? 'en-US' : 'fr-FR')}</p>
+                  {request.adminNote && <p className="mt-1 text-sm text-red-700">{request.adminNote}</p>}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${request.status === 'PAID' ? 'border-green-200 bg-green-50 text-green-800' : request.status === 'REJECTED' || request.status === 'CANCELLED' ? 'border-red-200 bg-red-50 text-red-800' : 'border-blue-200 bg-blue-50 text-blue-800'}`}>{withdrawalStatusLabel(request.status, t)}</span>
+                  {request.status === 'PENDING' && <Button type="button" variant="danger" size="sm" onClick={() => void cancelWithdrawal(request.id)}>{t('cancelWithdrawal')}</Button>}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {withdrawalModalOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !withdrawalSubmitting) setWithdrawalModalOpen(false) }}>
+            <section role="dialog" aria-modal="true" aria-labelledby="withdrawal-modal-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-gray-300 bg-white p-6 shadow-2xl">
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <h2 id="withdrawal-modal-title" className="text-xl font-semibold text-black">{t('requestWithdrawal')} · Orange Money</h2>
+                </div>
+                <button type="button" onClick={() => setWithdrawalModalOpen(false)} disabled={withdrawalSubmitting} aria-label={t('closeMenu')} className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 disabled:opacity-50">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              {withdrawalError && <p role="alert" className="mb-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{withdrawalError}</p>}
+              <form onSubmit={submitWithdrawal} className="grid gap-4 sm:grid-cols-2">
+              <label className="space-y-1 text-sm font-medium text-black">
+                {t('amount')}
+                <input required type="number" min="0.01" step="0.01" max={Number(wallet?.balance ?? 0)} value={withdrawalAmount} onChange={(event) => setWithdrawalAmount(event.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2" />
+              </label>
+              <label className="space-y-1 text-sm font-medium text-black">
+                {t('withdrawalMethod')}
+                <input readOnly value="Orange Money" className="w-full rounded-xl border border-gray-300 bg-gray-100 px-3 py-2" />
+              </label>
+              <label className="space-y-1 text-sm font-medium text-black">
+                {t('withdrawalRecipient')}
+                <input required minLength={2} maxLength={120} value={withdrawalRecipient} onChange={(event) => setWithdrawalRecipient(event.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2" />
+              </label>
+              <label className="space-y-1 text-sm font-medium text-black">
+                {t('withdrawalDestination')}
+                <input required minLength={5} maxLength={200} value={withdrawalDestination} onChange={(event) => setWithdrawalDestination(event.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2" />
+              </label>
+              <label className="space-y-1 text-sm font-medium text-black sm:col-span-2">
+                {t('withdrawalNote')}
+                <textarea maxLength={500} value={withdrawalNote} onChange={(event) => setWithdrawalNote(event.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2" rows={2} />
+              </label>
+              <div className="flex justify-end gap-3 sm:col-span-2">
+                <Button type="button" variant="secondary" disabled={withdrawalSubmitting} onClick={() => setWithdrawalModalOpen(false)}>{t('cancel')}</Button>
+                <Button type="submit" variant="success" isLoading={withdrawalSubmitting} disabled={!withdrawalOptions || Number(withdrawalAmount) > Number(wallet?.balance ?? 0)}>
+                  {t('requestWithdrawal')}
+                </Button>
+              </div>
+              </form>
+            </section>
+          </div>
+        )}
 
         <section className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
           <div className="mb-6 flex items-center justify-between">
@@ -225,11 +411,11 @@ export default function WalletPage() {
                 return (
                   <div key={transaction.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-300 bg-gray-50 p-4 transition hover:border-gray-400">
                     <div className="flex items-center gap-3">
-                      <div className={`rounded-xl p-2 ${outgoing ? 'bg-red-500/10 text-black' : 'bg-emerald-500/10 text-black'}`}>
+                      <div className={`rounded-xl p-2 ${outgoing ? 'bg-blue-500/10 text-black' : 'bg-blue-500/10 text-black'}`}>
                         {outgoing ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownLeft className="h-5 w-5" />}
                       </div>
                       <div>
-                        <p className="text-base font-medium text-black">{transaction.channel} · {transaction.externalReference || `#${transaction.id}`}</p>
+                        <p className="text-base font-medium text-black">{transaction.channel} · {t('transactionReference')} {transaction.externalReference || transaction.id}</p>
                           <p className="text-sm text-black">{new Date(transaction.createdAt).toLocaleString()}</p>
                       </div>
                     </div>
@@ -271,8 +457,8 @@ export default function WalletPage() {
             {detailLoading && <p className="text-base text-black">{t('loading')}</p>}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="rounded-2xl border border-gray-200 bg-white p-4">
-                <p className="text-sm text-black">Référence</p>
-                <p className="mt-1 text-base font-medium text-black font-mono">{detailTransaction.externalReference || `#${detailTransaction.id}`}</p>
+                <p className="text-sm text-black">{t('transactionReference')}</p>
+                <p className="mt-1 text-base font-medium text-black font-mono">{detailTransaction.externalReference || detailTransaction.id}</p>
               </div>
               <div className="rounded-2xl border border-gray-200 bg-white p-4">
                 <p className="text-sm text-black">{t('channel')}</p>

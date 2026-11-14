@@ -60,14 +60,14 @@ export default function AdminTransactionsPage() {
             <p className="text-lg text-black">{t('transactionsToReviewDescription')}</p>
           </div>
 
-          {error && <div role="alert" className="rounded-2xl border border-red-500/50 bg-red-500/10 p-4 text-base text-black">{error}</div>}
+          {error && <div role="alert" className="rounded-2xl border border-red-300 bg-red-50 p-4 text-base text-red-800">{error}</div>}
 
           <div className="overflow-hidden rounded-3xl border border-gray-300 bg-gray-50 shadow-lg shadow-black/20">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-200 bg-white">
-                    {[t('id'), t('sender'), t('recipient'), t('amount'), t('channel'), t('status'), t('date')].map((heading) => (
+                    {[t('transactionReference'), t('sender'), t('recipient'), t('amount'), t('channel'), t('status'), t('date')].map((heading) => (
                       <th key={heading} className="whitespace-nowrap px-6 py-4 text-left text-base font-medium text-black">{heading}</th>
                     ))}
                   </tr>
@@ -75,7 +75,7 @@ export default function AdminTransactionsPage() {
                 <tbody className="divide-y divide-gray-200">
                   {reviewTransactions.map((transaction) => (
                     <tr key={transaction.id} className="transition-colors hover:bg-gray-100">
-                      <td className="px-6 py-4 text-base text-black">#{transaction.id}</td>
+                      <td className="px-6 py-4 text-base text-black">{t('transactionReference')} {transaction.id}</td>
                       <td className="px-6 py-4 text-base text-black">{transaction.sender ?? t('unknownSender')}</td>
                       <td className="px-6 py-4 text-base text-black">{transaction.recipient ?? t('unknownRecipient')}</td>
                       <td className="whitespace-nowrap px-6 py-4 text-base text-black">{formatMoney(transaction.amount, transaction.currency)}</td>
@@ -112,7 +112,7 @@ export default function AdminTransactionsPage() {
         </div>
 
         {error && (
-          <div className="rounded-2xl bg-red-500/10 border border-red-500/50 p-4 text-base text-black">
+          <div role="alert" className="rounded-2xl border border-red-300 bg-red-50 p-4 text-base text-red-800">
             {error}
           </div>
         )}
@@ -122,7 +122,7 @@ export default function AdminTransactionsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 bg-white">
-                  <th className="text-left px-6 py-4 text-base font-medium text-black">{t('id')}</th>
+                  <th className="text-left px-6 py-4 text-base font-medium text-black">{t('transactionReference')}</th>
                   <th className="text-left px-6 py-4 text-base font-medium text-black">{t('amount')}</th>
                   <th className="text-left px-6 py-4 text-base font-medium text-black">{t('status')}</th>
                   <th className="text-left px-6 py-4 text-base font-medium text-black">{t('channel')}</th>
@@ -133,13 +133,13 @@ export default function AdminTransactionsPage() {
               <tbody className="divide-y divide-white/10">
                 {visible.map((tx) => (
                   <tr key={tx.id} className="transition-colors hover:bg-gray-100">
-                    <td className="px-6 py-4 text-base text-black">#{tx.id}</td>
+                    <td className="px-6 py-4 text-base text-black">{t('transactionReference')} {tx.id}</td>
                     <td className="px-6 py-4 text-base text-black">{formatMoney(tx.amount, tx.currency)}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-sm font-medium border ${
-                        tx.status === 'COMPLETED' ? 'bg-emerald-500/10 text-black border-emerald-500/30' :
-                        tx.status === 'PENDING' ? 'bg-amber-500/10 text-black border-amber-500/30' :
-                        'bg-red-500/10 text-black border-red-500/30'
+                        tx.status === 'COMPLETED' ? 'bg-green-50 text-green-800 border-green-200' :
+                        tx.status === 'PENDING' ? 'bg-blue-500/10 text-black border-blue-500/30' :
+                        'bg-red-50 text-red-800 border-red-200'
                       }`}>
                         {tx.status}
                       </span>
@@ -147,7 +147,7 @@ export default function AdminTransactionsPage() {
                     <td className="px-6 py-4 text-base text-black">{tx.channel}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-medium border ${
-                        tx.direction === 'INCOMING' ? 'bg-emerald-500/10 text-black border-emerald-500/30' : 'bg-red-500/10 text-black border-red-500/30'
+                        tx.direction === 'INCOMING' ? 'bg-blue-500/10 text-black border-blue-500/30' : 'bg-blue-500/10 text-black border-blue-500/30'
                       }`}>
                         {tx.direction === 'INCOMING' ? <ArrowDownLeft className="h-3 w-3" /> : <ArrowUpRight className="h-3 w-3" />}
                         {tx.direction}

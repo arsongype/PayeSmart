@@ -18,18 +18,22 @@ export default function SettingsPage() {
   const [twoFactorStatus, setTwoFactorStatus] = useState<{ isTwoFactorEnabled: boolean } | null>(null)
   const [twoFactorLoading, setTwoFactorLoading] = useState(false)
   const [twoFactorMessage, setTwoFactorMessage] = useState<string | null>(null)
+  const [twoFactorMessageType, setTwoFactorMessageType] = useState<'update' | 'error'>('update')
   const [twoFactorCode, setTwoFactorCode] = useState('')
   const [twoFactorSecret, setTwoFactorSecret] = useState<string | null>(null)
   const [twoFactorOtpauthUrl, setTwoFactorOtpauthUrl] = useState<string | null>(null)
   const [avatarSaving, setAvatarSaving] = useState(false)
   const [avatarMessage, setAvatarMessage] = useState<string | null>(null)
+  const [avatarMessageType, setAvatarMessageType] = useState<'update' | 'error'>('update')
   const [deletionPassword, setDeletionPassword] = useState('')
   const [deletionOtpCode, setDeletionOtpCode] = useState('')
   const [deletionLoading, setDeletionLoading] = useState(false)
   const [deletionMessage, setDeletionMessage] = useState<string | null>(null)
+  const [deletionStep, setDeletionStep] = useState<0 | 1 | 2>(0)
 
   const uploadAvatar = async (file: File) => {
     if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
+      setAvatarMessageType('error')
       setAvatarMessage(t('profileImageTypeError'))
       return
     }
@@ -38,8 +42,10 @@ export default function SettingsPage() {
       setAvatarMessage(null)
       const updated = await profileService.uploadAvatar(file)
       updateUser(updated)
+      setAvatarMessageType('update')
       setAvatarMessage(t('profileImageUploaded'))
     } catch (err) {
+      setAvatarMessageType('error')
       setAvatarMessage(err instanceof Error ? err.message : t('profileImageUploadError'))
     } finally {
       setAvatarSaving(false)
@@ -90,6 +96,7 @@ export default function SettingsPage() {
       setTwoFactorSecret(data.secret)
       setTwoFactorOtpauthUrl(data.otpauthUrl)
     } catch (err) {
+      setTwoFactorMessageType('error')
       setTwoFactorMessage(err instanceof Error ? err.message : t('error'))
     } finally {
       setTwoFactorLoading(false)
@@ -102,11 +109,13 @@ export default function SettingsPage() {
     setTwoFactorMessage(null)
     try {
       await authService.enableTwoFactor({ code: twoFactorCode })
+      setTwoFactorMessageType('update')
       setTwoFactorMessage(t('twoFactorEnabled'))
       await loadStatus()
       setTwoFactorSecret(null)
       setTwoFactorCode('')
     } catch (err) {
+      setTwoFactorMessageType('error')
       setTwoFactorMessage(err instanceof Error ? err.message : t('error'))
     } finally {
       setTwoFactorLoading(false)
@@ -121,9 +130,11 @@ export default function SettingsPage() {
       setTwoFactorSecret(null)
       try {
         await authService.disableTwoFactor({ code: twoFactorCode })
+        setTwoFactorMessageType('update')
         setTwoFactorMessage(t('twoFactorDisabled'))
         await loadStatus()
       } catch (err) {
+        setTwoFactorMessageType('error')
         setTwoFactorMessage(err instanceof Error ? err.message : t('error'))
       } finally {
         setTwoFactorLoading(false)
@@ -135,7 +146,6 @@ export default function SettingsPage() {
 
   const requestAccountDeletion = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!window.confirm(t('confirmSelfDeletion'))) return
     setDeletionLoading(true)
     setDeletionMessage(null)
     try {
@@ -223,12 +233,12 @@ export default function SettingsPage() {
           <div className="flex-1"><h2 className="text-xl font-semibold text-black">Photo de profil</h2><p className="text-sm text-black">JPG, PNG ou WEBP, 5 Mo maximum.</p></div>
           <label className="cursor-pointer rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-gray-100"><Camera className="mr-2 inline h-4 w-4" />Modifier<input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={avatarSaving} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAvatar(file); event.currentTarget.value = '' }} /></label>
         </div>
-        {avatarMessage && <p className="mt-3 text-sm text-black">{avatarMessage}</p>}
+        {avatarMessage && <p role={avatarMessageType === 'error' ? 'alert' : 'status'} className={`mt-3 text-sm ${avatarMessageType === 'update' ? 'text-blue-700' : 'text-red-700'}`}>{avatarMessage}</p>}
       </section>
 
       <section className="rounded-3xl border border-gray-300 bg-gray-50 p-6 shadow-lg shadow-black/20">
         <div className="flex items-center gap-3 mb-4">
-          <div className="rounded-2xl bg-amber-500/10 p-2.5 text-black">
+          <div className="rounded-2xl bg-blue-500/10 p-2.5 text-black">
             <Lock size={20} />
           </div>
           <div>
@@ -238,7 +248,7 @@ export default function SettingsPage() {
         </div>
 
         {twoFactorMessage && (
-          <div className={`rounded-2xl border p-4 text-base mb-4 ${twoFactorMessage === '2FA activé' || twoFactorMessage === '2FA désactivé' ? 'bg-emerald-500/10 border-emerald-500/50 text-black' : 'bg-red-500/10 border-red-500/50 text-black'}`}>
+          <div role={twoFactorMessageType === 'error' ? 'alert' : 'status'} className={`mb-4 rounded-2xl border p-4 text-base ${twoFactorMessageType === 'update' ? 'border-blue-300 bg-blue-50 text-blue-900' : 'border-red-300 bg-red-50 text-red-800'}`}>
             {twoFactorMessage}
           </div>
         )}
@@ -347,9 +357,9 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-rose-300 bg-rose-50 p-6 shadow-lg shadow-black/10">
+      <section className="rounded-3xl border border-blue-300 bg-blue-50 p-6 shadow-lg shadow-black/10">
         <div className="mb-4 flex items-center gap-3">
-          <div className="rounded-2xl bg-rose-500/10 p-2.5 text-rose-700">
+          <div className="rounded-2xl bg-blue-500/10 p-2.5 text-blue-700">
             <Trash2 size={20} />
           </div>
           <div>
@@ -358,49 +368,76 @@ export default function SettingsPage() {
           </div>
         </div>
         {deletionMessage && (
-          <p role="status" className="mb-4 rounded-xl border border-amber-400 bg-amber-50 p-3 text-sm text-black">
+          <p role="alert" className="mb-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">
             {deletionMessage}
           </p>
         )}
-        <form onSubmit={requestAccountDeletion} className="space-y-3">
-          <label className="block text-sm font-medium text-black">
-            {t('password')}
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={deletionPassword}
-              onChange={(event) => setDeletionPassword(event.target.value)}
-              className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-black"
-              required
-            />
-          </label>
-          {twoFactorStatus?.isTwoFactorEnabled && (
+        {deletionStep === 0 && (
+          <Button type="button" variant="danger" onClick={() => setDeletionStep(1)}>
+            {t('requestAccountDeletion')}
+          </Button>
+        )}
+        {deletionStep === 1 && (
+          <div className="space-y-3" role="group" aria-labelledby="deletion-step-one">
+            <h3 id="deletion-step-one" className="font-semibold text-black">{t('deletionStepOne')}</h3>
+            <p className="text-sm text-black">{t('confirmSelfDeletion')}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="danger" onClick={() => setDeletionStep(2)}>
+                {t('continueDeletion')}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setDeletionStep(0)}>
+                {t('cancel')}
+              </Button>
+            </div>
+          </div>
+        )}
+        {deletionStep === 2 && (
+          <form onSubmit={requestAccountDeletion} className="space-y-3" aria-labelledby="deletion-step-two">
+            <h3 id="deletion-step-two" className="font-semibold text-black">{t('deletionStepTwo')}</h3>
             <label className="block text-sm font-medium text-black">
-              {t('otpCode')}
+              {t('password')}
               <input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                value={deletionOtpCode}
-                onChange={(event) => setDeletionOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                type="password"
+                autoComplete="current-password"
+                value={deletionPassword}
+                onChange={(event) => setDeletionPassword(event.target.value)}
                 className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-black"
                 required
               />
             </label>
-          )}
-          <Button
-            type="submit"
-            variant="danger"
-            isLoading={deletionLoading}
-            disabled={!deletionPassword || (Boolean(twoFactorStatus?.isTwoFactorEnabled) && deletionOtpCode.length !== 6)}
-          >
-            {t('requestAccountDeletion')}
-          </Button>
-        </form>
+            {twoFactorStatus?.isTwoFactorEnabled && (
+              <label className="block text-sm font-medium text-black">
+                {t('otpCode')}
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={deletionOtpCode}
+                  onChange={(event) => setDeletionOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-black"
+                  required
+                />
+              </label>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="submit"
+                variant="danger"
+                isLoading={deletionLoading}
+                disabled={!deletionPassword || (Boolean(twoFactorStatus?.isTwoFactorEnabled) && deletionOtpCode.length !== 6)}
+              >
+                {t('requestAccountDeletion')}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setDeletionStep(1)} disabled={deletionLoading}>
+                {t('back')}
+              </Button>
+            </div>
+          </form>
+        )}
       </section>
 
       <div className="flex items-center justify-end gap-3">
-        <span className="text-base text-black">{saved ? t('preferencesSaved') : ''}</span>
+        <span role={saved ? 'status' : undefined} className="text-base text-blue-700">{saved ? t('preferencesSaved') : ''}</span>
         <button type="button" onClick={handleSave} className="flex items-center gap-2 rounded-2xl bg-primary-600 px-5 py-2.5 text-base font-medium text-black hover:bg-primary-500">
           <Save size={16} /> {t('saveSettings')}
         </button>

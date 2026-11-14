@@ -68,13 +68,18 @@ export class PaymentsController {
     return this.paymentsService.getTwoFactorStatus(parseInt(req.user.sub, 10), id)
   }
 
+  @Post(':id/request-notification-otp')
+  requestNotificationOtp(@Param('id', ParseIntPipe) id: number, @Req() req: RequestWithUser) {
+    return this.paymentsService.requestNotificationOtp(parseInt(req.user.sub, 10), id)
+  }
+
   @Post(':id/confirm-2fa')
   confirmTwoFactor(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ConfirmTwoFactorDto,
     @Req() req: RequestWithUser,
   ) {
-    return this.paymentsService.confirmTwoFactor(parseInt(req.user.sub, 10), id, dto.code)
+    return this.paymentsService.confirmTwoFactor(parseInt(req.user.sub, 10), id, dto.code, dto.method)
   }
 
   @Post(':id/cancel')
@@ -83,7 +88,7 @@ export class PaymentsController {
   }
 
   @Post(':id/qr/confirm')
-  confirmQr(@Param('id', ParseIntPipe) id: number, @Req() req: RequestWithUser) {
-    return this.paymentsService.confirmQr(parseInt(req.user.sub, 10), id)
+  confirmQr(@Param('id', ParseIntPipe) id: number, @Body() dto: ConfirmTwoFactorDto, @Req() req: RequestWithUser) {
+    return this.paymentsService.confirmQr(parseInt(req.user.sub, 10), id, dto.code)
   }
 }

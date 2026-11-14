@@ -30,7 +30,7 @@ CREATE TYPE kyc_status_enum AS ENUM ('NON_VERIFIE', 'EN_COURS', 'VERIFIE', 'REJE
 CREATE TYPE kyb_status_enum AS ENUM ('NON_VERIFIE', 'EN_COURS', 'VERIFIE', 'REJECTED', 'APPROVED');
 CREATE TYPE document_type_enum AS ENUM ('CIN', 'PASSPORT', 'KBIS', 'NIF', 'RIB', 'ADDRESS_PROOF', 'PHOTO_ID');
 CREATE TYPE wallet_status_enum AS ENUM ('ACTIVE', 'SUSPENDED', 'CLOSED');
-CREATE TYPE user_status_enum AS ENUM ('ACTIVE', 'SUSPENDED', 'DELETED', 'PENDING_VERIFICATION');
+CREATE TYPE user_status_enum AS ENUM ('ACTIVE', 'SUSPENDED', 'DELETED', 'PENDING_VERIFICATION', 'REJECTED');
 
 -- Drop the old tables if they exist and recreate them
 -- WARNING: This will delete all existing data
@@ -242,6 +242,7 @@ CREATE TABLE fraud_alerts (
   reasons TEXT,
   status VARCHAR(50) NOT NULL DEFAULT 'OPEN',
   admin_notes TEXT,
+  fraud_outcome VARCHAR(20),
   reviewed_at TIMESTAMP,
   reviewed_by INTEGER,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -271,6 +272,7 @@ CREATE TABLE otp_codes (
   purpose VARCHAR(50) NOT NULL,
   expires_at TIMESTAMP NOT NULL,
   is_used BOOLEAN NOT NULL DEFAULT FALSE,
+  failed_attempts INTEGER NOT NULL DEFAULT 0,
   used_at TIMESTAMP,
   ip_address VARCHAR(64),
   created_at TIMESTAMP NOT NULL DEFAULT NOW()

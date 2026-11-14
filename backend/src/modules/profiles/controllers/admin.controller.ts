@@ -6,6 +6,7 @@ import { In, Not, Repository } from 'typeorm'
 import { RolesGuard } from '../../../common/guards/roles.guard.js'
 import { UsersService } from '../../../users/services/users.service.js'
 import { Role } from '../../auth/enums/role.enum.js'
+import { UserStatus } from '../../auth/enums/user-status.enum.js'
 import { Roles } from '../../auth/controllers/auth.controller.js'
 import { KycService } from '../services/kyc.service.js'
 import { KybService } from '../services/kyb.service.js'
@@ -15,6 +16,7 @@ import { AccountManagementService } from '../../../users/services/account-manage
 import { imageFileFilter, storage } from '../../../storage/storage.config.js'
 import { Transaction } from '../../auth/entities/transaction.entity.js'
 import { FraudAlert } from '../../auth/entities/fraud-alert.entity.js'
+import type { FraudOutcome } from '../../auth/entities/fraud-alert.entity.js'
 import { SecurityRule } from '../../auth/entities/security-rule.entity.js'
 import { AuditLog } from '../../../security/entities/audit-log.entity.js'
 
@@ -198,7 +200,8 @@ export class AdminController {
   }
 
   @Get('fraud-alerts')
-  async getFraudAlerts() {
+  async getFraudAlerts(@Query('includeAll') includeAllValue = 'false') {
+    const includeAll = includeAllValue === 'true'
     const transactions = await this.transactionRepository.find({
       order: { createdAt: 'DESC' },
       relations: { senderWallet: true, recipientWallet: true },
@@ -206,19 +209,23 @@ export class AdminController {
     const fraudAlerts = await this.fraudAlertRepository.find({
       where: { transactionId: In(transactions.map((transaction) => transaction.id)) },
     })
-    const reviewStatusByTransaction = new Map(
-      fraudAlerts.map((alert) => [alert.transactionId, alert.status]),
+    const alertByTransaction = new Map(
+      fraudAlerts.map((alert) => [alert.transactionId, alert]),
     )
 
     const alerts = await Promise.all(
       transactions
         .filter((transaction) => {
           const metadata = (transaction.metadata ?? {}) as Record<string, unknown>
-          const riskScore = Number(metadata.riskScore ?? metadata.risk_score ?? 0)
-          const hasRiskMetadata = Number.isFinite(riskScore) && riskScore > 0
+          const riskScore = Number(metadata.riskScore ?? metadata.risk_score ?? transaction.riskScore ?? 0)
+          const riskDecision = typeof metadata.riskDecision === 'string'
+            ? metadata.riskDecision.toUpperCase()
+            : null
           const hasFraudFailureReason = typeof transaction.failureReason === 'string'
             && transaction.failureReason.toLowerCase().includes('fraude')
-          return hasRiskMetadata || hasFraudFailureReason
+          const needsReview = hasFraudFailureReason
+            || (riskDecision ? riskDecision !== 'APPROVE' : Number.isFinite(riskScore) && riskScore >= 30)
+          return includeAll || needsReview || alertByTransaction.has(transaction.id)
         })
         .map(async (transaction) => {
           const metadata = (transaction.metadata ?? {}) as Record<string, unknown>
@@ -229,15 +236,19 @@ export class AdminController {
             ? await this.usersService.findById(transaction.recipientWallet.userId)
             : null
 
-          const riskScore = Number(metadata.riskScore ?? metadata.risk_score ?? 0)
+          const riskScore = Number(metadata.riskScore ?? metadata.risk_score ?? transaction.riskScore ?? 0)
           const hasFraudFailureReason = typeof transaction.failureReason === 'string'
             && transaction.failureReason.toLowerCase().includes('fraude')
           const riskLevel = String(metadata.riskLevel ?? metadata.risk_level ?? 'UNKNOWN').toUpperCase()
+          const riskDecision = typeof metadata.riskDecision === 'string'
+            ? metadata.riskDecision.toUpperCase()
+            : null
           const riskReasons = Array.isArray(metadata.riskReasons)
             ? metadata.riskReasons.filter((reason): reason is string => typeof reason === 'string')
             : []
-          const contextualReason = riskReasons[0]
+          const contextualReason = riskReasons.find((reason) => !/^(?:risque (?:élevé|intermédiaire|faible)|(?:high|medium|low) risk)\s*:/i.test(reason))
             ?? transaction.failureReason
+            ?? riskReasons[0]
             ?? (riskScore >= 70
               ? `Risque élevé : score de ${riskScore.toFixed(1)}/100, transaction bloquée ou soumise à vérification.`
               : riskScore >= 30
@@ -255,8 +266,13 @@ export class AdminController {
             riskLevel: riskLevel === 'LOW' || riskLevel === 'MEDIUM' || riskLevel === 'HIGH' || riskLevel === 'CRITICAL'
               ? riskLevel.toLowerCase()
               : 'medium',
-            reviewStatus: reviewStatusByTransaction.get(transaction.id)
-              ?? (riskScore >= 70 || hasFraudFailureReason ? 'OPEN' : 'RESOLVED'),
+            reviewStatus: alertByTransaction.get(transaction.id)?.status
+              ?? (includeAll
+                ? 'OPEN'
+                : riskDecision
+                ? (riskDecision === 'APPROVE' && !hasFraudFailureReason ? 'RESOLVED' : 'OPEN')
+                : (riskScore >= 30 || hasFraudFailureReason ? 'OPEN' : 'RESOLVED')),
+            fraudOutcome: alertByTransaction.get(transaction.id)?.fraudOutcome ?? null,
             reason: contextualReason,
             sender: senderUser ? { id: senderUser.id, name: `${senderUser.firstName} ${senderUser.lastName}`.trim() } : null,
             recipient: recipientUser ? { id: recipientUser.id, name: `${recipientUser.firstName} ${recipientUser.lastName}`.trim() } : null,
@@ -266,6 +282,90 @@ export class AdminController {
     )
 
     return alerts
+  }
+
+  @Get('fraud-alerts/:id/investigation')
+  async getFraudAlertInvestigation(@Param('id', ParseIntPipe) transactionId: number) {
+    const transaction = await this.transactionRepository.findOne({
+      where: { id: transactionId },
+      relations: { senderWallet: true, recipientWallet: true },
+    })
+    if (!transaction?.senderWallet) throw new NotFoundException('Transaction non trouvée')
+
+    const sender = await this.usersService.findById(transaction.senderWallet.userId)
+    const alert = await this.fraudAlertRepository.findOne({ where: { transactionId } })
+    const metadata = (transaction.metadata ?? {}) as Record<string, unknown>
+    const riskReasons = Array.isArray(metadata.riskReasons)
+      ? metadata.riskReasons.filter((reason): reason is string => typeof reason === 'string')
+      : []
+    const recentTransactions = await this.transactionRepository.find({
+      where: { senderWalletId: transaction.senderWalletId },
+      order: { createdAt: 'DESC' },
+      take: 10,
+    })
+
+    return {
+      transaction: {
+        id: transaction.id,
+        amount: Number(transaction.amount),
+        feeAmount: Number(transaction.feeAmount),
+        totalAmount: Number(transaction.totalAmount),
+        currency: transaction.currency,
+        channel: transaction.channel,
+        status: transaction.status,
+        externalReference: transaction.externalReference,
+        failureReason: transaction.failureReason,
+        createdAt: transaction.createdAt,
+      },
+      risk: {
+        score: Number(metadata.riskScore ?? metadata.risk_score ?? transaction.riskScore ?? 0),
+        level: String(metadata.riskLevel ?? metadata.risk_level ?? transaction.riskLevel ?? 'UNKNOWN'),
+        decision: typeof metadata.riskDecision === 'string' ? metadata.riskDecision : 'UNKNOWN',
+        reasons: riskReasons,
+        features: (() => {
+          const features = metadata.riskFeatures
+          if (!features || typeof features !== 'object') return null
+          const safeFeatures = features as Record<string, unknown>
+          return {
+            model: typeof safeFeatures.model === 'string' ? safeFeatures.model : null,
+            amount: typeof safeFeatures.amount === 'number' ? safeFeatures.amount : null,
+            transaction_count_24h: typeof safeFeatures.transaction_count_24h === 'number'
+              ? safeFeatures.transaction_count_24h
+              : null,
+            hour: typeof safeFeatures.hour === 'number' ? safeFeatures.hour : null,
+            channel: typeof safeFeatures.channel === 'string' ? safeFeatures.channel : null,
+          }
+        })(),
+      },
+      review: alert
+        ? {
+          status: alert.status,
+          adminNotes: alert.adminNotes,
+          reviewedAt: alert.reviewedAt,
+          fraudOutcome: alert.fraudOutcome,
+        }
+        : null,
+      sender: {
+        id: sender.id,
+        name: `${sender.firstName} ${sender.lastName}`.trim(),
+        email: sender.email,
+        accountStatus: sender.accountStatus,
+        kycStatus: sender.kycStatus,
+        kybStatus: sender.kybStatus,
+        suspensionReason: sender.suspensionReason,
+        role: sender.role,
+      },
+      recentTransactions: recentTransactions.map((item) => ({
+        id: item.id,
+        amount: Number(item.amount),
+        currency: item.currency,
+        channel: item.channel,
+        status: item.status,
+        riskScore: Number((item.metadata as Record<string, unknown> | null)?.riskScore ?? item.riskScore ?? 0),
+        failureReason: item.failureReason,
+        createdAt: item.createdAt,
+      })),
+    }
   }
 
   @Get('transactions')
@@ -310,9 +410,24 @@ export class AdminController {
   }
 
   @Patch('fraud-alerts/:id/review')
-  async reviewFraudAlert(@Param('id') id: string, @Body() body: { status: string; adminNotes?: string }, @Req() req: RequestWithUser) {
-    if (body.status !== 'OPEN' && body.status !== 'RESOLVED') {
-      throw new BadRequestException('Le statut doit être OPEN ou RESOLVED')
+  async reviewFraudAlert(
+    @Param('id') id: string,
+    @Body() body: { status: string; adminNotes?: string; fraudOutcome?: FraudOutcome },
+    @Req() req: RequestWithUser,
+  ) {
+    if (body.status !== 'OPEN' && body.status !== 'INVESTIGATING' && body.status !== 'RESOLVED') {
+      throw new BadRequestException('Statut de revue invalide')
+    }
+    const adminNotes = body.adminNotes?.trim()
+    if (!adminNotes || adminNotes.length < 10 || adminNotes.length > 2000) {
+      throw new BadRequestException('La conclusion de l’enquête doit contenir entre 10 et 2000 caractères')
+    }
+    let resolvedOutcome: FraudOutcome | null = null
+    if (body.status === 'RESOLVED') {
+      if (body.fraudOutcome !== 'CONFIRMED_FRAUD' && body.fraudOutcome !== 'LEGITIMATE') {
+        throw new BadRequestException('Un verdict fraude confirmée ou transaction légitime est requis pour terminer la revue')
+      }
+      resolvedOutcome = body.fraudOutcome
     }
     const transactionId = parseInt(id, 10)
     if (!Number.isSafeInteger(transactionId) || transactionId < 1) {
@@ -329,21 +444,78 @@ export class AdminController {
       alert = this.fraudAlertRepository.create({
         transactionId: transaction.id,
         userId: transaction.senderWallet.userId,
-        riskScore: Number(metadata.riskScore ?? metadata.risk_score ?? 0),
-        riskLevel: String(metadata.riskLevel ?? metadata.risk_level ?? 'MEDIUM'),
+        riskScore: Number(metadata.riskScore ?? metadata.risk_score ?? transaction.riskScore ?? 0),
+        riskLevel: String(metadata.riskLevel ?? metadata.risk_level ?? transaction.riskLevel ?? 'MEDIUM'),
         reasons: Array.isArray(metadata.riskReasons) ? metadata.riskReasons.join(', ') : (transaction.failureReason ?? ''),
         status: body.status,
-        adminNotes: body.adminNotes ?? null,
+        adminNotes,
+        fraudOutcome: resolvedOutcome,
         reviewedAt: new Date(),
         reviewedBy: parseInt(req.user.sub, 10),
       })
     } else {
       alert.userId = transaction.senderWallet.userId
       alert.status = body.status
-      alert.adminNotes = body.adminNotes ?? alert.adminNotes
+      alert.adminNotes = adminNotes
+      alert.fraudOutcome = resolvedOutcome
       alert.reviewedAt = new Date()
       alert.reviewedBy = parseInt(req.user.sub, 10)
     }
     return this.fraudAlertRepository.save(alert)
+  }
+
+  @Patch('fraud-alerts/:id/suspend')
+  async suspendFraudAlertUser(
+    @Param('id', ParseIntPipe) transactionId: number,
+    @Body() body: { adminNotes?: string; suspensionReason?: string },
+    @Req() req: RequestWithUser,
+  ) {
+    const adminNotes = body.adminNotes?.trim()
+    const suspensionReason = body.suspensionReason?.trim()
+    if (!adminNotes || adminNotes.length < 10 || adminNotes.length > 2000) {
+      throw new BadRequestException('La conclusion de l’enquête doit contenir entre 10 et 2000 caractères')
+    }
+    if (!suspensionReason || suspensionReason.length < 10 || suspensionReason.length > 500) {
+      throw new BadRequestException('Le motif de suspension doit contenir entre 10 et 500 caractères')
+    }
+    const transaction = await this.transactionRepository.findOne({
+      where: { id: transactionId },
+      relations: { senderWallet: true },
+    })
+    if (!transaction?.senderWallet) throw new NotFoundException('Transaction non trouvée')
+    const user = await this.usersService.findById(transaction.senderWallet.userId)
+    if (user.role === Role.ADMIN) {
+      throw new BadRequestException('Un compte administrateur ne peut pas être suspendu depuis une alerte fraude')
+    }
+    if (user.accountStatus === UserStatus.DELETED) {
+      throw new BadRequestException('Un compte supprimé ne peut pas être suspendu')
+    }
+
+    const adminId = parseInt(req.user.sub, 10)
+    const suspendedUser = user.accountStatus === UserStatus.SUSPENDED
+      ? user
+      : await this.accountManagementService.suspendUser(user.id, suspensionReason, adminId)
+    let alert = await this.fraudAlertRepository.findOne({ where: { transactionId } })
+    const metadata = (transaction.metadata ?? {}) as Record<string, unknown>
+    if (!alert) {
+      alert = this.fraudAlertRepository.create({
+        transactionId,
+        userId: user.id,
+        riskScore: Number(metadata.riskScore ?? metadata.risk_score ?? transaction.riskScore ?? 0),
+        riskLevel: String(metadata.riskLevel ?? metadata.risk_level ?? transaction.riskLevel ?? 'MEDIUM'),
+        reasons: Array.isArray(metadata.riskReasons) ? metadata.riskReasons.join(', ') : transaction.failureReason,
+      })
+    }
+    alert.status = 'INVESTIGATING'
+    alert.fraudOutcome = null
+    alert.adminNotes = adminNotes
+    alert.reviewedAt = new Date()
+    alert.reviewedBy = adminId
+    await this.fraudAlertRepository.save(alert)
+    return {
+      accountStatus: suspendedUser.accountStatus,
+      suspensionReason: suspendedUser.suspensionReason,
+      alertStatus: alert.status,
+    }
   }
 }

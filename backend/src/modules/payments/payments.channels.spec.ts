@@ -1,5 +1,8 @@
 import { BadRequestException } from '@nestjs/common'
+import axios from 'axios'
 import { describe, expect, it, vi } from 'vitest'
+import * as argon2 from 'argon2'
+import { TOTP, NobleCryptoPlugin, ScureBase32Plugin } from 'otplib'
 import { PaymentsService } from './payments.service.js'
 import { PaymentChannel } from '../auth/enums/payment-channel.enum.js'
 import { KycStatus } from '../auth/enums/kyc-status.enum.js'
@@ -9,6 +12,9 @@ import { User } from '../auth/entities/user.entity.js'
 import { Wallet } from '../auth/entities/wallet.entity.js'
 import { Ledger } from '../auth/entities/ledger.entity.js'
 
+const testTotp = new TOTP({ crypto: new NobleCryptoPlugin(), base32: new ScureBase32Plugin() })
+const testTotpSecret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'
+
 const buildService = (
   role: Role = Role.USER,
   kycStatus = KycStatus.APPROVED,
@@ -17,12 +23,31 @@ const buildService = (
   recentAttempts = 0,
   existingPayments: Array<{ amount: number; totalAmount: number; createdAt: Date }> = [],
 ) => {
-  const sender = { id: 1, role, kycStatus, kybStatus }
-  const recipient = { id: 2, phone: '0340000000', role: Role.USER }
+  const sender = {
+    id: 1,
+    firstName: 'Alice',
+    lastName: 'Sender',
+    email: 'alice@example.com',
+    isEmailVerified: true,
+    role,
+    kycStatus,
+    kybStatus,
+    isTwoFactorEnabled: true,
+    twoFactorSecret: testTotpSecret,
+  }
+  const recipient = {
+    id: 2,
+    firstName: 'Bob',
+    lastName: 'Recipient',
+    phone: '0340000000',
+    role: Role.USER,
+    isTwoFactorEnabled: true,
+    twoFactorSecret: testTotpSecret,
+  }
   const admin = { id: 3, role: Role.ADMIN, accountStatus: 'ACTIVE' }
-  const senderWallet = { id: 11, userId: 1, status: 'ACTIVE', currency: 'EUR', balance: 100 }
-  const recipientWallet = { id: 22, userId: 2, status: 'ACTIVE', currency: 'EUR', balance: 100 }
-  const adminWallet = { id: 33, userId: 3, status: 'ACTIVE', currency: 'MGA', balance: 0 }
+  const senderWallet = { id: 11, userId: 1, cardHolderName: 'Alice Sender', status: 'ACTIVE', currency: 'EUR', balance: 100 }
+  const recipientWallet = { id: 22, userId: 2, cardHolderName: 'Bob Recipient', status: 'ACTIVE', currency: 'EUR', balance: 100 }
+  const adminWallet = { id: 33, userId: 3, cardHolderName: 'Admin User', status: 'ACTIVE', currency: 'MGA', balance: 0 }
   const wallets = [senderWallet, recipientWallet, adminWallet]
   const manager = {
     findOne: vi.fn(async (entity: unknown, options: { where: Record<string, unknown> }) => {
@@ -42,7 +67,7 @@ const buildService = (
     find: vi.fn(async () => existingPayments),
   }
   const userRepository = {
-    findOne: vi.fn(async () => sender),
+    findOne: vi.fn(async ({ where }: { where: Record<string, unknown> }) => where.id === recipient.id ? recipient : sender),
     find: vi.fn(async () => [recipient]),
   }
   const walletRepository = {
@@ -58,21 +83,33 @@ const buildService = (
     findOne: vi.fn(async () => Object.keys(conditions).length > 0 ? { conditions } : null),
   }
   const notificationService = { create: vi.fn() }
+  const otpCodeRepository = {
+    create: vi.fn((value) => value),
+    findOne: vi.fn(async () => null as never),
+    save: vi.fn(async (value) => value),
+    update: vi.fn(async () => ({ affected: 0 })),
+  }
+  const fraudAlertRepository = {
+    create: vi.fn((value) => value),
+    save: vi.fn(async (value) => value),
+  }
+  const sandboxGateway = { authorize: vi.fn(async () => ({ providerReference: 'PROVIDER-100' })) }
   const service = new PaymentsService(
     userRepository as never,
     walletRepository as never,
     transactionRepository as never,
     {} as never,
-    {} as never,
+    fraudAlertRepository as never,
     securityRuleRepository as never,
+    otpCodeRepository as never,
     dataSource as never,
     notificationService as never,
-    { authorize: vi.fn(async () => ({ providerReference: 'PROVIDER-100' })) } as never,
-    { get: () => 'http://localhost:5173' } as never,
+    sandboxGateway as never,
+    { get: () => 'http://localhost:5173', getOrThrow: () => 'test-ai-key' } as never,
     { encrypt: (value: string) => `enc:${value}` } as never,
   )
   ;(service as unknown as { redisQueue: { add: ReturnType<typeof vi.fn> } }).redisQueue = { add: vi.fn() }
-  return { service, transactionRepository, notificationService, manager, senderWallet, recipientWallet, adminWallet }
+  return { service, transactionRepository, otpCodeRepository, notificationService, manager, senderWallet, recipientWallet, adminWallet, fraudAlertRepository, sandboxGateway }
 }
 
 describe('payment channel contracts', () => {
@@ -91,7 +128,7 @@ describe('payment channel contracts', () => {
       expect(notificationService.create).toHaveBeenCalledWith(
         2,
         'Demande de paiement QR',
-        expect.stringContaining('Scannez ce QR code'),
+        expect.stringContaining('Google Authenticator'),
         'http://localhost:5173/payments/confirm/100',
       )
     }
@@ -188,8 +225,79 @@ describe('payment channel contracts', () => {
     ]))
     expect(notificationService.create).toHaveBeenCalledWith(
       3,
-      'Frais de transaction reçu',
-      expect.stringContaining('1250 MGA'),
+      'Frais de transaction reçus',
+      'Frais de transaction de 1250.00 MGA reçus pour le paiement de Alice Sender vers Bob Recipient (#100).',
+    )
+    expect(notificationService.create).toHaveBeenCalledWith(
+      1,
+      'Paiement réussi',
+      'Votre paiement de 25.00 EUR vers Bob Recipient a réussi.',
+    )
+    expect(notificationService.create).toHaveBeenCalledWith(
+      2,
+      'Paiement reçu',
+      'Vous avez reçu 25.00 EUR de Alice Sender.',
+    )
+  })
+
+  it('notifies the payer when the fraud rules block a payment', async () => {
+    const { service, transactionRepository, notificationService, fraudAlertRepository } = buildService()
+    const transaction = {
+      id: 100,
+      senderWalletId: 11,
+      recipientWalletId: 22,
+      amount: 25,
+      currency: 'EUR',
+      channel: PaymentChannel.QR,
+      status: 'PENDING',
+      failureReason: null,
+      metadata: {},
+    }
+    transactionRepository.findOne.mockResolvedValue(transaction as never)
+    Object.assign(service, {
+      evaluateTransactionRisk: vi.fn().mockResolvedValue({
+        riskScore: 93.1,
+        riskLevel: 'HIGH',
+        decision: 'BLOCK',
+        reasons: ['Risque élevé détecté.'],
+        reason: 'Risque élevé détecté.',
+      }),
+    })
+
+    await service.process(100)
+
+    expect(transaction.status).toBe('FAILED')
+    expect(fraudAlertRepository.save).toHaveBeenCalled()
+    expect(notificationService.create).toHaveBeenCalledWith(
+      1,
+      'Paiement bloqué',
+      'Paiement #100 bloqué : contrôle de sécurité requis.',
+    )
+  })
+
+  it('notifies the payer when payment execution fails', async () => {
+    const { service, transactionRepository, notificationService, sandboxGateway } = buildService()
+    const transaction = {
+      id: 100,
+      senderWalletId: 11,
+      recipientWalletId: 22,
+      amount: 25,
+      currency: 'EUR',
+      channel: PaymentChannel.BANK_TRANSFER,
+      status: 'PENDING',
+      failureReason: null,
+      metadata: {},
+    }
+    transactionRepository.findOne.mockResolvedValue(transaction as never)
+    sandboxGateway.authorize.mockRejectedValue(new Error('Solde insuffisant'))
+
+    await service.process(100, true)
+
+    expect(transaction.status).toBe('FAILED')
+    expect(notificationService.create).toHaveBeenCalledWith(
+      1,
+      'Paiement échoué',
+      'Paiement #100 échoué : solde insuffisant.',
     )
   })
 
@@ -229,7 +337,7 @@ describe('payment channel contracts', () => {
       })
   })
 
-  it('lets the recipient confirm a QR payment after opening its notification link', async () => {
+  it('lets the recipient confirm a QR payment with their Google Authenticator code', async () => {
     const qrTransaction = {
       id: 100,
       senderWalletId: 11,
@@ -242,10 +350,230 @@ describe('payment channel contracts', () => {
     transactionRepository.findOne.mockResolvedValue(qrTransaction as never)
     const processPayment = vi.spyOn(service, 'process').mockResolvedValue(qrTransaction as never)
 
-    await service.confirmQr(2, 100)
+    const code = await testTotp.generate({ secret: testTotpSecret })
+    await service.confirmQr(2, 100, code)
 
     expect(qrTransaction.metadata).toHaveProperty('qrConfirmedAt')
+    expect(qrTransaction.metadata).toHaveProperty('twoFactorVerified', true)
     expect(processPayment).toHaveBeenCalledWith(100)
+  })
+
+  it('lets the sender confirm a payment with their Google Authenticator code', async () => {
+    const transaction = {
+      id: 100,
+      senderWalletId: 11,
+      recipientWalletId: 22,
+      channel: PaymentChannel.CARD,
+      status: 'PENDING',
+      failureReason: 'Vérification 2FA requise avant exécution.',
+      metadata: {
+        riskScore: 40,
+        riskLevel: 'MEDIUM',
+        twoFactorExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+    }
+    const { service, transactionRepository } = buildService()
+    transactionRepository.findOne.mockResolvedValue(transaction as never)
+    const processPayment = vi.spyOn(service, 'process').mockResolvedValue(transaction as never)
+    const code = await testTotp.generate({ secret: testTotpSecret })
+
+    await service.confirmTwoFactor(1, 100, code)
+
+    expect(transaction.metadata).toHaveProperty('twoFactorVerified', true)
+    expect(processPayment).toHaveBeenCalledWith(100, true)
+  })
+
+  it('sends an expiring OTP through the existing notification service', async () => {
+    vi.useFakeTimers()
+    const requestedAt = new Date('2026-11-13T00:00:00.000Z')
+    vi.setSystemTime(requestedAt)
+    const transaction = {
+      id: 100,
+      senderWalletId: 11,
+      recipientWalletId: 22,
+      channel: PaymentChannel.CARD,
+      status: 'PENDING',
+      failureReason: 'Vérification 2FA requise avant exécution.',
+      metadata: {
+        riskScore: 40,
+        riskLevel: 'MEDIUM',
+        twoFactorExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      },
+    }
+    const { service, transactionRepository, otpCodeRepository, notificationService } = buildService()
+    transactionRepository.findOne.mockResolvedValue(transaction as never)
+
+    try {
+      const result = await service.requestNotificationOtp(1, 100)
+      expect(result.sent).toBe(true)
+      expect(Date.parse(result.expiresAt)).toBe(requestedAt.getTime() + 2 * 60_000)
+      expect(otpCodeRepository.save).toHaveBeenCalledWith(expect.objectContaining({
+        userId: 1,
+        transactionId: 100,
+        purpose: 'PAYMENT_CONFIRMATION',
+        isUsed: false,
+        failedAttempts: 0,
+      }))
+      const [userId, title, message] = notificationService.create.mock.calls[0]
+      expect(userId).toBe(1)
+      expect(title).toContain('OTP')
+      expect(message).toContain('#100')
+      expect(message).toMatch(/\b\d{6}\b/)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('lets the payer confirm a payment with the notification OTP', async () => {
+    const transaction = {
+      id: 100,
+      senderWalletId: 11,
+      recipientWalletId: 22,
+      channel: PaymentChannel.CARD,
+      status: 'PENDING',
+      failureReason: 'Vérification 2FA requise avant exécution.',
+      metadata: {
+        riskScore: 40,
+        riskLevel: 'MEDIUM',
+        twoFactorExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+    }
+    const otp = {
+      codeHash: await argon2.hash('123456'),
+      expiresAt: new Date(Date.now() + 60_000),
+      failedAttempts: 0,
+      isUsed: false,
+      usedAt: null,
+    }
+    const { service, transactionRepository, otpCodeRepository } = buildService()
+    transactionRepository.findOne.mockResolvedValue(transaction as never)
+    otpCodeRepository.findOne.mockResolvedValue(otp as never)
+    const processPayment = vi.spyOn(service, 'process').mockResolvedValue(transaction as never)
+
+    await service.confirmTwoFactor(1, 100, '123456', 'NOTIFICATION_OTP')
+
+    expect(otp.isUsed).toBe(true)
+    expect(transaction.metadata).toHaveProperty('twoFactorVerified', true)
+    expect(processPayment).toHaveBeenCalledWith(100, true)
+  })
+
+  it('invalidates a notification OTP after five failed confirmation attempts', async () => {
+    const transaction = {
+      id: 100,
+      senderWalletId: 11,
+      recipientWalletId: 22,
+      channel: PaymentChannel.CARD,
+      status: 'PENDING',
+      failureReason: 'Vérification 2FA requise avant exécution.',
+      metadata: {
+        riskScore: 40,
+        riskLevel: 'MEDIUM',
+        twoFactorExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+    }
+    const otp = {
+      codeHash: await argon2.hash('999999'),
+      expiresAt: new Date(Date.now() + 60_000),
+      failedAttempts: 4,
+      isUsed: false,
+      usedAt: null,
+    }
+    const { service, transactionRepository, otpCodeRepository } = buildService()
+    transactionRepository.findOne.mockResolvedValue(transaction as never)
+    otpCodeRepository.findOne.mockResolvedValue(otp as never)
+
+    await expect(service.confirmTwoFactor(1, 100, '123456', 'NOTIFICATION_OTP')).rejects.toThrow('Code OTP invalide')
+
+    expect(otp.failedAttempts).toBe(5)
+    expect(otp.isUsed).toBe(true)
+  })
+
+  it('requires the sender to enable Google Authenticator before confirming a payment', async () => {
+    const transaction = {
+      id: 100,
+      senderWalletId: 11,
+      recipientWalletId: 22,
+      channel: PaymentChannel.CARD,
+      status: 'PENDING',
+      failureReason: 'Vérification 2FA requise avant exécution.',
+      metadata: {
+        riskScore: 40,
+        riskLevel: 'MEDIUM',
+        twoFactorExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+    }
+    const { service, transactionRepository } = buildService()
+    transactionRepository.findOne.mockResolvedValue(transaction as never)
+    const userRepository = (service as unknown as { userRepository: { findOne: ReturnType<typeof vi.fn> } }).userRepository
+    userRepository.findOne.mockResolvedValue({ isTwoFactorEnabled: false, twoFactorSecret: null })
+
+    await expect(service.confirmTwoFactor(1, 100, '123456')).rejects.toThrow('Activez Google Authenticator')
+  })
+
+  it('uses the configured thresholds when the AI service decision is stale', async () => {
+    const { service } = buildService(
+      Role.USER,
+      KycStatus.APPROVED,
+      KybStatus.NON_VERIFIE,
+      { lowRiskThreshold: 0.3, mediumRiskThreshold: 0.7 },
+    )
+    const predict = vi.spyOn(axios, 'post').mockResolvedValue({
+      data: {
+        risk_score: 73.8,
+        risk_level: 'MEDIUM',
+        decision: 'REQUIRE_2FA',
+        reasons: ['Risque élevé détecté.'],
+      },
+    } as never)
+    const evaluateRisk = (service as unknown as {
+      evaluateTransactionRisk: (userId: number, transaction: Record<string, unknown>) => Promise<{ decision: string; riskScore: number }>
+    }).evaluateTransactionRisk
+
+    try {
+      await expect(evaluateRisk.call(service, 1, {
+        id: 100,
+        senderWalletId: 11,
+        recipientWalletId: 22,
+        amount: 1,
+        currency: 'EUR',
+        channel: PaymentChannel.CARD,
+        metadata: {},
+      })).resolves.toMatchObject({ riskScore: 73.8, decision: 'BLOCK' })
+    } finally {
+      predict.mockRestore()
+    }
+  })
+
+  it('rejects QR confirmation when the Google Authenticator code is invalid', async () => {
+    const qrTransaction = {
+      id: 100,
+      senderWalletId: 11,
+      recipientWalletId: 22,
+      channel: PaymentChannel.QR,
+      status: 'PENDING',
+      metadata: {},
+    }
+    const { service, transactionRepository } = buildService()
+    transactionRepository.findOne.mockResolvedValue(qrTransaction as never)
+
+    await expect(service.confirmQr(2, 100, '000000')).rejects.toThrow('Code Google Authenticator invalide')
+  })
+
+  it('requires the recipient to enable Google Authenticator before QR confirmation', async () => {
+    const qrTransaction = {
+      id: 100,
+      senderWalletId: 11,
+      recipientWalletId: 22,
+      channel: PaymentChannel.QR,
+      status: 'PENDING',
+      metadata: {},
+    }
+    const { service, transactionRepository } = buildService()
+    transactionRepository.findOne.mockResolvedValue(qrTransaction as never)
+    const userRepository = (service as unknown as { userRepository: { findOne: ReturnType<typeof vi.fn> } }).userRepository
+    userRepository.findOne.mockResolvedValue({ isTwoFactorEnabled: false, twoFactorSecret: testTotpSecret })
+
+    await expect(service.confirmQr(2, 100, '123456')).rejects.toThrow('Activez Google Authenticator')
   })
 
   it('does not let the payer confirm a QR payment on behalf of the recipient', async () => {
@@ -260,7 +588,7 @@ describe('payment channel contracts', () => {
     }
     transactionRepository.findOne.mockResolvedValue(qrTransaction as never)
 
-    await expect(service.confirmQr(1, 100)).rejects.toThrow('Seul le destinataire peut confirmer')
+    await expect(service.confirmQr(1, 100, '123456')).rejects.toThrow('Seul le destinataire peut confirmer')
     await expect(service.findQrConfirmation(1, 100)).rejects.toThrow('Transaction non trouvée')
   })
 

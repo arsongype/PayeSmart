@@ -36,7 +36,7 @@ export default function OtpVerificationPage() {
 
       <form onSubmit={submit} className="rounded-2xl border border-gray-300 bg-white p-5 shadow-lg shadow-black/10 space-y-3">
         {message && (
-          <div className={`rounded-xl border p-3 text-xs ${status === 'success' ? 'bg-emerald-500/10 border-emerald-500/50 text-black' : 'bg-red-500/10 border-red-500/50 text-black'}`}>
+          <div role={status === 'success' ? 'status' : 'alert'} className={`rounded-xl border p-3 text-xs ${status === 'success' ? 'border-green-300 bg-green-50 text-green-800' : 'border-red-300 bg-red-50 text-red-800'}`}>
             <div className="flex items-center gap-2">
               {status === 'success' && <CheckCircle size={16} />}
               {message}

@@ -2,6 +2,7 @@ import { apiClient } from '../config/axios.config'
 
 export type PaymentChannel = 'MVOLA' | 'ORANGE_MONEY' | 'AIRTEL_MONEY' | 'CARD' | 'QR' | 'BANK_TRANSFER'
 export type PaymentCurrency = 'MGA' | 'EUR' | 'USD' | 'XOF'
+export type PaymentTwoFactorMethod = 'AUTHENTICATOR' | 'NOTIFICATION_OTP'
 
 export interface RecipientAccount {
   walletNumber: string
@@ -92,13 +93,18 @@ export const paymentService = {
     return data
   },
 
-  async confirmTwoFactor(transactionId: number, code: string): Promise<PaymentTransaction> {
-    const { data } = await apiClient.post(`/payments/${transactionId}/confirm-2fa`, { code })
+  async requestNotificationOtp(transactionId: number): Promise<{ sent: boolean; expiresAt: string }> {
+    const { data } = await apiClient.post(`/payments/${transactionId}/request-notification-otp`)
     return data
   },
 
-  async confirmQr(transactionId: number): Promise<PaymentTransaction> {
-    const { data } = await apiClient.post(`/payments/${transactionId}/qr/confirm`)
+  async confirmTwoFactor(transactionId: number, code: string, method: PaymentTwoFactorMethod = 'AUTHENTICATOR'): Promise<PaymentTransaction> {
+    const { data } = await apiClient.post(`/payments/${transactionId}/confirm-2fa`, { code, method })
+    return data
+  },
+
+  async confirmQr(transactionId: number, code: string): Promise<PaymentTransaction> {
+    const { data } = await apiClient.post(`/payments/${transactionId}/qr/confirm`, { code })
     return data
   },
 

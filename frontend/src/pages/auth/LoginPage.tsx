@@ -20,7 +20,7 @@ export default function LoginPage() {
   return (
     <div>
       {successMessage && (
-        <div className="mb-3 rounded-lg bg-green-500/10 border border-green-500/50 p-2.5 text-xs text-green-400 text-center">
+        <div role="status" className="mb-3 rounded-lg border border-green-300 bg-green-50 p-2.5 text-center text-sm font-medium text-green-800">
           {successMessage}
         </div>
       )}

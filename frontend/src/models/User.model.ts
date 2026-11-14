@@ -6,7 +6,7 @@ export interface User {
   role: 'USER' | 'MERCHANT' | 'ADMIN';
   kycStatus: 'NON_VERIFIE' | 'EN_COURS' | 'VERIFIE' | 'REJECTED' | 'APPROVED';
   kybStatus: 'NON_VERIFIE' | 'EN_COURS' | 'VERIFIE' | 'REJECTED' | 'APPROVED';
-  accountStatus: 'ACTIVE' | 'SUSPENDED' | 'DELETED' | 'PENDING_VERIFICATION';
+  accountStatus: 'ACTIVE' | 'SUSPENDED' | 'DELETED' | 'PENDING_VERIFICATION' | 'REJECTED';
   suspensionReason?: string | null;
   suspendedAt?: string | null;
   deletedAt?: string | null;
@@ -104,6 +104,10 @@ export interface AuthResponse {
   user: User;
 }
 
+export interface RegistrationResponse {
+  user: Pick<User, 'id' | 'email' | 'accountStatus' | 'accountExpiresAt'>;
+}
+
 export interface LoginCredentials {
   email: string;
   password: string;
@@ -111,12 +115,12 @@ export interface LoginCredentials {
 
 export interface RegisterData extends LoginCredentials {
   confirmPassword: string;
-  firstName: string;
+  firstName?: string;
   lastName: string;
   cin?: string;
   phone?: string;
   dateOfBirth?: string;
-  role?: 'USER' | 'MERCHANT' | 'ADMIN';
+  role?: 'USER' | 'MERCHANT';
 }
 
 export interface RefreshTokenPayload {

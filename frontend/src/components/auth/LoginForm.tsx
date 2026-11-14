@@ -20,6 +20,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [feedbackType, setFeedbackType] = useState<'error' | 'update' | 'delete'>('error')
   const [twoFactorCode, setTwoFactorCode] = useState('')
   const [deletionPending, setDeletionPending] = useState(false)
   const [formData, setFormData] = useState<LoginFormData>({
@@ -55,6 +56,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
+    setFeedbackType('error')
 
     if (!validate()) return
 
@@ -67,8 +69,10 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       const errMsg = err instanceof Error ? err.message : t('loginFailed')
       if (errMsg === 'ACCOUNT_DELETION_PENDING') {
         setDeletionPending(true)
+        setFeedbackType('delete')
         setError(t('accountDeletionPending'))
       } else if (errMsg === 'ACCOUNT_DELETION_EXPIRED') {
+        setFeedbackType('delete')
         setError(t('accountDeletionExpired'))
       } else if (errMsg !== '2FA_REQUIRED') {
         setError(errMsg)
@@ -83,6 +87,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
     setIsLoading(true)
     setError(null)
+    setFeedbackType('error')
 
     try {
       await verifyTwoFactor(twoFactorCode)
@@ -91,8 +96,10 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       const errMsg = err instanceof Error ? err.message : t('invalid2faCode')
       if (errMsg === 'ACCOUNT_DELETION_PENDING') {
         setDeletionPending(true)
+        setFeedbackType('delete')
         setError(t('accountDeletionPending'))
       } else if (errMsg === 'ACCOUNT_DELETION_EXPIRED') {
+        setFeedbackType('delete')
         setError(t('accountDeletionExpired'))
       } else {
         setError(errMsg)
@@ -105,6 +112,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   const handleRestoreAccount = async () => {
     setIsLoading(true)
     setError(null)
+    setFeedbackType('update')
     try {
       await authService.cancelAccountDeletion({
         ...formData,
@@ -122,6 +130,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : t('unknownError')
+      setFeedbackType(errMsg === 'ACCOUNT_DELETION_EXPIRED' ? 'delete' : 'error')
       setError(errMsg === 'ACCOUNT_DELETION_EXPIRED' ? t('accountDeletionExpired') : errMsg)
     } finally {
       setIsLoading(false)
@@ -131,13 +140,13 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   return (
       <form onSubmit={handleSubmit} className="space-y-4 w-full max-w-sm mx-auto">
         <div className="text-center">
-          <img src={logo} alt={t('paysmart')} className="mx-auto mb-2 h-auto w-28 object-contain" />
+          <img src={logo} alt={t('paysmart')} className="mx-auto mb-3 h-auto w-36 rounded-lg bg-white px-3 py-1 object-contain" />
           <h1 className="text-xl font-bold text-black tracking-tight">Connexion</h1>
           <p className="text-xs text-black">Content de vous revoir !</p>
         </div>
 
         {error && (
-          <div className="rounded-lg bg-rose-500/10 border border-rose-500/30 p-2.5 text-xs text-black animate-fade-in">
+          <div role={feedbackType === 'update' ? 'status' : 'alert'} className={`animate-fade-in rounded-lg border p-2.5 text-xs ${feedbackType === 'update' ? 'border-blue-300 bg-blue-50 text-blue-900' : 'border-red-300 bg-red-50 text-red-800'}`}>
             {error}
           </div>
         )}
@@ -219,7 +228,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                 <input type="checkbox" className="h-3.5 w-3.5 rounded border-gray-300" />
                 Se souvenir de moi
               </label>
-              <Link to="/forgot-password" className="text-xs text-black hover:text-black transition-colors font-medium">
+              <Link to="/forgot-password" className="text-xs font-semibold text-primary-700 hover:text-primary-800 transition-colors">
                 Mot de passe oublié ?
               </Link>
             </div>
@@ -247,7 +256,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
             <p className="text-center text-xs text-black">
               Pas encore de compte ?{' '}
-              <Link to="/register" className="font-semibold text-black hover:text-black transition-colors">
+              <Link to="/register" className="font-semibold text-primary-700 hover:text-primary-800 transition-colors">
                 S'inscrire
               </Link>
             </p>
@@ -255,7 +264,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         )}
 
         {deletionPending && (
-          <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+          <div className="space-y-2 rounded-lg border border-red-300 bg-red-50 p-3">
             <p className="text-xs text-black">{t('accountDeletionRecoveryHint')}</p>
             <Button
               type="button"

@@ -13,11 +13,12 @@ export const cinSchema = z
   .string()
   .regex(/^\d{8,12}$/, 'CIN invalide (8 à 12 chiffres)')
   .optional()
+  .or(z.literal(''))
 export const dateOfBirthSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide (YYYY-MM-DD)')
   .optional()
-export const roleSchema = z.enum(['USER', 'MERCHANT', 'ADMIN']).optional()
+export const roleSchema = z.enum(['USER', 'MERCHANT']).optional()
 
 export const loginSchema = z.object({
   email: emailSchema,
@@ -28,7 +29,7 @@ export const registerSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   confirmPassword: z.string(),
-  firstName: nameSchema,
+  firstName: z.string().optional().or(z.literal('')),
   lastName: nameSchema,
   cin: cinSchema,
   phone: phoneSchema,

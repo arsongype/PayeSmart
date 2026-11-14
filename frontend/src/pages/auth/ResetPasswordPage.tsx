@@ -54,13 +54,13 @@ export default function ResetPasswordPage() {
       </div>
 
       {error && (
-        <div className="mb-3 rounded-lg border border-red-500/50 bg-red-500/10 p-2.5 text-xs text-black">
+        <div role="alert" className="mb-3 rounded-lg border border-red-300 bg-red-50 p-2.5 text-xs text-red-800">
           {error}
         </div>
       )}
 
       {message && (
-        <div className="mb-3 rounded-lg border border-emerald-500/50 bg-emerald-500/10 p-2.5 text-xs text-black">
+        <div role="status" className="mb-3 rounded-lg border border-green-300 bg-green-50 p-2.5 text-xs text-green-800">
           {message}
         </div>
       )}

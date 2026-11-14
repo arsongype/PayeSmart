@@ -15,6 +15,12 @@ type Notification = {
   link?: string | null
 }
 
+function getNotificationActionUrl(link: string): string {
+  const target = new URL(link, window.location.origin)
+  target.searchParams.delete('qrToken')
+  return target.href
+}
+
 export default function NotificationsPage() {
   const { t } = useTranslation()
   const translationRef = useRef(t)
@@ -97,7 +103,7 @@ export default function NotificationsPage() {
     event.preventDefault()
     if (!notification.isRead && !await markAsRead(notification.id)) return
 
-    const target = new URL(notification.link, window.location.origin)
+    const target = new URL(getNotificationActionUrl(notification.link))
     if (target.origin === window.location.origin) {
       navigate(`${target.pathname}${target.search}${target.hash}`)
     } else {
@@ -118,7 +124,7 @@ export default function NotificationsPage() {
         </div>
 
         {error && (
-          <div role="alert" className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <div role="alert" className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" />
             <span>{error}</span>
           </div>
@@ -149,7 +155,7 @@ export default function NotificationsPage() {
                       {n.link.includes('/payments/confirm/') && (
                         <QRCodeSVG value={n.link} size={120} level="M" includeMargin />
                       )}
-                      <a href={n.link} onClick={(event) => void openNotificationLink(event, n)} className="inline-block text-sm font-medium text-primary-600 hover:underline">
+                      <a href={getNotificationActionUrl(n.link)} onClick={(event) => void openNotificationLink(event, n)} className="inline-block text-sm font-medium text-primary-600 hover:underline">
                         {t('openAction')}
                       </a>
                     </div>

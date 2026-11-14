@@ -1,5 +1,6 @@
 import { apiClient } from '../config/axios.config'
 import { API_ORIGIN } from '../config/env'
+import type { FraudAlert, FraudInvestigation, FraudOutcome } from '../models/FraudAlert.model'
 
 export const adminService = {
   async getSecurityRules() {
@@ -43,6 +44,16 @@ export const adminService = {
 
   async updateUserRole(userId: number, role: 'USER' | 'MERCHANT' | 'ADMIN') {
     const { data } = await apiClient.patch(`/auth/users/${userId}/role`, { role })
+    return data
+  },
+
+  async approveRegistration(userId: number) {
+    const { data } = await apiClient.patch(`/auth/users/${userId}/approve`)
+    return data
+  },
+
+  async rejectRegistration(userId: number) {
+    const { data } = await apiClient.patch(`/auth/users/${userId}/reject`)
     return data
   },
 
@@ -91,13 +102,37 @@ export const adminService = {
     return data
   },
 
-  async getFraudAlerts() {
-    const { data } = await apiClient.get('/admin/fraud-alerts')
+  async getFraudAlerts(includeAll = false): Promise<FraudAlert[]> {
+    const { data } = await apiClient.get('/admin/fraud-alerts', {
+      params: includeAll ? { includeAll: true } : undefined,
+    })
     return data
   },
 
-  async reviewFraudAlert(transactionId: number, status: 'OPEN' | 'RESOLVED') {
-    const { data } = await apiClient.patch(`/admin/fraud-alerts/${transactionId}/review`, { status })
+  async getFraudAlertInvestigation(transactionId: number): Promise<FraudInvestigation> {
+    const { data } = await apiClient.get(`/admin/fraud-alerts/${transactionId}/investigation`)
+    return data
+  },
+
+  async reviewFraudAlert(
+    transactionId: number,
+    status: 'OPEN' | 'INVESTIGATING' | 'RESOLVED',
+    adminNotes: string,
+    fraudOutcome?: FraudOutcome,
+  ) {
+    const { data } = await apiClient.patch(`/admin/fraud-alerts/${transactionId}/review`, {
+      status,
+      adminNotes,
+      fraudOutcome,
+    })
+    return data
+  },
+
+  async suspendFraudAlertUser(transactionId: number, adminNotes: string, suspensionReason: string) {
+    const { data } = await apiClient.patch(`/admin/fraud-alerts/${transactionId}/suspend`, {
+      adminNotes,
+      suspensionReason,
+    })
     return data
   },
 

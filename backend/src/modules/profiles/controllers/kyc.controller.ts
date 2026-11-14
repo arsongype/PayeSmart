@@ -8,6 +8,7 @@ import { Role } from '../../auth/enums/role.enum.js'
 import { AccountManagementService } from '../../../users/services/account-management.service.js'
 import { KycService } from '../services/kyc.service.js'
 import { CreateKycDocumentDto, ReviewKycDocumentDto } from '../../auth/dto/kyc.dto.js'
+import { storage, fileFilter } from '../../../storage/storage.config.js'
 
 interface RequestWithUser extends Request {
   user: { sub: string; email: string; role: string }
@@ -27,7 +28,7 @@ export class KycController {
   }
 
   @Post()
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { storage, fileFilter }))
   create(@Body() dto: CreateKycDocumentDto, @UploadedFile() file: Express.Multer.File, @Req() req: RequestWithUser) {
     const userId = parseInt(req.user.sub, 10)
     const documentUrl = file ? `/uploads/${file.filename}` : dto.documentUrl

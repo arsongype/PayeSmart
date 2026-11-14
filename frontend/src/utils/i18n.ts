@@ -41,6 +41,33 @@ export interface Translations {
     optional: string
     noDocuments: string
     noTransactions: string
+    withdrawalRequests: string
+    requestWithdrawal: string
+    withdrawalMethod: string
+    withdrawalRecipient: string
+    withdrawalDestination: string
+    withdrawalBankName: string
+    withdrawalNote: string
+    withdrawalSubmitted: string
+    withdrawalCancelled: string
+    withdrawalCountry: string
+    noWithdrawalRequests: string
+    cancelWithdrawal: string
+    withdrawalPending: string
+    withdrawalApproved: string
+    withdrawalPaid: string
+    withdrawalRejected: string
+    withdrawalCancelledStatus: string
+    withdrawalQueue: string
+    withdrawalQueueDescription: string
+    withdrawalUser: string
+    withdrawalDestinationDetails: string
+    withdrawalReviewNote: string
+    markWithdrawalPaid: string
+    manualPayoutNotice: string
+    withdrawalUnavailable: string
+    withdrawalAmountInvalid: string
+    withdrawalAccount: string
     noAlerts: string
     noNotifications: string
     viewAllNotifications: string
@@ -63,6 +90,8 @@ export interface Translations {
     accountNumber: string
     cardholder: string
     expiry: string
+    expiryMonth: string
+    expiryYear: string
     eur: string
     usd: string
     xof: string
@@ -94,6 +123,8 @@ export interface Translations {
     cancelDeletion: string
     reactivationDeadline: string
     accountStatus: string
+    pendingApproval: string
+    registrationRejected: string
     riskScore: string
     trustScore: string
     recommendation: string
@@ -155,15 +186,22 @@ export interface Translations {
     paymentFeePreview: string
     calculatingFee: string
     cannotCalculateFee: string
+    loadingBalance: string
+    cannotLoadBalance: string
+    insufficientBalance: string
     performance: string
     channels: string
     channelsDescription: string
+    transactionRatesByChannel: string
+    allClientsTransactionScope: string
+    transactionShare: string
     aiMetrics: string
     metricsDescription: string
     precision: string
     recall: string
     f1Score: string
     analyzed: string
+    transactionMetricScope: string
     adminPanel: string
     adminDescription: string
     activeUsers: string
@@ -188,6 +226,8 @@ export interface Translations {
     pagination: string
     previous: string
     next: string
+    previousYear: string
+    nextYear: string
     riskLevel: string
     mainReason: string
     senderName: string
@@ -195,12 +235,12 @@ export interface Translations {
     transactionAmount: string
     transactionFee: string
     transactionTotal: string
+    recipientReceivesAmount: string
     receiptFee: string
     receiptTotal: string
     profileImageUploaded: string
     securityRules: string
     securityRulesDescription: string
-    addRule: string
     saveRule: string
     deleteRule: string
     ruleName: string
@@ -343,9 +383,47 @@ export interface Translations {
     unknownSender: string
     unknownRecipient: string
     cannotLoadFraudAlerts: string
+    includeAllTransactions: string
+    showFraudAlertsOnly: string
     cannotResolveFraudAlert: string
     markFraudReviewed: string
     fraudReviewed: string
+    investigateFraudAlert: string
+    investigationDetails: string
+    previousReviewNotes: string
+    accountContext: string
+    recentTransactions: string
+    transactionOutcome: string
+    aiDecision: string
+    aiFactors: string
+    aiEvidenceUnavailable: string
+    fraudOutcomeLabel: string
+    selectFraudOutcome: string
+    confirmedFraud: string
+    legitimateTransaction: string
+    fraudOutcomeImpact: string
+    internalConclusion: string
+    internalConclusionPlaceholder: string
+    startInvestigation: string
+    resolveAfterInvestigation: string
+    legitimateUserCloseHint: string
+    investigationProgressSaved: string
+    suspendUserConfirm: string
+    suspendAccount: string
+    suspensionReasonPlaceholder: string
+    confirmSuspendAccount: string
+    investigationLoadFailed: string
+    investigationSaveFailed: string
+    accountSuspended: string
+    statusOpen: string
+    statusInvestigating: string
+    statusResolved: string
+    transactionFailure: string
+    transactionReference: string
+    totalDebited: string
+    noRecentTransactions: string
+    kycStatusLabel: string
+    kybStatusLabel: string
     backToList: string
     accountStatusLabel: string
     accountExpirationDate: string
@@ -359,6 +437,9 @@ export interface Translations {
     deleteAccount: string
     accountDeletionDescription: string
     confirmSelfDeletion: string
+    deletionStepOne: string
+    deletionStepTwo: string
+    continueDeletion: string
     accountDeletionBlocked: string
     accountDeletionScheduled: string
     accountDeletionPending: string
@@ -405,18 +486,19 @@ export interface Translations {
     showPassword: string
     hideSensitiveData: string
     showSensitiveData: string
+    copySensitiveData: string
+    copied: string
+    copyFailed: string
     searchPlaceholder: string
     unread: string
     paysmart: string
     paysmartHome: string
     transactionHistory: string
     viewLastTransactions: string
-    analyticsReporting: string
     welcomeMessage: string
     loadingAnalyticsData: string
     realTimeConsolidatedData: string
     volumesByPaymentMethod: string
-    apiMetricsEndpoint: string
     cannotLoadPayments: string
     phoneDigitsOnly: string
     accountDigitsOnly: string
@@ -454,13 +536,29 @@ export interface Translations {
     bankTransferOtpRequired: string
     cannotInitiatePayment: string
     cannotConfirmQr: string
+    paymentAuthenticatorRequired: string
+    paymentVerificationRequired: string
+    paymentVerificationMethod: string
+    notificationOtp: string
+    googleAuthenticator: string
+    notificationOtpHint: string
+    sendNotificationOtp: string
+    sending: string
+    notificationOtpSent: string
+    notificationOtpCode: string
+    notificationOtpExpiresIn: string
+    notificationOtpExpired: string
+    cannotSendPaymentOtp: string
     qrConfirmation: string
     qrConfirmationDescription: string
+    qrPaymentCodeDescription: string
+    qrAuthenticatorRequired: string
+    googleAuthenticatorCode: string
+    setupGoogleAuthenticator: string
     qrWaitingForRecipient: string
     qrRecipientWillReceiveLink: string
     confirmQr: string
     qrPaymentConfirmed: string
-    qrNeedsTwoFactor: string
     onlyRecipientCanConfirm: string
     processing: string
     transactionNotFound: string
@@ -545,6 +643,33 @@ export const translations: Record<Language, Translations> = {
       optional: 'Optionnel',
       noDocuments: 'Aucun document',
       noTransactions: 'Aucune transaction',
+      withdrawalRequests: 'Demandes de retrait',
+      requestWithdrawal: 'Demander un retrait',
+      withdrawalMethod: 'Moyen de retrait',
+      withdrawalRecipient: 'Nom du bénéficiaire',
+      withdrawalDestination: 'Numéro de téléphone ou coordonnées du compte',
+      withdrawalBankName: 'Nom de la banque',
+      withdrawalNote: 'Note facultative',
+      withdrawalSubmitted: 'Demande de retrait enregistrée. Le montant est réservé sur votre solde.',
+      withdrawalCancelled: 'Demande annulée et montant rendu au solde.',
+      withdrawalCountry: 'Pays du profil',
+      noWithdrawalRequests: 'Aucune demande de retrait',
+      cancelWithdrawal: 'Annuler la demande',
+      withdrawalPending: 'En attente',
+      withdrawalApproved: 'Approuvée',
+      withdrawalPaid: 'Payée manuellement',
+      withdrawalRejected: 'Refusée / annulée',
+      withdrawalCancelledStatus: 'Annulée',
+      withdrawalQueue: 'Demandes de retrait à traiter',
+      withdrawalQueueDescription: 'Examinez les coordonnées et mettez à jour le statut après traitement.',
+      withdrawalUser: 'Utilisateur',
+      withdrawalDestinationDetails: 'Coordonnées de destination',
+      withdrawalReviewNote: 'Motif du refus ou note de traitement',
+      markWithdrawalPaid: 'Marquer comme payée',
+      manualPayoutNotice: 'L’approbation ne réalise pas le versement. Effectuez le paiement hors application avant de le marquer comme payé.',
+      withdrawalUnavailable: 'Impossible de charger les demandes de retrait',
+      withdrawalAmountInvalid: 'Saisissez un montant valide supérieur à zéro.',
+      withdrawalAccount: 'Compte / téléphone',
       noAlerts: 'Aucune alerte',
       noNotifications: 'Aucune notification',
       viewAllNotifications: 'Voir toutes les notifications',
@@ -579,7 +704,7 @@ export const translations: Record<Language, Translations> = {
       downloadReceipt: 'Télécharger le reçu',
       confirmPayment: 'Confirmer le paiement',
       twoFactorCode: 'Code OTP de confirmation (pas le CVV)',
-      codeReceived: 'Code reçu dans vos notifications',
+      codeReceived: 'Code Google Authenticator',
       token: 'Token',
       iban: 'IBAN',
       reference: 'Référence',
@@ -599,6 +724,8 @@ export const translations: Record<Language, Translations> = {
       cancelDeletion: 'Annuler la suppression',
       reactivationDeadline: 'Date limite de réactivation',
       accountStatus: 'Statut du compte',
+      pendingApproval: 'En attente de validation',
+      registrationRejected: 'Demande refusée',
       riskScore: 'Score IA',
       trustScore: 'Trust Score',
       recommendation: 'Recommandation',
@@ -650,25 +777,34 @@ export const translations: Record<Language, Translations> = {
       recipientInfo: 'Information destinataire',
       paymentMode: 'Mode de paiement',
       selectOperator: 'Sélectionner',
-      cardExpiry: 'Date d’expiration (MM/AA)',
+      cardExpiry: 'Date d’expiration (mois/année)',
+      expiryMonth: 'Mois',
+      expiryYear: 'Année',
       cvv: 'CVV',
       dynamicCvv: 'Votre CVV : {{code}}',
       dynamicCvvNotice: 'Code temporaire renouvelé toutes les 30 minutes.',
-      invalidExpiry: 'Saisissez une date d’expiration valide (MM/AA) dans le futur.',
+      invalidExpiry: 'Saisissez un mois et une année d’expiration valides dans le futur.',
       invalidCvv: 'CVV invalide. Consultez le code dans Mon Portefeuille.',
       payNow: 'Payer maintenant',
       paymentFeePreview: 'Récapitulatif avant paiement',
       calculatingFee: 'Calcul des frais...',
       cannotCalculateFee: 'Impossible de calculer les frais de transaction',
+      loadingBalance: 'Chargement du solde actuel...',
+      cannotLoadBalance: 'Impossible de charger le solde actuel',
+      insufficientBalance: 'Votre solde actuel est insuffisant pour ce paiement.',
       performance: 'Performance IA',
       channels: 'Canaux',
       channelsDescription: 'Répartition des flux financiers consolidés',
+      transactionRatesByChannel: 'Répartition des transactions par canal',
+      allClientsTransactionScope: 'Pourcentage de toutes les transactions, tous statuts et tous clients confondus.',
+      transactionShare: 'Part des transactions',
       aiMetrics: 'Métriques IA',
       metricsDescription: 'Données de performance du modèle',
       precision: 'Précision',
       recall: 'Rappel',
       f1Score: 'F1-score',
       analyzed: 'Analysées',
+      transactionMetricScope: 'Vos paiements envoyés; l’admin voit l’agrégat de tous les utilisateurs.',
       adminPanel: 'Panneau d\'administration',
       adminDescription: 'Supervision des utilisateurs, transactions et alertes IA',
       activeUsers: 'Utilisateurs actifs',
@@ -693,19 +829,21 @@ export const translations: Record<Language, Translations> = {
       pagination: 'Pagination des alertes fraude',
       previous: 'Précédent',
       next: 'Suivant',
+      previousYear: 'Année précédente',
+      nextYear: 'Année suivante',
       riskLevel: 'Niveau de risque',
       mainReason: 'Motif principal',
       senderName: 'Expéditeur',
       recipientName: 'Destinataire',
       transactionAmount: 'Montant',
-      transactionFee: 'Frais',
-      transactionTotal: 'Total débité',
+      transactionFee: 'Frais (à la charge de l’expéditeur)',
+      transactionTotal: 'Total débité à l’expéditeur',
+      recipientReceivesAmount: 'Le destinataire recevra exactement le montant indiqué ; les frais sont débités en plus du portefeuille de l’expéditeur.',
       receiptFee: 'Frais',
       receiptTotal: 'Total débité',
       profileImageUploaded: 'Photo de profil mise à jour',
       securityRules: 'Règles de sécurité',
       securityRulesDescription: 'Modifiez les règles de contrôle et de tarification à tout moment.',
-      addRule: 'Ajouter une règle',
       saveRule: 'Enregistrer',
       deleteRule: 'Supprimer',
       ruleName: 'Nom de la règle',
@@ -847,9 +985,47 @@ export const translations: Record<Language, Translations> = {
       unknownSender: 'Expéditeur inconnu',
       unknownRecipient: 'Destinataire inconnu',
       cannotLoadFraudAlerts: 'Impossible de charger les alertes de fraude',
+      includeAllTransactions: 'Inclure les transactions non signalées pour les évaluer',
+      showFraudAlertsOnly: 'Afficher uniquement les alertes',
       cannotResolveFraudAlert: 'Impossible de marquer cette alerte comme traitée',
       markFraudReviewed: 'Marquer comme traitée',
       fraudReviewed: 'Alerte traitée',
+      investigateFraudAlert: 'Enquêter sur cette alerte',
+      investigationDetails: 'Détails de l’enquête',
+      previousReviewNotes: 'Notes enregistrées précédemment',
+      accountContext: 'Contexte du compte',
+      recentTransactions: 'Transactions récentes de l’expéditeur',
+      transactionOutcome: 'Résultat de la transaction',
+      aiDecision: 'Décision antifraude',
+      aiFactors: 'Facteurs détectés',
+      aiEvidenceUnavailable: 'Les données détaillées du modèle ne sont pas disponibles pour cette ancienne transaction.',
+      fraudOutcomeLabel: 'Verdict vérifié',
+      selectFraudOutcome: 'Sélectionnez le résultat de la vérification',
+      confirmedFraud: 'Fraude confirmée',
+      legitimateTransaction: 'Transaction légitime',
+      fraudOutcomeImpact: 'Ce verdict alimente les métriques du payeur et l’agrégat administrateur.',
+      internalConclusion: 'Notes et conclusion de l’enquête',
+      internalConclusionPlaceholder: 'Décrivez les faits vérifiés et votre conclusion (10 caractères minimum).',
+      startInvestigation: 'Enregistrer et poursuivre l’enquête',
+      resolveAfterInvestigation: 'Terminer la revue et enregistrer le verdict',
+      legitimateUserCloseHint: 'Après vérification, choisissez un verdict et consignez les faits observés.',
+      investigationProgressSaved: 'Les notes ont été enregistrées et l’enquête reste ouverte.',
+      suspendUserConfirm: 'Confirmer la suspension du compte de {{name}} ?',
+      suspendAccount: 'Suspendre le compte',
+      suspensionReasonPlaceholder: 'Motif de suspension (10 caractères minimum).',
+      confirmSuspendAccount: 'Confirmer la suspension',
+      investigationLoadFailed: 'Impossible de charger les éléments de l’enquête',
+      investigationSaveFailed: 'Impossible d’enregistrer la décision',
+      accountSuspended: 'Le compte a été suspendu et l’alerte reste ouverte pour suivi.',
+      statusOpen: 'À examiner',
+      statusInvestigating: 'En cours d’enquête',
+      statusResolved: 'Enquête clôturée',
+      transactionFailure: 'Motif d’échec',
+      transactionReference: 'N°',
+      totalDebited: 'Total débité',
+      noRecentTransactions: 'Aucune transaction récente.',
+      kycStatusLabel: 'Statut KYC',
+      kybStatusLabel: 'Statut KYB',
       backToList: 'Retour à la liste',
       accountStatusLabel: 'Compte : {{status}}',
       accountExpirationDate: 'Expiration du compte : {{date}}',
@@ -863,6 +1039,9 @@ export const translations: Record<Language, Translations> = {
       deleteAccount: 'Supprimer mon compte',
       accountDeletionDescription: 'Le compte sera bloqué immédiatement. La vérification de sécurité peut bloquer la demande en cas de fraude ou d’opérations en cours. Après 30 jours, les données personnelles seront anonymisées et l’historique financier conservé.',
       confirmSelfDeletion: 'Confirmer la demande ? Votre compte sera bloqué immédiatement et pourra être récupéré pendant 30 jours.',
+      deletionStepOne: 'Étape 1 sur 2 : confirmer votre choix',
+      deletionStepTwo: 'Étape 2 sur 2 : vérifier votre identité',
+      continueDeletion: 'Continuer',
       accountDeletionBlocked: 'Demande bloquée par la vérification de sécurité :',
       accountDeletionScheduled: 'Suppression programmée. Vous pouvez récupérer votre compte en vous reconnectant avant le {{date}}.',
       accountDeletionPending: 'Ce compte est en cours de suppression. Récupérez-le avec votre email et votre mot de passe avant la fin du délai de 30 jours.',
@@ -875,7 +1054,7 @@ export const translations: Record<Language, Translations> = {
       errorLoading: 'Erreur lors du chargement',
       errorValidation: 'Erreur lors de la validation',
       errorAccountManagement: 'Erreur lors de la gestion du compte',
-      accountCreatedSuccess: 'Compte créé avec succès ! Il expire le {{date}}. Vous pouvez maintenant vous connecter.',
+      accountCreatedSuccess: 'Votre demande de création de compte a été envoyée. Vous pourrez vous connecter après validation par un administrateur.',
       enterEmailForReset: 'Entrez votre email pour recevoir un lien de réinitialisation.',
       emailPlaceholder: 'vous@exemple.com',
       passwordPlaceholder: '••••••••',
@@ -909,30 +1088,31 @@ export const translations: Record<Language, Translations> = {
       showPassword: 'Afficher le mot de passe',
       hideSensitiveData: 'Masquer les données sensibles',
       showSensitiveData: 'Afficher les données sensibles',
+      copySensitiveData: 'Copier {{label}}',
+      copied: 'Copié',
+      copyFailed: 'Échec de la copie',
       searchPlaceholder: 'Rechercher...',
       unread: 'Non lu',
       paysmart: 'Paysmart',
       paysmartHome: 'Paysmart, accueil',
       transactionHistory: 'Historique des transactions',
       viewLastTransactions: 'Consultez vos dernières transactions',
-      analyticsReporting: 'Analytics & Reporting',
       welcomeMessage: 'Bienvenue, {{name}} ! Voici les indicateurs de votre activité.',
       loadingAnalyticsData: 'Chargement des données Analytics...',
       realTimeConsolidatedData: 'Données consolidées en temps réel',
       volumesByPaymentMethod: 'Volumes par méthode de paiement',
-      apiMetricsEndpoint: 'GET /api/v1/metrics',
       cannotLoadPayments: 'Impossible de charger les paiements',
       phoneDigitsOnly: 'Le numéro de téléphone doit contenir uniquement des chiffres',
       accountDigitsOnly: 'Le numéro de compte doit contenir uniquement des chiffres',
       recipientNotFound: 'Compte destinataire introuvable',
-      paymentCreated: 'Paiement {{reference}} créé. Statut : {{status}}.',
-      paymentConfirmedLedger: 'Paiement confirmé et enregistré dans le ledger.',
+      paymentCreated: 'Paiement N° {{reference}} créé. Statut : {{status}}.',
+      paymentConfirmedLedger: 'Paiement confirmé.',
       paymentFailed: 'Paiement échoué : {{reason}}',
-      paymentConfirmed2fa: 'Paiement confirmé après vérification 2FA.',
+      paymentConfirmed2fa: 'Paiement confirmé.',
       paymentStatus: 'Paiement {{status}}.',
       invalid2faCode: 'Code 2FA invalide ou expiré',
       receiptTitle: 'PAYSMART - RECU DE PAIEMENT',
-      receiptReference: 'Reference: {{ref}}',
+      receiptReference: 'N° : {{ref}}',
       receiptAmount: 'Montant: {{amount}} {{currency}}',
       receiptChannel: 'Canal: {{channel}}',
       receiptStatus: 'Statut: {{status}}',
@@ -954,17 +1134,33 @@ export const translations: Record<Language, Translations> = {
       sandboxBankDetails: 'Récapitulatif du virement',
       sandboxBankInfo: 'Ces coordonnées ne correspondent pas à une banque réelle. Le transfert reste une simulation.',
       bankTransferReviewTitle: 'Vérifiez le bénéficiaire, la banque et le montant avant de continuer.',
-      bankTransferOtpNotice: 'Un code OTP PayeSmart sera envoyé dans vos notifications pour confirmer le virement. Aucune authentification bancaire réelle n’est connectée.',
-      bankTransferOtpRequired: 'Saisissez le code OTP PayeSmart reçu dans vos notifications pour confirmer ce virement.',
+      bankTransferOtpNotice: 'Confirmez ce virement avec le code à 6 chiffres de Google Authenticator. Aucune authentification bancaire réelle n’est connectée.',
+      bankTransferOtpRequired: 'Saisissez le code à 6 chiffres de Google Authenticator pour confirmer ce virement.',
       cannotInitiatePayment: 'Impossible d\'initier le paiement',
       cannotConfirmQr: 'Impossible de confirmer le QR',
+      paymentAuthenticatorRequired: 'Confirmez ce paiement avec le code à 6 chiffres de Google Authenticator. Activez la 2FA dans vos paramètres si nécessaire.',
+      paymentVerificationRequired: 'Choisissez comment confirmer ce paiement.',
+      paymentVerificationMethod: 'Méthode de confirmation',
+      notificationOtp: 'Code OTP par notification',
+      googleAuthenticator: 'Google Authenticator',
+      notificationOtpHint: 'Le code apparaît immédiatement dans vos notifications PayeSmart et expire après 2 minutes.',
+      sendNotificationOtp: 'Envoyer le code maintenant',
+      sending: 'Envoi...',
+      notificationOtpSent: 'Code envoyé dans vos notifications PayeSmart. Il est valable 2 minutes.',
+      notificationOtpCode: 'Code OTP reçu par notification',
+      notificationOtpExpiresIn: 'Le code expire dans {{seconds}} s.',
+      notificationOtpExpired: 'Code expiré. Demandez un nouveau code dans vos notifications.',
+      cannotSendPaymentOtp: 'Impossible d’envoyer le code de confirmation',
       qrConfirmation: 'Confirmation du paiement QR',
       qrConfirmationDescription: 'Vérifiez les informations du paiement avant de confirmer.',
+      qrPaymentCodeDescription: 'Voici le QR code de cette demande de paiement. Vérifiez le bénéficiaire et le montant avant de confirmer.',
+      qrAuthenticatorRequired: 'Saisissez le code à 6 chiffres affiché dans Google Authenticator. La 2FA doit être activée dans vos paramètres de sécurité.',
+      googleAuthenticatorCode: 'Code Google Authenticator',
+      setupGoogleAuthenticator: 'Configurer Google Authenticator',
       qrWaitingForRecipient: 'En attente de la confirmation du destinataire.',
       qrRecipientWillReceiveLink: 'Le destinataire recevra le lien et le QR code de confirmation par notification.',
       confirmQr: 'Confirmer le paiement QR',
-      qrPaymentConfirmed: 'Paiement QR confirmé pour la transaction {{ref}}.',
-      qrNeedsTwoFactor: 'Une vérification supplémentaire est requise. Saisissez le code reçu dans vos notifications.',
+      qrPaymentConfirmed: 'Paiement QR confirmé.',
       onlyRecipientCanConfirm: 'Connectez-vous avec le compte du destinataire pour confirmer ce paiement.',
       processing: 'En cours',
       transactionNotFound: 'Transaction non trouvée',
@@ -1046,6 +1242,33 @@ export const translations: Record<Language, Translations> = {
       optional: 'Optional',
       noDocuments: 'No documents',
       noTransactions: 'No transactions',
+      withdrawalRequests: 'Withdrawal requests',
+      requestWithdrawal: 'Request withdrawal',
+      withdrawalMethod: 'Withdrawal method',
+      withdrawalRecipient: 'Recipient name',
+      withdrawalDestination: 'Phone number or account details',
+      withdrawalBankName: 'Bank name',
+      withdrawalNote: 'Optional note',
+      withdrawalSubmitted: 'Withdrawal request recorded. The amount is reserved from your balance.',
+      withdrawalCancelled: 'Request cancelled and amount returned to your balance.',
+      withdrawalCountry: 'Profile country',
+      noWithdrawalRequests: 'No withdrawal requests',
+      cancelWithdrawal: 'Cancel request',
+      withdrawalPending: 'Pending',
+      withdrawalApproved: 'Approved',
+      withdrawalPaid: 'Paid manually',
+      withdrawalRejected: 'Rejected / cancelled',
+      withdrawalCancelledStatus: 'Cancelled',
+      withdrawalQueue: 'Withdrawal requests to process',
+      withdrawalQueueDescription: 'Review destination details and update the status after processing.',
+      withdrawalUser: 'User',
+      withdrawalDestinationDetails: 'Destination details',
+      withdrawalReviewNote: 'Rejection reason or processing note',
+      markWithdrawalPaid: 'Mark as paid',
+      manualPayoutNotice: 'Approval does not transfer funds. Complete the payment outside the app before marking it paid.',
+      withdrawalUnavailable: 'Unable to load withdrawal requests',
+      withdrawalAmountInvalid: 'Enter a valid amount greater than zero.',
+      withdrawalAccount: 'Account / phone',
       noAlerts: 'No alerts',
       noNotifications: 'No notifications',
       viewAllNotifications: 'View all notifications',
@@ -1080,7 +1303,7 @@ export const translations: Record<Language, Translations> = {
       downloadReceipt: 'Download receipt',
       confirmPayment: 'Confirm payment',
       twoFactorCode: 'Payment confirmation OTP (not the CVV)',
-      codeReceived: 'Code received in your notifications',
+      codeReceived: 'Google Authenticator code',
       token: 'Token',
       iban: 'IBAN',
       reference: 'Reference',
@@ -1100,6 +1323,8 @@ export const translations: Record<Language, Translations> = {
       cancelDeletion: 'Cancel deletion',
       reactivationDeadline: 'Reactivation deadline',
       accountStatus: 'Account status',
+      pendingApproval: 'Pending approval',
+      registrationRejected: 'Request rejected',
       riskScore: 'AI Score',
       trustScore: 'Trust Score',
       recommendation: 'Recommendation',
@@ -1151,25 +1376,34 @@ export const translations: Record<Language, Translations> = {
       recipientInfo: 'Recipient information',
       paymentMode: 'Payment mode',
       selectOperator: 'Select',
-      cardExpiry: 'Expiry date (MM/YY)',
+      cardExpiry: 'Expiry date (month/year)',
+      expiryMonth: 'Month',
+      expiryYear: 'Year',
       cvv: 'CVV',
       dynamicCvv: 'Your CVV: {{code}}',
       dynamicCvvNotice: 'Temporary code renewed every 30 minutes.',
-      invalidExpiry: 'Enter a valid future expiry date (MM/YY).',
+      invalidExpiry: 'Enter a valid future expiry month and year.',
       invalidCvv: 'Invalid CVV. Check the code in My Wallet.',
       payNow: 'Pay now',
       paymentFeePreview: 'Payment summary',
       calculatingFee: 'Calculating fees...',
       cannotCalculateFee: 'Unable to calculate transaction fees',
+      loadingBalance: 'Loading current balance...',
+      cannotLoadBalance: 'Unable to load current balance',
+      insufficientBalance: 'Your current balance is insufficient for this payment.',
       performance: 'AI performance',
       channels: 'Channels',
       channelsDescription: 'Consolidated financial flows breakdown',
+      transactionRatesByChannel: 'Transaction share by channel',
+      allClientsTransactionScope: 'Share of all transactions, all statuses and all clients.',
+      transactionShare: 'Transaction share',
       aiMetrics: 'AI Metrics',
       metricsDescription: 'Model performance data',
       precision: 'Precision',
       recall: 'Recall',
       f1Score: 'F1-score',
       analyzed: 'Analyzed',
+      transactionMetricScope: 'Your sent payments; admins see the aggregate for all users.',
       adminPanel: 'Admin panel',
       adminDescription: 'Supervision of users, transactions and AI alerts',
       activeUsers: 'Active users',
@@ -1194,19 +1428,21 @@ export const translations: Record<Language, Translations> = {
       pagination: 'Fraud alerts pagination',
       previous: 'Previous',
       next: 'Next',
+      previousYear: 'Previous year',
+      nextYear: 'Next year',
       riskLevel: 'Risk level',
       mainReason: 'Main reason',
       senderName: 'Sender',
       recipientName: 'Recipient',
       transactionAmount: 'Amount',
-      transactionFee: 'Fee',
-      transactionTotal: 'Total debited',
+      transactionFee: 'Fee (paid by sender)',
+      transactionTotal: 'Total debited from sender',
+      recipientReceivesAmount: 'The recipient receives exactly the amount entered; the fee is charged in addition to the sender’s wallet.',
       receiptFee: 'Fee',
       receiptTotal: 'Total debited',
       profileImageUploaded: 'Profile photo updated',
       securityRules: 'Security rules',
       securityRulesDescription: 'Edit control and pricing rules at any time.',
-      addRule: 'Add rule',
       saveRule: 'Save',
       deleteRule: 'Delete',
       ruleName: 'Rule name',
@@ -1348,9 +1584,47 @@ export const translations: Record<Language, Translations> = {
       unknownSender: 'Unknown sender',
       unknownRecipient: 'Unknown recipient',
       cannotLoadFraudAlerts: 'Unable to load fraud alerts',
+      includeAllTransactions: 'Include unflagged transactions for evaluation',
+      showFraudAlertsOnly: 'Show flagged alerts only',
       cannotResolveFraudAlert: 'Unable to mark this alert as reviewed',
       markFraudReviewed: 'Mark as reviewed',
       fraudReviewed: 'Alert reviewed',
+      investigateFraudAlert: 'Investigate this alert',
+      investigationDetails: 'Investigation details',
+      previousReviewNotes: 'Previously saved notes',
+      accountContext: 'Account context',
+      recentTransactions: 'Sender’s recent transactions',
+      transactionOutcome: 'Transaction outcome',
+      aiDecision: 'Fraud decision',
+      aiFactors: 'Detected factors',
+      aiEvidenceUnavailable: 'Detailed model data is unavailable for this older transaction.',
+      fraudOutcomeLabel: 'Verified verdict',
+      selectFraudOutcome: 'Select the review outcome',
+      confirmedFraud: 'Confirmed fraud',
+      legitimateTransaction: 'Legitimate transaction',
+      fraudOutcomeImpact: 'This verdict contributes to the payer metrics and the admin aggregate.',
+      internalConclusion: 'Investigation notes and conclusion',
+      internalConclusionPlaceholder: 'Describe the verified facts and your conclusion (at least 10 characters).',
+      startInvestigation: 'Save and continue investigation',
+      resolveAfterInvestigation: 'Finish review and save verdict',
+      legitimateUserCloseHint: 'After verification, select a verdict and record the evidence observed.',
+      investigationProgressSaved: 'The notes were saved and the investigation remains open.',
+      suspendUserConfirm: 'Confirm suspending {{name}}’s account?',
+      suspendAccount: 'Suspend account',
+      suspensionReasonPlaceholder: 'Reason for suspension (at least 10 characters).',
+      confirmSuspendAccount: 'Confirm suspension',
+      investigationLoadFailed: 'Unable to load investigation evidence',
+      investigationSaveFailed: 'Unable to save the decision',
+      accountSuspended: 'The account has been suspended and the alert remains open for follow-up.',
+      statusOpen: 'Needs review',
+      statusInvestigating: 'Under investigation',
+      statusResolved: 'Investigation closed',
+      transactionFailure: 'Failure reason',
+      transactionReference: 'No.',
+      totalDebited: 'Total debited',
+      noRecentTransactions: 'No recent transactions.',
+      kycStatusLabel: 'KYC status',
+      kybStatusLabel: 'KYB status',
       backToList: 'Back to list',
       accountStatusLabel: 'Account: {{status}}',
       accountExpirationDate: 'Account expires on {{date}}',
@@ -1364,6 +1638,9 @@ export const translations: Record<Language, Translations> = {
       deleteAccount: 'Delete my account',
       accountDeletionDescription: 'The account will be locked immediately. Security checks can block the request if fraud or pending operations are detected. After 30 days, personal data will be anonymized and financial history retained.',
       confirmSelfDeletion: 'Confirm this request? Your account will be locked immediately and can be restored for 30 days.',
+      deletionStepOne: 'Step 1 of 2: confirm your choice',
+      deletionStepTwo: 'Step 2 of 2: verify your identity',
+      continueDeletion: 'Continue',
       accountDeletionBlocked: 'Request blocked by the security review:',
       accountDeletionScheduled: 'Deletion scheduled. Sign in to restore your account before {{date}}.',
       accountDeletionPending: 'This account is pending deletion. Restore it with your email and password before the 30-day deadline.',
@@ -1376,7 +1653,7 @@ export const translations: Record<Language, Translations> = {
       errorLoading: 'Error loading',
       errorValidation: 'Error during validation',
       errorAccountManagement: 'Error managing account',
-      accountCreatedSuccess: 'Account created successfully! It expires on {{date}}. You can now log in.',
+      accountCreatedSuccess: 'Your account request was submitted. You can log in after an administrator approves it.',
       enterEmailForReset: 'Enter your email to receive a reset link.',
       emailPlaceholder: 'you@example.com',
       passwordPlaceholder: '••••••••',
@@ -1410,30 +1687,31 @@ export const translations: Record<Language, Translations> = {
       showPassword: 'Show password',
       hideSensitiveData: 'Hide sensitive data',
       showSensitiveData: 'Show sensitive data',
+      copySensitiveData: 'Copy {{label}}',
+      copied: 'Copied',
+      copyFailed: 'Copy failed',
       searchPlaceholder: 'Search...',
       unread: 'Unread',
       paysmart: 'Paysmart',
       paysmartHome: 'Paysmart, home',
       transactionHistory: 'Transaction history',
       viewLastTransactions: 'View your latest transactions',
-      analyticsReporting: 'Analytics & Reporting',
       welcomeMessage: 'Welcome back, {{name}}! Here are your activity metrics.',
       loadingAnalyticsData: 'Loading Analytics data...',
       realTimeConsolidatedData: 'Real-time consolidated data',
       volumesByPaymentMethod: 'Volumes by payment method',
-      apiMetricsEndpoint: 'GET /api/v1/metrics',
       cannotLoadPayments: 'Unable to load payments',
       phoneDigitsOnly: 'Phone number must contain only digits',
       accountDigitsOnly: 'Account number must contain only digits',
       recipientNotFound: 'Recipient account not found',
-      paymentCreated: 'Payment {{reference}} created. Status: {{status}}.',
-      paymentConfirmedLedger: 'Payment confirmed and recorded in the ledger.',
+      paymentCreated: 'Payment No. {{reference}} created. Status: {{status}}.',
+      paymentConfirmedLedger: 'Payment confirmed.',
       paymentFailed: 'Payment failed: {{reason}}',
-      paymentConfirmed2fa: 'Payment confirmed after 2FA verification.',
+      paymentConfirmed2fa: 'Payment confirmed.',
       paymentStatus: 'Payment {{status}}.',
       invalid2faCode: 'Invalid or expired 2FA code',
       receiptTitle: 'PAYSMART - PAYMENT RECEIPT',
-      receiptReference: 'Reference: {{ref}}',
+      receiptReference: 'No.: {{ref}}',
       receiptAmount: 'Amount: {{amount}} {{currency}}',
       receiptChannel: 'Channel: {{channel}}',
       receiptStatus: 'Status: {{status}}',
@@ -1455,17 +1733,33 @@ export const translations: Record<Language, Translations> = {
       sandboxBankDetails: 'Transfer summary',
       sandboxBankInfo: 'These details do not belong to a real bank. The transfer remains a simulation.',
       bankTransferReviewTitle: 'Review the beneficiary, bank, and amount before continuing.',
-      bankTransferOtpNotice: 'A PayeSmart OTP will be sent in your notifications to confirm the transfer. No real bank authentication is connected.',
-      bankTransferOtpRequired: 'Enter the PayeSmart OTP received in your notifications to confirm this transfer.',
+      bankTransferOtpNotice: 'Confirm this transfer with the 6-digit code from Google Authenticator. No real bank authentication is connected.',
+      bankTransferOtpRequired: 'Enter the 6-digit Google Authenticator code to confirm this transfer.',
       cannotInitiatePayment: 'Unable to initiate payment',
       cannotConfirmQr: 'Unable to confirm QR',
-      qrConfirmation: 'QR Payment Confirmation',
+      paymentAuthenticatorRequired: 'Confirm this payment with the 6-digit Google Authenticator code. Enable 2FA in your settings if needed.',
+      paymentVerificationRequired: 'Choose how to confirm this payment.',
+      paymentVerificationMethod: 'Confirmation method',
+      notificationOtp: 'OTP code by notification',
+      googleAuthenticator: 'Google Authenticator',
+      notificationOtpHint: 'The code appears immediately in your PayeSmart notifications and expires after 2 minutes.',
+      sendNotificationOtp: 'Send code now',
+      sending: 'Sending...',
+      notificationOtpSent: 'Code sent to your PayeSmart notifications. It is valid for 2 minutes.',
+      notificationOtpCode: 'OTP code received by notification',
+      notificationOtpExpiresIn: 'Code expires in {{seconds}}s.',
+      notificationOtpExpired: 'Code expired. Request a new code in your notifications.',
+      cannotSendPaymentOtp: 'Unable to send the confirmation code',
+      qrConfirmation: 'QR payment confirmation',
       qrConfirmationDescription: 'Review the payment details before confirming.',
+      qrPaymentCodeDescription: 'This is the QR code for this payment request. Verify the recipient and amount before confirming.',
+      qrAuthenticatorRequired: 'Enter the 6-digit code shown in Google Authenticator. 2FA must be enabled in your security settings.',
+      googleAuthenticatorCode: 'Google Authenticator code',
+      setupGoogleAuthenticator: 'Set up Google Authenticator',
       qrWaitingForRecipient: 'Waiting for the recipient to confirm.',
       qrRecipientWillReceiveLink: 'The recipient will receive the confirmation link and QR code in a notification.',
       confirmQr: 'Confirm QR Payment',
-      qrPaymentConfirmed: 'QR payment confirmed for transaction {{ref}}.',
-      qrNeedsTwoFactor: 'An additional check is required. Enter the code received in your notifications.',
+      qrPaymentConfirmed: 'QR payment confirmed.',
       onlyRecipientCanConfirm: 'Sign in with the recipient account to confirm this payment.',
       processing: 'Processing',
       transactionNotFound: 'Transaction not found',

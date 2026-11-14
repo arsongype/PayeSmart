@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Header
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, model_validator
 from typing import Optional
@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from services.ocr_service import OCRService
 from services.trust_score_service import TrustScoreService
 from services.fraud_detection_service import FraudDetectionService
+from services.model_evaluation_service import evaluate_labeled_samples, resolve_evaluation_dataset
 
 load_dotenv()
 
@@ -40,6 +41,14 @@ fraud_metrics = {
     "analyzed_transactions": 0,
     "predicted_fraud": 0,
 }
+evaluation_samples, evaluation_source = resolve_evaluation_dataset(
+    os.getenv("AI_EVALUATION_DATASET"),
+)
+evaluation_metrics = evaluate_labeled_samples(fraud_detection_service, evaluation_samples) if evaluation_samples else {
+    "precision": None,
+    "recall": None,
+    "f1Score": None,
+}
 
 class KYCAnalysisRequest(BaseModel):
     user_id: int
@@ -55,7 +64,7 @@ class KYBAnalysisRequest(BaseModel):
 
 class FraudDetectionRequest(BaseModel):
     user_id: int
-    amount: float
+    amount: float = Field(description="Transaction debit amount normalized to EUR for risk scoring")
     channel: str
     transaction_count_24h: int = 0
     device_id: Optional[str] = None
@@ -112,20 +121,13 @@ async def health_check():
 
 @app.get("/api/v1/metrics", dependencies=[Depends(verify_api_key)])
 async def get_metrics():
-    """Return model counters and configured evaluation metrics for reporting."""
-    analyzed = fraud_metrics["analyzed_transactions"]
-    configured_precision = os.getenv("AI_MODEL_PRECISION")
-    configured_recall = os.getenv("AI_MODEL_RECALL")
-    precision = float(configured_precision) if configured_precision else None
-    recall = float(configured_recall) if configured_recall else None
-    f1_score = None
-    if precision is not None and recall is not None and precision + recall > 0:
-        f1_score = round((2 * precision * recall) / (precision + recall), 4)
+    """Return model counters and metrics computed from a labeled evaluation dataset."""
     return {
-        "precision": precision,
-        "recall": recall,
-        "f1Score": f1_score,
-        "analyzedTransactions": analyzed,
+        **evaluation_metrics,
+        "metricSource": evaluation_source,
+        "evaluationSamples": len(evaluation_samples),
+        "fraudThreshold": 40,
+        "analyzedTransactions": fraud_metrics["analyzed_transactions"],
         "predictedFraud": fraud_metrics["predicted_fraud"],
     }
 
@@ -145,8 +147,8 @@ async def analyze_kyc_document(request: KYCAnalysisRequest):
 
 @app.post("/api/v1/kyc/analyze-file", response_model=DocumentAnalysisResponse, dependencies=[Depends(verify_api_key)])
 async def analyze_kyc_file(
-    user_id: int,
-    document_type: str,
+    user_id: int = Form(...),
+    document_type: str = Form(...),
     file: UploadFile = File(...)
 ):
     try:
@@ -186,10 +188,10 @@ async def analyze_kyb_document(request: KYBAnalysisRequest):
 
 @app.post("/api/v1/kyb/analyze-file", response_model=DocumentAnalysisResponse, dependencies=[Depends(verify_api_key)])
 async def analyze_kyb_file(
-    user_id: int,
-    document_type: str,
-    company_name: Optional[str] = None,
-    siren_nif: Optional[str] = None,
+    user_id: int = Form(...),
+    document_type: str = Form(...),
+    company_name: Optional[str] = Form(None),
+    siren_nif: Optional[str] = Form(None),
     file: UploadFile = File(...)
 ):
     try:

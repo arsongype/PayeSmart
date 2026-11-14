@@ -8,7 +8,7 @@ const client = new Client({
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432', 10),
   user: process.env.DB_USERNAME || 'postgres',
-  password: process.env.DB_PASSWORD || 'arson',
+  password: process.env.DB_PASSWORD ?? '',
   database: process.env.DB_NAME || 'paysmart_db',
 })
 
@@ -16,9 +16,10 @@ const statements = [
   `CREATE TABLE IF NOT EXISTS audit_logs (id SERIAL PRIMARY KEY, user_id INTEGER NULL, method VARCHAR(16) NOT NULL, path VARCHAR(255) NOT NULL, action VARCHAR(120), ip_address VARCHAR(64), user_agent TEXT, status_code INTEGER NOT NULL DEFAULT 200, response_time_ms INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT NOW())`,
   `CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at)`,
   `DO $$ BEGIN
-    CREATE TYPE user_status_enum AS ENUM ('ACTIVE', 'SUSPENDED', 'DELETED', 'PENDING_VERIFICATION');
+    CREATE TYPE user_status_enum AS ENUM ('ACTIVE', 'SUSPENDED', 'DELETED', 'PENDING_VERIFICATION', 'REJECTED');
   EXCEPTION WHEN duplicate_object THEN NULL;
   END $$`,
+  `ALTER TYPE user_status_enum ADD VALUE IF NOT EXISTS 'REJECTED'`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS account_status user_status_enum NOT NULL DEFAULT 'ACTIVE'`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS suspension_reason TEXT`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMP`,
@@ -74,15 +75,23 @@ const statements = [
   `CREATE TABLE IF NOT EXISTS password_reset_tokens (id SERIAL PRIMARY KEY, token_hash VARCHAR(255) NOT NULL, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at TIMESTAMP NOT NULL, is_used BOOLEAN NOT NULL DEFAULT FALSE, used_at TIMESTAMP, created_at TIMESTAMP NOT NULL DEFAULT NOW())`,
   `CREATE TABLE IF NOT EXISTS login_attempts (id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL, ip_address VARCHAR(64), user_agent TEXT, attempts INTEGER NOT NULL DEFAULT 1, is_locked BOOLEAN NOT NULL DEFAULT FALSE, locked_until TIMESTAMP, created_at TIMESTAMP NOT NULL DEFAULT NOW(), updated_at TIMESTAMP NOT NULL DEFAULT NOW())`,
   `CREATE TABLE IF NOT EXISTS payment_methods (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, method_type VARCHAR(50) NOT NULL, last_four_digits VARCHAR(120), brand VARCHAR(120), expiry_date VARCHAR(255), metadata JSONB, is_active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMP NOT NULL DEFAULT NOW(), updated_at TIMESTAMP NOT NULL DEFAULT NOW())`,
-  `CREATE TABLE IF NOT EXISTS fraud_alerts (id SERIAL PRIMARY KEY, transaction_id INTEGER NOT NULL UNIQUE REFERENCES transactions(id), user_id INTEGER NOT NULL REFERENCES users(id), risk_level VARCHAR(20) NOT NULL, risk_score DECIMAL(5,2) NOT NULL, reasons TEXT, status VARCHAR(50) NOT NULL DEFAULT 'OPEN', admin_notes TEXT, reviewed_at TIMESTAMP, reviewed_by INTEGER, created_at TIMESTAMP NOT NULL DEFAULT NOW(), updated_at TIMESTAMP NOT NULL DEFAULT NOW())`,
+  `CREATE TABLE IF NOT EXISTS fraud_alerts (id SERIAL PRIMARY KEY, transaction_id INTEGER NOT NULL UNIQUE REFERENCES transactions(id), user_id INTEGER NOT NULL REFERENCES users(id), risk_level VARCHAR(20) NOT NULL, risk_score DECIMAL(5,2) NOT NULL, reasons TEXT, status VARCHAR(50) NOT NULL DEFAULT 'OPEN', admin_notes TEXT, fraud_outcome VARCHAR(20), reviewed_at TIMESTAMP, reviewed_by INTEGER, created_at TIMESTAMP NOT NULL DEFAULT NOW(), updated_at TIMESTAMP NOT NULL DEFAULT NOW())`,
+  `ALTER TABLE fraud_alerts ADD COLUMN IF NOT EXISTS fraud_outcome VARCHAR(20)`,
   `CREATE TABLE IF NOT EXISTS device_fingerprints (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, fingerprint_hash VARCHAR(255) NOT NULL, device_name VARCHAR(120), browser VARCHAR(120), os VARCHAR(120), ip_address VARCHAR(64), metadata JSONB, is_trusted BOOLEAN NOT NULL DEFAULT TRUE, last_seen_at TIMESTAMP, created_at TIMESTAMP NOT NULL DEFAULT NOW(), updated_at TIMESTAMP NOT NULL DEFAULT NOW())`,
   `CREATE TABLE IF NOT EXISTS otp_codes (id SERIAL PRIMARY KEY, user_id INTEGER, transaction_id INTEGER, code_hash VARCHAR(255) NOT NULL, purpose VARCHAR(50) NOT NULL, expires_at TIMESTAMP NOT NULL, is_used BOOLEAN NOT NULL DEFAULT FALSE, used_at TIMESTAMP, ip_address VARCHAR(64), created_at TIMESTAMP NOT NULL DEFAULT NOW())`,
+  `ALTER TABLE otp_codes ADD COLUMN IF NOT EXISTS failed_attempts INTEGER NOT NULL DEFAULT 0`,
   `CREATE TABLE IF NOT EXISTS security_rules (id SERIAL PRIMARY KEY, rule_name VARCHAR(120) NOT NULL, rule_type VARCHAR(50) NOT NULL, conditions JSONB NOT NULL, actions JSONB NOT NULL, is_active BOOLEAN NOT NULL DEFAULT TRUE, priority INTEGER NOT NULL DEFAULT 0, description TEXT, created_at TIMESTAMP NOT NULL DEFAULT NOW(), updated_at TIMESTAMP NOT NULL DEFAULT NOW())`,
+  `CREATE TABLE IF NOT EXISTS withdrawal_requests (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), wallet_id INTEGER NOT NULL REFERENCES wallets(id), amount DECIMAL(15,2) NOT NULL CHECK (amount > 0), currency VARCHAR(3) NOT NULL, country_code VARCHAR(2) NOT NULL, method withdrawal_method_enum NOT NULL, destination_ciphertext TEXT NOT NULL, status withdrawal_status_enum NOT NULL DEFAULT 'PENDING', admin_note TEXT, reviewed_by INTEGER REFERENCES users(id), reviewed_at TIMESTAMP, paid_by INTEGER REFERENCES users(id), paid_at TIMESTAMP, created_at TIMESTAMP NOT NULL DEFAULT NOW(), updated_at TIMESTAMP NOT NULL DEFAULT NOW())`,
+  `CREATE INDEX IF NOT EXISTS idx_withdrawal_requests_user_created ON withdrawal_requests(user_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_withdrawal_requests_status_created ON withdrawal_requests(status, created_at DESC)`,
 ]
 
 async function runMigration() {
   await client.connect()
   try {
+    await client.query(`DO $$ BEGIN CREATE TYPE withdrawal_method_enum AS ENUM ('MVOLA', 'ORANGE_MONEY', 'AIRTEL_MONEY', 'BANK_TRANSFER'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`)
+    await client.query(`DO $$ BEGIN CREATE TYPE withdrawal_status_enum AS ENUM ('PENDING', 'APPROVED', 'PAID', 'REJECTED', 'CANCELLED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`)
+    await client.query(`ALTER TYPE withdrawal_status_enum ADD VALUE IF NOT EXISTS 'CANCELLED'`)
     await client.query('BEGIN')
     for (const statement of statements) {
       await client.query(statement)

@@ -26,12 +26,15 @@ export interface DashboardReport {
     recall: number | null
     f1Score: number | null
     analyzedTransactions: number
+    evaluationSamples: number
+    metricSource: 'reviewed_transactions' | 'transaction_status_proxy' | 'unconfigured'
   }
   admin: {
     activeUsers: number
     transactionsToReview: number
     aiAlerts: number
     transactionFees?: Array<{ currency: SupportedCurrency; amount: number }>
+    transactionRates?: Array<{ channel: string; transactions: number; rate: number }>
     pendingTransactions?: DashboardTransactionDetail[]
     aiAlertDetails?: Array<DashboardTransactionDetail & { riskScore: number; reason: string }>
   } | null

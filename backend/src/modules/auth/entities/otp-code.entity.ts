@@ -40,6 +40,9 @@ export class OtpCode {
   @Column({ default: false, name: 'is_used' })
   isUsed: boolean
 
+  @Column({ type: 'integer', default: 0, name: 'failed_attempts' })
+  failedAttempts: number
+
   @Column({ type: 'timestamp', nullable: true, name: 'used_at' })
   usedAt: Date | null
 

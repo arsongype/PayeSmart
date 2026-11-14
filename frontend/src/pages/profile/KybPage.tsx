@@ -111,7 +111,7 @@ export default function KybPage({ embedded = false }: KybPageProps) {
         )}
 
           {error && (
-            <div className="rounded-2xl bg-red-500/10 border border-red-500/50 p-4 text-base text-black">
+            <div role="alert" className="rounded-2xl border border-red-300 bg-red-50 p-4 text-base text-red-800">
               {error}
             </div>
           )}
@@ -192,15 +192,15 @@ export default function KybPage({ embedded = false }: KybPageProps) {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-full font-medium ${
-                          doc.status === 'APPROVED' ? 'bg-emerald-500/10 text-black border border-emerald-500/30' :
-                          doc.status === 'REJECTED' ? 'bg-red-500/10 text-black border border-red-500/30' :
-                          'bg-amber-500/10 text-black border border-amber-500/30'
+                          doc.status === 'APPROVED' ? 'bg-green-50 text-green-800 border border-green-200' :
+                          doc.status === 'REJECTED' ? 'bg-red-50 text-red-800 border border-red-200' :
+                          'bg-blue-500/10 text-black border border-blue-500/30'
                         }`}>
                           {doc.status === 'APPROVED' && <CheckCircle2 className="h-3 w-3" />}
                           {doc.status === 'REJECTED' && <XCircle className="h-3 w-3" />}
                           {doc.status}
                         </span>
-                        <Button type="button" size="sm" variant="ghost" onClick={() => handleDelete(doc.id)} aria-label={t('deleteKycRequestAria')} className="rounded-xl">
+                        <Button type="button" size="sm" variant="danger" onClick={() => handleDelete(doc.id)} aria-label={t('deleteKycRequestAria')} className="rounded-xl">
                           <Trash2 className="h-4 w-4 text-black" />
                         </Button>
                       </div>
@@ -221,4 +221,3 @@ export default function KybPage({ embedded = false }: KybPageProps) {
     </div>
   )
 }
-

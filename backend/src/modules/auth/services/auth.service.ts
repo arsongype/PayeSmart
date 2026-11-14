@@ -90,6 +90,7 @@ export class AuthService {
         ...userData,
         role: normalizedRole,
         kycStatus: normalizedKycStatus,
+        accountStatus: UserStatus.PENDING_VERIFICATION,
         passwordHash,
         accountExpiresAt,
       })
@@ -102,7 +103,24 @@ export class AuthService {
         country,
         postalCode,
       }))
-      return this.generateTokens(savedUser)
+      const activeAdmins = await this.userRepository.find({
+        where: { role: Role.ADMIN, accountStatus: UserStatus.ACTIVE },
+        select: { id: true },
+      })
+      await Promise.all(activeAdmins.map((admin) => this.notificationService.create(
+        admin.id,
+        'Nouvelle demande de création de compte',
+        `${savedUser.firstName ? `${savedUser.firstName} ` : ''}${savedUser.lastName} (${savedUser.role}) demande la création d’un compte.`,
+        '/admin/users',
+      )))
+      return {
+        user: {
+          id: savedUser.id,
+          email: savedUser.email,
+          accountStatus: savedUser.accountStatus,
+          accountExpiresAt: savedUser.accountExpiresAt,
+        },
+      }
     } catch (error) {
       console.error('Register error', error)
       throw error
@@ -125,6 +143,13 @@ export class AuthService {
     if (!matches) {
       await this.recordLoginAttempt(dto.email, context?.ipAddress, context?.userAgent, false)
       throw new UnauthorizedException('Identifiants invalides');
+    }
+
+    if (user.accountStatus === UserStatus.PENDING_VERIFICATION) {
+      throw new ForbiddenException('Votre demande de création de compte est en attente de validation par un administrateur')
+    }
+    if (user.accountStatus === UserStatus.REJECTED) {
+      throw new ForbiddenException('Votre demande de création de compte a été refusée')
     }
 
     await this.recordLoginAttempt(dto.email, context?.ipAddress, context?.userAgent, true)
@@ -180,7 +205,7 @@ export class AuthService {
     const userId = Number(payload.sub)
     if (!Number.isSafeInteger(userId)) throw new UnauthorizedException('Token de rafraîchissement invalide ou expiré')
     const user = await this.userRepository.findOne({ where: { id: userId } })
-    if (!user || user.accountStatus === UserStatus.DELETED) {
+    if (!user || user.accountStatus === UserStatus.DELETED || user.accountStatus === UserStatus.PENDING_VERIFICATION || user.accountStatus === UserStatus.REJECTED) {
       throw new UnauthorizedException('Token de rafraîchissement invalide ou expiré')
     }
 
@@ -274,6 +299,46 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+    }
+  }
+
+  async approveRegistration(userId: number) {
+    const user = await this.userRepository.findOne({ where: { id: userId } })
+    if (!user) {
+      throw new NotFoundException('Utilisateur non trouvé')
+    }
+    if (user.accountStatus !== UserStatus.PENDING_VERIFICATION) {
+      throw new BadRequestException('Cette demande de création de compte n’est plus en attente')
+    }
+
+    user.accountStatus = UserStatus.ACTIVE
+    await this.userRepository.save(user)
+
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      accountStatus: user.accountStatus,
+    }
+  }
+
+  async rejectRegistration(userId: number) {
+    const user = await this.userRepository.findOne({ where: { id: userId } })
+    if (!user) {
+      throw new NotFoundException('Utilisateur non trouvé')
+    }
+    if (user.accountStatus !== UserStatus.PENDING_VERIFICATION) {
+      throw new BadRequestException('Cette demande de création de compte n’est plus en attente')
+    }
+
+    user.accountStatus = UserStatus.REJECTED
+    await this.userRepository.save(user)
+
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      accountStatus: user.accountStatus,
     }
   }
 
@@ -452,6 +517,13 @@ export class AuthService {
       }
 
       throw new BadRequestException('Code 2FA invalide')
+    }
+
+    if (user.accountStatus === UserStatus.PENDING_VERIFICATION) {
+      throw new ForbiddenException('Votre demande de création de compte est en attente de validation par un administrateur')
+    }
+    if (user.accountStatus === UserStatus.REJECTED) {
+      throw new ForbiddenException('Votre demande de création de compte a été refusée')
     }
 
     if (user.accountStatus === UserStatus.DELETED) {

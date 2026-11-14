@@ -214,9 +214,9 @@ export default function AdminUserDetailPage() {
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <span className={`text-sm px-3 py-1.5 rounded-full border font-medium ${
-              selectedUser.accountStatus === 'ACTIVE' ? 'border-emerald-500/30 bg-emerald-500/10 text-black' :
-              selectedUser.accountStatus === 'SUSPENDED' ? 'border-amber-500/30 bg-amber-500/10 text-black' :
-              'border-red-500/30 bg-red-500/10 text-black'
+              selectedUser.accountStatus === 'ACTIVE' ? 'border-green-200 bg-green-50 text-green-800' :
+              selectedUser.accountStatus === 'SUSPENDED' ? 'border-blue-200 bg-blue-50 text-blue-800' :
+              'border-red-200 bg-red-50 text-red-800'
             }`}>
               {t('accountStatusLabel', { status: selectedUser.accountStatus })}
             </span>
@@ -236,7 +236,7 @@ export default function AdminUserDetailPage() {
               </>
             )}
             {selectedUser.accountStatus === 'SUSPENDED' && (
-              <Button size="sm" variant="primary" onClick={() => updateAccount('reactivate')} className="rounded-xl">
+              <Button size="sm" variant="success" onClick={() => updateAccount('reactivate')} className="rounded-xl">
                 <RotateCcw className="h-3 w-3 mr-1" /> {t('reactivate')}
               </Button>
             )}
@@ -263,12 +263,12 @@ export default function AdminUserDetailPage() {
          </div>
 
           {error && (
-            <div className="rounded-2xl bg-red-500/10 border border-red-500/50 p-4 text-base text-black">
+            <div role="alert" className="rounded-2xl border border-red-300 bg-red-50 p-4 text-base text-red-800">
               {error}
             </div>
           )}
           {avatarError && (
-            <div className="rounded-2xl bg-red-500/10 border border-red-500/50 p-4 text-base text-black">
+            <div role="alert" className="rounded-2xl border border-red-300 bg-red-50 p-4 text-base text-red-800">
               {avatarError}
             </div>
           )}
@@ -359,7 +359,7 @@ export default function AdminUserDetailPage() {
                             )}
                             {doc.status === 'EN_COURS' && (
                               <>
-                               <Button size="sm" variant="primary" onClick={() => handleKycReview(doc.id, 'APPROVED')} className="rounded-xl">
+                               <Button size="sm" variant="success" onClick={() => handleKycReview(doc.id, 'APPROVED')} className="rounded-xl">
                                  <CheckCircle2 className="h-3 w-3 mr-1" />
                                  {t('approve')}
                                </Button>
@@ -371,9 +371,9 @@ export default function AdminUserDetailPage() {
                            )}
                          </div>
                          <span className={`text-sm px-3 py-1.5 rounded-full ${
-                           doc.status === 'APPROVED' ? 'bg-emerald-500/10 text-black border border-emerald-500/30' :
-                           doc.status === 'REJECTED' ? 'bg-red-500/10 text-black border border-red-500/30' :
-                           'bg-amber-500/10 text-black border border-amber-500/30'
+                           doc.status === 'APPROVED' ? 'bg-green-50 text-green-800 border border-green-200' :
+                           doc.status === 'REJECTED' ? 'bg-red-50 text-red-800 border border-red-200' :
+                           'bg-blue-500/10 text-black border border-blue-500/30'
                          }`}>
                            {doc.status}
                          </span>
@@ -419,7 +419,7 @@ export default function AdminUserDetailPage() {
                              )}
                              {doc.status === 'EN_COURS' && (
                                <>
-                                 <Button size="sm" variant="primary" onClick={() => handleKybReview(doc.id, 'APPROVED')} className="rounded-xl">
+                                 <Button size="sm" variant="success" onClick={() => handleKybReview(doc.id, 'APPROVED')} className="rounded-xl">
                                    <CheckCircle2 className="h-3 w-3 mr-1" />
                                    {t('approve')}
                                  </Button>
@@ -431,9 +431,9 @@ export default function AdminUserDetailPage() {
                              )}
                            </div>
                            <span className={`text-sm px-3 py-1.5 rounded-full ${
-                             doc.status === 'APPROVED' ? 'bg-emerald-500/10 text-black border border-emerald-500/30' :
-                             doc.status === 'REJECTED' ? 'bg-red-500/10 text-black border border-red-500/30' :
-                             'bg-amber-500/10 text-black border border-amber-500/30'
+                             doc.status === 'APPROVED' ? 'bg-green-50 text-green-800 border border-green-200' :
+                             doc.status === 'REJECTED' ? 'bg-red-50 text-red-800 border border-red-200' :
+                             'bg-blue-500/10 text-black border border-blue-500/30'
                            }`}>
                              {doc.status}
                            </span>

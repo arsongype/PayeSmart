@@ -10,6 +10,8 @@ import {
 import { Transaction } from './transaction.entity.js'
 import { User } from './user.entity.js'
 
+export type FraudOutcome = 'CONFIRMED_FRAUD' | 'LEGITIMATE'
+
 @Entity('fraud_alerts')
 export class FraudAlert {
   @PrimaryGeneratedColumn('increment')
@@ -43,6 +45,9 @@ export class FraudAlert {
 
   @Column({ type: 'text', nullable: true, name: 'admin_notes' })
   adminNotes: string | null
+
+  @Column({ type: 'varchar', length: 20, nullable: true, name: 'fraud_outcome' })
+  fraudOutcome: FraudOutcome | null
 
   @Column({ type: 'timestamp', nullable: true, name: 'reviewed_at' })
   reviewedAt: Date | null

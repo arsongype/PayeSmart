@@ -7,7 +7,6 @@ import {
   CreditCard,
   LogOut,
   Menu,
-  Search,
   Settings,
   Shield,
   User,
@@ -27,6 +26,12 @@ interface AppLayoutProps {
   children: ReactNode
 }
 
+function getNotificationActionUrl(link: string): string {
+  const target = new URL(link, window.location.origin)
+  target.searchParams.delete('qrToken')
+  return target.href
+}
+
 export function AppLayout({ children }: AppLayoutProps) {
   const { user, logout, updateUser } = useAuth()
   const { t } = useTranslation()
@@ -39,6 +44,13 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [notifications, setNotifications] = useState<Array<{ id: number; title: string; message: string; isRead: boolean; createdAt: string; link: string | null }>>([])
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notificationsError, setNotificationsError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!notificationsOpen) return
+
+    const timeoutId = window.setTimeout(() => setNotificationsOpen(false), 5000)
+    return () => window.clearTimeout(timeoutId)
+  }, [notificationsOpen])
 
   useEffect(() => {
     translationRef.current = t
@@ -172,7 +184,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   aria-current={active ? 'page' : undefined}
                   className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
                     active
-                      ? 'border-gray-400 bg-primary-600/15 text-black shadow-[inset_3px_0_0_#28b7a6]'
+                      ? 'border-gray-400 bg-primary-600/15 text-black shadow-[inset_3px_0_0_#3b82f6]'
                       : 'border-gray-200 text-black hover:bg-gray-200/60 hover:text-black'
                   }`}
                 >
@@ -195,7 +207,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <button
             type="button"
             onClick={logout}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-black transition-colors hover:bg-red-500/10"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-black transition-colors hover:bg-blue-500/10"
           >
             <LogOut size={18} />
             {t('logout')}
@@ -214,22 +226,13 @@ export function AppLayout({ children }: AppLayoutProps) {
             >
               <Menu size={24} />
             </button>
-            <div className="hidden items-center gap-2 rounded-xl border border-gray-300 bg-white/5 px-3 py-1.5 sm:flex">
-               <Search size={16} className="text-black" />
-              <input
-                type="search"
-                placeholder={t('searchPlaceholder')}
-                aria-label={t('search')}
-                 className="w-40 bg-transparent text-sm text-black outline-none placeholder:text-black sm:w-56"
-              />
-            </div>
             <img src={logo} alt={t('paysmart')} className="h-8 w-auto max-w-32 object-contain sm:hidden" />
           </div>
 
           <div className="relative flex items-center gap-2 sm:gap-4">
              <button type="button" aria-label={t('notifications')} title={t('notifications')} onClick={() => void openNotifications()} className="relative rounded-md p-2 text-black hover:bg-gray-200 hover:text-black">
               <Bell size={20} />
-              {unreadNotifications > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-red-500 px-1 text-center text-xs leading-4 text-black">{unreadNotifications}</span>}
+              {unreadNotifications > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-blue-500 px-1 text-center text-xs leading-4 text-black">{unreadNotifications}</span>}
             </button>
             {notificationsOpen && (
               <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-2xl">
@@ -239,7 +242,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </div>
                 <div className="max-h-80 overflow-y-auto">
                   {notificationsError && (
-                    <div className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">
+                    <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
                       <p>{notificationsError}</p>
                       <button type="button" onClick={() => window.dispatchEvent(new Event('paysmart:notifications-refresh'))} className="mt-2 font-semibold underline underline-offset-2">{t('retry')}</button>
                     </div>
@@ -254,7 +257,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                        </div>
                        <p className="mt-1 text-xs leading-5 text-black">{notification.message}</p>
                        {notification.link ? (
-                         <a href={notification.link} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs font-semibold text-primary-600 underline underline-offset-2">
+                         <a href={getNotificationActionUrl(notification.link)} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs font-semibold text-primary-600 underline underline-offset-2">
                            {t('openAction') ?? 'Ouvrir'}
                          </a>
                        ) : null}
@@ -262,7 +265,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                      </div>
                    ))}
                 </div>
-                <Link to={ROUTES.NOTIFICATIONS} onClick={() => setNotificationsOpen(false)} className="block border-t border-gray-200 bg-white px-4 py-3 text-center text-sm font-semibold text-primary-700 hover:bg-emerald-50">
+                <Link to={ROUTES.NOTIFICATIONS} onClick={() => setNotificationsOpen(false)} className="block border-t border-gray-200 bg-white px-4 py-3 text-center text-sm font-semibold text-primary-700 hover:bg-blue-50">
                   {t('viewAllNotifications')}
                 </Link>
               </div>

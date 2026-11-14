@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { convertPaymentCurrency, PAYMENT_CURRENCIES } from './payment-currency.js'
+import { convertPaymentCurrency, normalizeFraudRiskAmount, PAYMENT_CURRENCIES } from './payment-currency.js'
 
 describe('sandbox payment currencies', () => {
   it('converts between the supported currencies using the disclosed demo rates', () => {
@@ -7,5 +7,11 @@ describe('sandbox payment currencies', () => {
     expect(convertPaymentCurrency(50000, 'MGA', 'EUR')).toBe(10)
     expect(convertPaymentCurrency(10, 'EUR', 'MGA')).toBe(50000)
     expect(convertPaymentCurrency(100, 'USD', 'XOF')).toBe(57500)
+  })
+
+  it('normalizes risk model amounts to EUR regardless of wallet currency', () => {
+    expect(normalizeFraudRiskAmount(50_500, 'MGA')).toBe(10.1)
+    expect(normalizeFraudRiskAmount(10.1, 'EUR')).toBe(10.1)
+    expect(normalizeFraudRiskAmount(9.2, 'USD')).toBe(8.46)
   })
 })

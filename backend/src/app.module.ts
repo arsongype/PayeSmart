@@ -9,6 +9,7 @@ import { ProfilesModule } from './modules/profiles/profiles.module.js'
 import { StorageModule } from './storage/storage.module.js'
 import { PaymentsModule } from './modules/payments/payments.module.js'
 import { ReportingModule } from './modules/reporting/reporting.module.js'
+import { WithdrawalsModule } from './modules/withdrawals/withdrawals.module.js'
 import { AppController } from './app.controller.js'
 import { AppService } from './app.service.js'
 import { Notification } from './notifications/entities/notification.entity.js'
@@ -28,6 +29,7 @@ import { FraudAlert } from './modules/auth/entities/fraud-alert.entity.js'
 import { DeviceFingerprint } from './modules/auth/entities/device-fingerprint.entity.js'
 import { OtpCode } from './modules/auth/entities/otp-code.entity.js'
 import { SecurityRule } from './modules/auth/entities/security-rule.entity.js'
+import { WithdrawalRequest } from './modules/withdrawals/withdrawal-request.entity.js'
 import { SecurityModule } from './security/security.module.js'
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js'
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js'
@@ -82,7 +84,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js
         password: configService.get<string>('database.password'),
         database: configService.get<string>('database.database'),
         ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-        entities: [AuditLog, Notification, KybDocument, Ledger, KycDocument, Profile, RefreshToken, Transaction, User, Wallet, PasswordResetToken, LoginAttempt, PaymentMethod, FraudAlert, DeviceFingerprint, OtpCode, SecurityRule],
+        entities: [AuditLog, Notification, KybDocument, Ledger, KycDocument, Profile, RefreshToken, Transaction, User, Wallet, PasswordResetToken, LoginAttempt, PaymentMethod, FraudAlert, DeviceFingerprint, OtpCode, SecurityRule, WithdrawalRequest],
         synchronize: false,
         logging: process.env.NODE_ENV === 'development',
       }),
@@ -96,6 +98,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js
     StorageModule,
     PaymentsModule,
     ReportingModule,
+    WithdrawalsModule,
     SecurityModule,
   ],
   controllers: [AppController],

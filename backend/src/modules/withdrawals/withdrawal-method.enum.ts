@@ -1,0 +1,6 @@
+export enum WithdrawalMethod {
+  MVOLA = 'MVOLA',
+  ORANGE_MONEY = 'ORANGE_MONEY',
+  AIRTEL_MONEY = 'AIRTEL_MONEY',
+  BANK_TRANSFER = 'BANK_TRANSFER',
+}

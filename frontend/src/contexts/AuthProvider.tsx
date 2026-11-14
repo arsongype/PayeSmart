@@ -1,7 +1,7 @@
 import { useState, useEffect, type ReactNode, type FC } from 'react'
 import { apiClient } from '../config/axios.config'
 import { AuthContext } from './AuthContext'
-import type { User, AuthResponse } from '../models/User.model'
+import type { User, AuthResponse, RegistrationResponse } from '../models/User.model'
 
 interface AuthProviderProps {
   children: ReactNode
@@ -81,7 +81,7 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
     email: string
     password: string
     confirmPassword: string
-    firstName: string
+    firstName?: string
     lastName: string
     cin?: string
     phone?: string
@@ -90,15 +90,15 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
     city: string
     country: string
     postalCode: string
-    role?: 'USER' | 'MERCHANT' | 'ADMIN'
-  }): Promise<AuthResponse> => {
+    role?: 'USER' | 'MERCHANT'
+  }): Promise<RegistrationResponse> => {
     const { confirmPassword, ...payload } = data
     void confirmPassword
     const body = {
       ...payload,
       role: payload.role ?? 'USER',
     }
-    const response = await apiClient.post<AuthResponse>('/auth/register', body)
+    const response = await apiClient.post<RegistrationResponse>('/auth/register', body)
     return response.data
   }
 
@@ -141,5 +141,3 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
     </AuthContext.Provider>
   )
 }
-
-

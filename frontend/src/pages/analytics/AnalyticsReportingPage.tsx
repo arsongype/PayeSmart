@@ -13,13 +13,13 @@ const workflowSteps = [
     icon: Database,
     title: 'PostgreSQL',
     text: 'Agrégations SQL des volumes, fraudes, statuts et méthodes de paiement.',
-    tone: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
+    tone: 'border-blue-500/40 bg-blue-500/10 text-blue-300',
   },
   {
     icon: BrainCircuit,
     title: 'FastAPI IA',
     text: 'GET /api/v1/metrics : précision, rappel, F1-score et transactions analysées.',
-    tone: 'border-violet-500/40 bg-violet-500/10 text-violet-300',
+    tone: 'border-blue-500/40 bg-blue-500/10 text-blue-300',
   },
   {
     icon: GitMerge,
@@ -31,7 +31,7 @@ const workflowSteps = [
     icon: BarChart3,
     title: 'Rendu React',
     text: 'Les KPIs, tendances et alertes sont affichés dans les graphiques du dashboard.',
-    tone: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
+    tone: 'border-blue-500/40 bg-blue-500/10 text-blue-300',
   },
 ]
 
@@ -48,7 +48,7 @@ export default function AnalyticsReportingPage() {
             <p className="mt-1 text-dark-400">Workflow de consolidation, visualisation et export des rapports.</p>
           </div>
         </div>
-        <div className="mt-5 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+        <div className="mt-5 flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-200">
           <Server size={17} />
           <span>Les indicateurs sont consolidés par NestJS et exportables au format PDF.</span>
         </div>
@@ -92,7 +92,7 @@ export default function AnalyticsReportingPage() {
 
         <article className="rounded-xl border border-dark-700 bg-dark-800 p-6">
           <div className="flex items-center gap-3">
-            <Download className="text-emerald-400" size={20} />
+            <Download className="text-blue-400" size={20} />
             <h2 className="font-semibold text-dark-50">Export de rapports</h2>
           </div>
             <p className="mt-3 text-sm leading-6 text-dark-400">Le Service Export prépare un rapport PDF sécurisé, lisible et adapté à l’archivage.</p>

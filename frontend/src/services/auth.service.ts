@@ -1,5 +1,5 @@
 import { apiClient } from '../config/axios.config'
-import type { AuthResponse, LoginCredentials, RegisterData, RefreshTokenPayload } from '../models/User.model'
+import type { AuthResponse, LoginCredentials, RegisterData, RefreshTokenPayload, RegistrationResponse } from '../models/User.model'
 
 export interface SavedPaymentMethod {
   id: number
@@ -32,10 +32,10 @@ export const authService = {
     await apiClient.post('/auth/account-deletion/cancel', payload)
   },
 
-  async register(data: RegisterData): Promise<AuthResponse> {
+  async register(data: RegisterData): Promise<RegistrationResponse> {
     const { confirmPassword, ...payload } = data
     void confirmPassword
-    const { data: response } = await apiClient.post<AuthResponse>('/auth/register', payload)
+    const { data: response } = await apiClient.post<RegistrationResponse>('/auth/register', payload)
     return response
   },
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useParams, Navigate } from 'react-router-dom'
+import { useParams, Navigate, Link } from 'react-router-dom'
 import axios from 'axios'
+import { QRCodeSVG } from 'qrcode.react'
 import { paymentService, type PaymentTransaction } from '../../services/payment.service'
 import { useTranslation } from '../../utils/i18n'
 import { formatAccountNumber } from '../../utils/formatters'
@@ -11,8 +12,7 @@ export default function ConfirmQrPage() {
   const [transaction, setTransaction] = useState<PaymentTransaction | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [twoFactorCode, setTwoFactorCode] = useState('')
-  const [needsTwoFactor, setNeedsTwoFactor] = useState(false)
+  const [authenticatorCode, setAuthenticatorCode] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -25,7 +25,6 @@ export default function ConfirmQrPage() {
       .then((payment) => {
         if (!cancelled) {
           setTransaction(payment)
-          setNeedsTwoFactor(payment.failureReason === 'Vérification 2FA requise avant exécution.')
         }
       })
       .catch((err: unknown) => {
@@ -48,34 +47,16 @@ export default function ConfirmQrPage() {
     try {
       setSubmitting(true)
       setError('')
-      const updated = await paymentService.confirmQr(transactionId)
+      const updated = await paymentService.confirmQr(transactionId, authenticatorCode)
       setTransaction({ ...updated, recipient: transaction.recipient, canConfirmQr: true })
       window.dispatchEvent(new Event('paysmart:notifications-refresh'))
-      const requiresTwoFactor = updated.failureReason === 'Vérification 2FA requise avant exécution.'
-      setNeedsTwoFactor(requiresTwoFactor)
-      setSuccess(requiresTwoFactor
-        ? t('qrNeedsTwoFactor')
-        : t('qrPaymentConfirmed', { reference: updated.externalReference ?? `#${updated.id}` }))
+      if (updated.status === 'COMPLETED') {
+        setSuccess(t('qrPaymentConfirmed'))
+      } else {
+        setError(updated.failureReason || t('cannotConfirmQr'))
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('cannotConfirmQr'))
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const confirmTwoFactor = async () => {
-    if (!transaction || !/^\d{6}$/.test(twoFactorCode)) return
-    try {
-      setSubmitting(true)
-      setError('')
-      const updated = await paymentService.confirmTwoFactor(transaction.id, twoFactorCode)
-      setTransaction({ ...updated, recipient: transaction.recipient, canConfirmQr: true })
-      setNeedsTwoFactor(false)
-      setTwoFactorCode('')
-      setSuccess(t('paymentConfirmed2fa'))
-      window.dispatchEvent(new Event('paysmart:notifications-refresh'))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('invalid2faCode'))
     } finally {
       setSubmitting(false)
     }
@@ -93,8 +74,8 @@ export default function ConfirmQrPage() {
           <p className="mt-2 text-base text-black">{t('qrConfirmationDescription')}</p>
         </div>
 
-        {error && <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-base text-black">{error}</div>}
-        {success && <div className="rounded-2xl border border-green-500/40 bg-green-500/10 p-4 text-base text-black">{success}</div>}
+        {error && <div role="alert" className="rounded-2xl border border-red-300 bg-red-50 p-4 text-base text-red-800">{error}</div>}
+        {success && <div role="status" className="rounded-2xl border border-green-300 bg-green-50 p-4 text-base text-green-800">{success}</div>}
         {loading && <p className="text-center text-base">{t('loading')}</p>}
         {!loading && transaction && (
           <div className="space-y-4">
@@ -106,29 +87,38 @@ export default function ConfirmQrPage() {
               <p className="border-t border-gray-200 pt-2">{t('transactionTotal')}: <strong>{formatMoney(Number(transaction.totalAmount ?? transaction.amount), transaction.currency)}</strong></p>
             </div>
             {!transaction.canConfirmQr && (
-              <p className="rounded-xl border border-amber-400/50 bg-amber-50 p-3 text-sm text-black">{t('onlyRecipientCanConfirm')}</p>
+              <p className="rounded-xl border border-blue-400/50 bg-blue-50 p-3 text-sm text-black">{t('onlyRecipientCanConfirm')}</p>
             )}
-            {needsTwoFactor && transaction.canConfirmQr && (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium" htmlFor="qr-two-factor-code">{t('codeReceived')}</label>
+            {transaction.status === 'PENDING' && transaction.canConfirmQr && (
+              <div className="space-y-3 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                <p className="text-sm text-blue-950">{t('qrPaymentCodeDescription')}</p>
+                <div className="flex justify-center rounded-xl bg-white p-4">
+                  <QRCodeSVG
+                    value={`${window.location.origin}/payments/confirm/${transaction.id}`}
+                    size={192}
+                    level="M"
+                    includeMargin
+                  />
+                </div>
+                <p className="text-sm text-blue-950">{t('qrAuthenticatorRequired')}</p>
+                <Link to="/settings" className="inline-block text-sm font-semibold text-primary-700 underline underline-offset-2">
+                  {t('setupGoogleAuthenticator')}
+                </Link>
+                <label className="block text-sm font-medium text-gray-900" htmlFor="qr-authenticator-code">{t('googleAuthenticatorCode')}</label>
                 <input
-                  id="qr-two-factor-code"
+                  id="qr-authenticator-code"
                   inputMode="numeric"
+                  autoComplete="one-time-code"
                   maxLength={6}
-                  value={twoFactorCode}
-                  onChange={(event) => setTwoFactorCode(event.target.value.replace(/\D/g, ''))}
+                  value={authenticatorCode}
+                  onChange={(event) => setAuthenticatorCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="000000"
                   className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-2.5 font-mono text-black outline-none focus:border-primary-500"
                 />
-                <button type="button" onClick={() => void confirmTwoFactor()} disabled={submitting || twoFactorCode.length !== 6} className="w-full rounded-2xl border border-gray-400 bg-white px-5 py-2.5 text-sm font-semibold text-black shadow-sm transition hover:bg-blue-50 disabled:cursor-wait disabled:opacity-50">
-                  {submitting ? t('processing') : t('confirmPayment')}
+                <button type="button" onClick={() => void confirm()} disabled={submitting || authenticatorCode.length !== 6} className="w-full rounded-2xl border border-gray-400 bg-white px-5 py-2.5 text-sm font-semibold text-black shadow-sm transition hover:bg-blue-50 disabled:cursor-wait disabled:opacity-50">
+                  {submitting ? t('processing') : t('confirmQr')}
                 </button>
               </div>
-            )}
-            {!success && !needsTwoFactor && transaction.status === 'PENDING' && transaction.canConfirmQr && (
-              <button type="button" onClick={() => void confirm()} disabled={submitting} className="w-full rounded-2xl border border-gray-400 bg-white px-5 py-2.5 text-sm font-semibold text-black shadow-sm transition hover:bg-blue-50 disabled:cursor-wait disabled:opacity-50">
-                {submitting ? t('processing') : t('confirmQr')}
-              </button>
             )}
             {transaction.status !== 'PENDING' && (
               <p className="text-center text-sm text-black">{t('paymentStatus', { status: transaction.status })}</p>

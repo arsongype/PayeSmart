@@ -129,9 +129,10 @@ export default function TwoFactorSetupPage() {
         <div
           className={`mb-4 rounded-xl border p-3 text-xs animate-fade-in ${
             status === 'success'
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-black'
-              : 'bg-rose-500/10 border-rose-500/30 text-black'
+              ? 'border-blue-300 bg-blue-50 text-blue-900'
+              : 'border-red-300 bg-red-50 text-red-800'
           }`}
+          role={status === 'success' ? 'status' : 'alert'}
         >
           {message}
         </div>
@@ -159,8 +160,8 @@ export default function TwoFactorSetupPage() {
           ) : (
             <div className="space-y-4">
               <div className="text-center">
-                <div className="mx-auto h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-2">
-                  <Check size={20} className="text-emerald-500" />
+                <div className="mx-auto h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center mb-2">
+                  <Check size={20} className="text-blue-500" />
                 </div>
                 <h2 className="text-sm font-semibold text-black">{t('scanQrCode')}</h2>
                 <p className="text-xs text-black mt-0.5 opacity-80">{t('scanQrDescription')}</p>
@@ -204,8 +205,8 @@ export default function TwoFactorSetupPage() {
       ) : (
         <div className="app-surface rounded-2xl p-6 shadow-lg shadow-black/5">
           <div className="text-center mb-4">
-            <div className="mx-auto mb-2 h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-              <Shield size={20} className="text-emerald-500" />
+            <div className="mx-auto mb-2 h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+              <Shield size={20} className="text-blue-500" />
             </div>
             <h2 className="text-sm font-semibold text-black">{t('twoFactorActive')}</h2>
             <p className="text-xs text-black opacity-80 mt-0.5">

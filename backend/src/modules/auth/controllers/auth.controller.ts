@@ -82,6 +82,20 @@ export class AuthController {
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.ADMIN)
+  @Patch('users/:id/approve')
+  approveRegistration(@Param('id') id: string) {
+    return this.authService.approveRegistration(parseInt(id, 10))
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN)
+  @Patch('users/:id/reject')
+  rejectRegistration(@Param('id') id: string) {
+    return this.authService.rejectRegistration(parseInt(id, 10))
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN)
   @Patch('users/:id/kyc')
   async updateUserKycStatus(@Param('id') id: string, @Body() dto: UpdateKycStatusDto) {
     return this.authService.updateUserKycStatus(parseInt(id), dto.kycStatus)

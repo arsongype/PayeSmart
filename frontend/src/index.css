@@ -1,10 +1,11 @@
 @import "tailwindcss";
+@config "../tailwind.config.ts";
 
 :root {
-	--primary: #278b71;
-	--primary-dark: #1d705c;
-	--primary-light: #edf5f1;
-	--background: #f8faf9;
+	--primary: #2563eb;
+	--primary-dark: #1d4ed8;
+	--primary-light: #eff6ff;
+	--background: #f8fafc;
 	--text: #0f172a;
 }
 
@@ -41,8 +42,8 @@ button:not(:disabled):active {
 }
 
 ::selection {
-	background: rgba(39, 139, 113, 0.16);
-	color: #174e40;
+	background: rgba(37, 99, 235, 0.16);
+	color: #1e3a8a;
 }
 
 ::-webkit-scrollbar {
@@ -50,32 +51,32 @@ button:not(:disabled):active {
 }
 
 ::-webkit-scrollbar-track {
-	background: #edf2ef;
+	background: #eff3f8;
 }
 
 ::-webkit-scrollbar-thumb {
 	border: 3px solid var(--background);
 	border-radius: 999px;
-	background: #c5d6cd;
+	background: #cbd5e1;
 }
 
 .app-surface {
 	background: rgba(255, 255, 255, 0.9);
-	border: 1px solid #e3ebe6;
-	box-shadow: 0 16px 40px rgba(39, 100, 79, 0.06);
+	border: 1px solid #e2e8f0;
+	box-shadow: 0 16px 40px rgba(30, 64, 175, 0.06);
 }
 
 .app-surface:hover {
-	border-color: rgba(39, 139, 113, 0.32);
+	border-color: rgba(37, 99, 235, 0.32);
 }
 
 .app-main {
 	min-height: calc(100vh - 4rem);
-	background: linear-gradient(135deg, #f7f9f8 0%, #ffffff 55%, #f1f6f3 100%);
+	background: linear-gradient(135deg, #f8fafc 0%, #ffffff 55%, #eff6ff 100%);
 }
 
 .app-main > .page-enter[class*="min-h-screen"] {
-	background: linear-gradient(135deg, #f7f9f8 0%, #ffffff 55%, #f1f6f3 100%) !important;
+	background: linear-gradient(135deg, #f8fafc 0%, #ffffff 55%, #eff6ff 100%) !important;
 }
 
 .page-enter {
@@ -125,9 +126,9 @@ button:not(:disabled):active {
 .blue-hero {
 	position: relative;
 	overflow: hidden;
-	background: linear-gradient(135deg, #278b71, #55a68b);
+	background: linear-gradient(135deg, #2563eb, #60a5fa);
 	color: white;
-	box-shadow: 0 18px 40px rgba(39, 100, 79, 0.14);
+	box-shadow: 0 18px 40px rgba(30, 64, 175, 0.14);
 	animation: blue-breathe 7s ease-in-out infinite;
 }
 
@@ -146,8 +147,8 @@ button:not(:disabled):active {
 }
 
 @keyframes blue-breathe {
-	0%, 100% { box-shadow: 0 18px 40px rgba(39, 100, 79, 0.12); }
-	50% { box-shadow: 0 22px 52px rgba(39, 100, 79, 0.2); }
+	0%, 100% { box-shadow: 0 18px 40px rgba(30, 64, 175, 0.12); }
+	50% { box-shadow: 0 22px 52px rgba(30, 64, 175, 0.2); }
 }
 
 @keyframes blue-shimmer {

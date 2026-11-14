@@ -88,7 +88,7 @@ export function AnalysisResult({ analysis, onRecalculate, recalculating = false 
       )}
 
       {fraudIndicators.length > 0 && (
-        <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+        <div className="mt-3 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-black">{t('controlAlerts')}</p>
           <ul className="list-inside list-disc text-sm text-black">
             {fraudIndicators.map((indicator) => <li key={indicator}>{readableLabel(indicator)}</li>)}
