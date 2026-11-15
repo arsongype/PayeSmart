@@ -91,6 +91,8 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
     country: string
     postalCode: string
     role?: 'USER' | 'MERCHANT'
+    hasVisa?: boolean
+    stripeSetupIntentId?: string
   }): Promise<RegistrationResponse> => {
     const { confirmPassword, ...payload } = data
     void confirmPassword

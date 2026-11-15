@@ -9,7 +9,7 @@ export interface AuthContextValue {
   twoFactorEmail: string
   login: (credentials: { email: string; password: string }) => Promise<void>
   verifyTwoFactor: (code: string) => Promise<void>
-  register: (data: { email: string; password: string; confirmPassword: string; firstName?: string; lastName: string; cin?: string; phone?: string; dateOfBirth?: string; address: string; city: string; country: string; postalCode: string; role?: 'USER' | 'MERCHANT' }) => Promise<import('../models/User.model').RegistrationResponse>
+  register: (data: { email: string; password: string; confirmPassword: string; firstName?: string; lastName: string; cin?: string; phone?: string; dateOfBirth?: string; address: string; city: string; country: string; postalCode: string; role?: 'USER' | 'MERCHANT'; hasVisa?: boolean; stripeSetupIntentId?: string }) => Promise<import('../models/User.model').RegistrationResponse>
   logout: () => void
   refreshUser: () => Promise<void>
   updateUser: (user: User) => void

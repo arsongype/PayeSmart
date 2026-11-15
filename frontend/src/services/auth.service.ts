@@ -39,6 +39,14 @@ export const authService = {
     return response
   },
 
+  async createSignupSetupIntent(email: string): Promise<{ clientSecret: string; publishableKey: string }> {
+    const { data } = await apiClient.post<{ clientSecret: string; publishableKey: string }>(
+      '/auth/signup-card/setup-intent',
+      { email },
+    )
+    return data
+  },
+
   async logout(): Promise<void> {
     await apiClient.post('/auth/logout')
   },

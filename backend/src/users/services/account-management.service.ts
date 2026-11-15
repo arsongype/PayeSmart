@@ -27,6 +27,7 @@ import { AuditLog } from '../../security/entities/audit-log.entity.js'
 import { TransactionStatus } from '../../modules/auth/enums/transaction-status.enum.js'
 import { WalletStatus } from '../../modules/auth/enums/wallet-status.enum.js'
 import { NotificationService } from '../../notifications/services/notification.service.js'
+import { StripeSetupService } from '../../modules/auth/services/stripe-setup.service.js'
 
 const REACTIVATION_DEADLINE_DAYS = 30
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000
@@ -46,6 +47,7 @@ export class AccountManagementService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(KybDocument)
     private kybRepository: Repository<KybDocument>,
     private notificationService: NotificationService,
+    private stripeSetupService: StripeSetupService,
   ) {}
 
   onModuleInit() {
@@ -371,6 +373,16 @@ export class AccountManagementService implements OnModuleInit, OnModuleDestroy {
       })
       await manager.getRepository(KycDocument).delete({ userId })
       await manager.getRepository(KybDocument).delete({ userId })
+      const paymentMethods = await manager.getRepository(PaymentMethod).find({
+        where: { userId },
+        select: { stripeCustomerId: true },
+      })
+      const stripeCustomerIds = [...new Set(
+        paymentMethods.map(({ stripeCustomerId }) => stripeCustomerId).filter((id): id is string => Boolean(id)),
+      )]
+      for (const customerId of stripeCustomerIds) {
+        await this.stripeSetupService.deleteCustomer(customerId)
+      }
       await manager.getRepository(PaymentMethod).delete({ userId })
       await manager.getRepository(DeviceFingerprint).delete({ userId })
       await manager.getRepository(OtpCode).delete({ userId })

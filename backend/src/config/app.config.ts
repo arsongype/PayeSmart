@@ -13,6 +13,10 @@ export default () => ({
     refreshSecret: process.env.JWT_REFRESH_SECRET ?? 'local-development-refresh-secret-change-32',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
   },
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY,
+    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+  },
   cors: {
     origin: process.env.CORS_ORIGIN?.split(',').map((origin) => origin.trim()) ?? [
       'http://localhost:5173',

@@ -33,6 +33,12 @@ export class PaymentMethod {
   @Column({ type: 'varchar', length: 255, nullable: true, name: 'expiry_date' })
   expiryDate: string | null
 
+  @Column({ type: 'varchar', length: 255, nullable: true, name: 'stripe_customer_id' })
+  stripeCustomerId: string | null
+
+  @Column({ type: 'varchar', length: 255, nullable: true, unique: true, name: 'stripe_payment_method_id' })
+  stripePaymentMethodId: string | null
+
   @Column({ type: 'json', nullable: true, name: 'metadata' })
   metadata: Record<string, unknown> | null
 

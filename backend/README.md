@@ -9,7 +9,7 @@ Le backend reçoit les demandes de l’interface, vérifie les règles, lit et e
 - Une base de données locale créée pour PayeSmart.
 - Le service IA si vous souhaitez tester l’analyse de documents.
 
-Les services bancaires et les paiements par carte réels ne sont pas connectés. Les opérations de paiement sont prévues pour une démonstration.
+Les paiements transactionnels restent simulés. L’inscription peut toutefois enregistrer une carte via Stripe SetupIntent ; cette étape ne débite pas la carte et les données de carte sont saisies dans Stripe Elements.
 
 ## Préparer la base de données
 
@@ -31,13 +31,15 @@ Le serveur écoute normalement sur `http://localhost:3000`. Les routes API comme
 
 Pour que les fonctions KYC/KYB communiquent avec l’IA, configurez `AI_SERVICE_URL` et `AI_API_KEY` dans le fichier `.env` du backend. La clé doit être la même dans le service IA. L’envoi de courriels nécessite également une configuration SMTP valide.
 
+Pour permettre l’ajout d’une Visa pendant l’inscription, configurez `STRIPE_SECRET_KEY` et `STRIPE_PUBLISHABLE_KEY` avec les clés de votre compte Stripe (utilisez des clés de test en développement). Aucune transaction n’est créée : Stripe confirme la carte et PayeSmart ne reçoit que l’identifiant SetupIntent. Appliquez `npm run migration:safe` sur une base existante pour ajouter les références Stripe des moyens de paiement.
+
 Pour la détection de fraude, les seuils par défaut sont de 30/100 et 70/100. Les seuils de la règle active `AI_THRESHOLDS` en base remplacent ces valeurs et sont transmis au service IA ; le backend vérifie que sa décision correspond à celle du service. Les règles de pays surveillés et la 2FA obligatoire pour certains moyens de paiement restent des protections supplémentaires.
 
 ## Suppression d’un compte
 
 Depuis **Paramètres**, l’utilisateur confirme sa demande avec son mot de passe et, si la 2FA est activée, son code OTP. La vérification bloque la demande lorsqu’une alerte de fraude est ouverte, qu’une transaction est en attente/en cours ou qu’une transaction possède déjà un score IA élevé. Les administrateurs reçoivent une notification avec le résultat et peuvent examiner le compte dans la page de gestion des utilisateurs.
 
-Si la demande passe les contrôles, le compte et ses sessions sont bloqués immédiatement. Avant l’échéance exacte de 30 jours, l’utilisateur peut récupérer son compte depuis l’écran de connexion avec son email, son mot de passe et son code 2FA le cas échéant. Un traitement automatique vérifie les échéances chaque minute. À l’expiration, les données personnelles et pièces d’identité sont anonymisées/supprimées, tandis que les portefeuilles, transactions et écritures comptables sont conservés sans identité personnelle afin de préserver les références financières. Cette dernière étape est irréversible.
+Si la demande passe les contrôles, le compte et ses sessions sont bloqués immédiatement. Avant l’échéance exacte de 30 jours, l’utilisateur peut récupérer son compte depuis l’écran de connexion avec son email, son mot de passe et son code 2FA le cas échéant. Un traitement automatique vérifie les échéances chaque minute. À l’expiration, les données personnelles et pièces d’identité sont anonymisées/supprimées, les clients Stripe liés sont supprimés, tandis que les portefeuilles, transactions et écritures comptables sont conservés sans identité personnelle afin de préserver les références financières. Cette dernière étape est irréversible.
 
 L’API utilise `DELETE /api/v1/profiles/account/deletion` pour demander la suppression et `POST /api/v1/auth/account-deletion/cancel` pour la récupération. Les administrateurs peuvent traiter une alerte dans **Fraude** ; une alerte résolue ne bloque plus une nouvelle demande. Sur une base existante, appliquez la migration additive avec `npm run migration:safe` après sauvegarde. N’exécutez pas `schema.sql` sur une base qui contient des données à conserver.
 

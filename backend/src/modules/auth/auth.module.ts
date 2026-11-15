@@ -21,6 +21,7 @@ import { DeviceFingerprint } from './entities/device-fingerprint.entity.js'
 import { OtpCode } from './entities/otp-code.entity.js'
 import { SecurityRule } from './entities/security-rule.entity.js'
 import { JwtStrategy } from './strategies/jwt.strategy.js'
+import { StripeSetupService } from './services/stripe-setup.service.js'
 import { NotificationsModule } from '../../notifications/notifications.module.js'
 import { SecurityModule } from '../../security/security.module.js'
 
@@ -57,7 +58,7 @@ import { SecurityModule } from '../../security/security.module.js'
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [AuthService, TypeOrmModule],
+  providers: [AuthService, JwtStrategy, StripeSetupService],
+  exports: [AuthService, StripeSetupService, TypeOrmModule],
 })
 export class AuthModule {}

@@ -227,6 +227,8 @@ CREATE TABLE payment_methods (
   last_four_digits VARCHAR(120),
   brand VARCHAR(120),
   expiry_date VARCHAR(255),
+  stripe_customer_id VARCHAR(255),
+  stripe_payment_method_id VARCHAR(255) UNIQUE,
   metadata JSONB,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),

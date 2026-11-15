@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsEnum, IsOptional, Matches, ValidateIf, IsIn } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MinLength, IsEnum, IsOptional, Matches, ValidateIf, IsIn, IsBoolean } from 'class-validator';
 import { Role } from '../enums/role.enum.js';
 import { KycStatus } from '../enums/kyc-status.enum.js';
 
@@ -59,6 +59,20 @@ export class RegisterDto {
   @IsEnum(KycStatus)
   @IsOptional()
   kycStatus?: KycStatus;
+
+  @ValidateIf((dto: RegisterDto) => dto.hasVisa !== undefined)
+  @IsBoolean()
+  hasVisa?: boolean;
+
+  @ValidateIf((dto: RegisterDto) => dto.hasVisa === true || dto.stripeSetupIntentId !== undefined)
+  @IsString()
+  @Matches(/^seti_[A-Za-z0-9]+$/)
+  stripeSetupIntentId?: string;
+}
+
+export class CreateSignupSetupIntentDto {
+  @IsEmail()
+  email: string;
 }
 
 export class LoginDto {

@@ -25,6 +25,7 @@ import { NotificationService } from '../../../notifications/services/notificatio
 import { AuditService } from '../../../security/services/audit.service.js'
 import { getCurrencyForCountry, INITIAL_WALLET_BALANCE } from './wallet-defaults.js'
 import { SecurityRule } from '../entities/security-rule.entity.js'
+import { StripeSetupService } from './stripe-setup.service.js'
 
 const totp = new TOTP({
   crypto: new NobleCryptoPlugin(),
@@ -64,9 +65,12 @@ export class AuthService {
     private configService: ConfigService,
     private notificationService: NotificationService,
     private auditService: AuditService,
+    private stripeSetupService: StripeSetupService,
   ) {}
 
   async register(dto: RegisterDto) {
+    let stripeCustomerId: string | undefined
+    let registrationPersisted = false
     try {
       const existing = await this.userRepository.findOne({ where: { email: dto.email } })
       if (existing) {
@@ -80,29 +84,69 @@ export class AuthService {
         }
       }
 
+      if (dto.hasVisa === true && !dto.stripeSetupIntentId) {
+        throw new BadRequestException('La confirmation de la carte Visa est requise')
+      }
+      if (dto.hasVisa === false && dto.stripeSetupIntentId) {
+        throw new BadRequestException('Une carte ne peut pas être jointe à cette inscription')
+      }
+
+      const verifiedCard = dto.stripeSetupIntentId
+        ? await this.stripeSetupService.verifySignupSetupIntent(dto.stripeSetupIntentId, dto.email)
+        : undefined
       const normalizedRole = normalizeRegistrationRole(dto.role)
       const normalizedKycStatus: typeof KycStatus[keyof typeof KycStatus] = dto.kycStatus ?? KycStatus.NON_VERIFIE
       const passwordHash = await argon2.hash(dto.password)
       const accountExpiresAt = new Date()
       accountExpiresAt.setUTCFullYear(accountExpiresAt.getUTCFullYear() + 1)
-      const { address, city, country, postalCode, ...userData } = dto
-      const user = this.userRepository.create({
-        ...userData,
-        role: normalizedRole,
-        kycStatus: normalizedKycStatus,
-        accountStatus: UserStatus.PENDING_VERIFICATION,
-        passwordHash,
-        accountExpiresAt,
-      })
+      const { address, city, country, postalCode, stripeSetupIntentId, hasVisa, ...userData } = dto
+      void stripeSetupIntentId
+      void hasVisa
+      const savedUser = await this.userRepository.manager.transaction(async (manager) => {
+        const users = manager.getRepository(User)
+        const profiles = manager.getRepository(Profile)
+        const paymentMethods = manager.getRepository(PaymentMethod)
+        const user = users.create({
+          ...userData,
+          role: normalizedRole,
+          kycStatus: normalizedKycStatus,
+          accountStatus: UserStatus.PENDING_VERIFICATION,
+          passwordHash,
+          accountExpiresAt,
+        })
 
-      const savedUser = await this.userRepository.save(user)
-      await this.profileRepository.save(this.profileRepository.create({
-        userId: savedUser.id,
-        address,
-        city,
-        country,
-        postalCode,
-      }))
+        const registeredUser = await users.save(user)
+        await profiles.save(profiles.create({
+          userId: registeredUser.id,
+          address,
+          city,
+          country,
+          postalCode,
+        }))
+
+        if (verifiedCard) {
+          const stripePayment = await this.stripeSetupService.createCustomerAndAttachCard(
+            verifiedCard,
+            registeredUser.email,
+            `${registeredUser.firstName ?? ''} ${registeredUser.lastName}`.trim(),
+          )
+          stripeCustomerId = stripePayment.stripeCustomerId
+          await paymentMethods.save(paymentMethods.create({
+            userId: registeredUser.id,
+            methodType: 'CARD',
+            lastFourDigits: verifiedCard.lastFourDigits,
+            brand: 'Visa',
+            expiryDate: verifiedCard.expiryDate,
+            stripeCustomerId: stripePayment.stripeCustomerId,
+            stripePaymentMethodId: stripePayment.stripePaymentMethodId,
+            metadata: null,
+            isActive: true,
+          }))
+        }
+
+        return registeredUser
+      })
+      registrationPersisted = true
       const activeAdmins = await this.userRepository.find({
         where: { role: Role.ADMIN, accountStatus: UserStatus.ACTIVE },
         select: { id: true },
@@ -122,9 +166,16 @@ export class AuthService {
         },
       }
     } catch (error) {
+      if (stripeCustomerId && !registrationPersisted) {
+        await this.stripeSetupService.deleteCustomer(stripeCustomerId)
+      }
       console.error('Register error', error)
       throw error
     }
+  }
+
+  async createSignupSetupIntent(email: string) {
+    return this.stripeSetupService.createSignupSetupIntent(email)
   }
 
   async login(dto: LoginDto, context?: { ipAddress: string; userAgent: string; deviceFingerprint: string | null }) {
@@ -769,12 +820,23 @@ export class AuthService {
   }
 
   async getPaymentMethods(userId: number) {
-    return this.paymentMethodRepository.find({ where: { userId }, order: { createdAt: 'DESC' } })
+    const methods = await this.paymentMethodRepository.find({ where: { userId }, order: { createdAt: 'DESC' } })
+    return methods.map(({ id, methodType, lastFourDigits, brand, expiryDate, isActive }) => ({
+      id,
+      methodType,
+      lastFourDigits,
+      brand,
+      expiryDate,
+      isActive,
+    }))
   }
 
   async deletePaymentMethod(userId: number, paymentMethodId: number) {
     const method = await this.paymentMethodRepository.findOne({ where: { id: paymentMethodId, userId } })
     if (!method) throw new NotFoundException('Moyen de paiement non trouvé')
+    if (method.stripePaymentMethodId) {
+      await this.stripeSetupService.detachPaymentMethod(method.stripePaymentMethodId)
+    }
     await this.paymentMethodRepository.remove(method)
     return { message: 'Moyen de paiement supprimé' }
   }

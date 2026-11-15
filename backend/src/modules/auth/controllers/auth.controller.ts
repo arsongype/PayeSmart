@@ -1,7 +1,7 @@
 import { Controller, Post, Body, HttpCode, HttpStatus, Get, UseGuards, Req, Param, Patch, Delete } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from '../services/auth.service.js';
-import { RegisterDto, LoginDto, CancelAccountDeletionDto, RefreshTokenDto, UpdateRoleDto, UpdateKycStatusDto, UpdateMeDto, ForgotPasswordDto, ResetPasswordDto, VerifyEmailDto, EnableTwoFactorDto, ConfirmTwoFactorSetupDto, CreatePaymentMethodDto, TwoFactorVerifyDto } from '../dto/auth.dto.js';
+import { RegisterDto, LoginDto, CancelAccountDeletionDto, RefreshTokenDto, UpdateRoleDto, UpdateKycStatusDto, UpdateMeDto, ForgotPasswordDto, ResetPasswordDto, VerifyEmailDto, EnableTwoFactorDto, ConfirmTwoFactorSetupDto, CreatePaymentMethodDto, TwoFactorVerifyDto, CreateSignupSetupIntentDto } from '../dto/auth.dto.js';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../../../common/guards/roles.guard.js';
 import { SetMetadata } from '@nestjs/common';
@@ -20,6 +20,11 @@ export class AuthController {
   @Post('register')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto)
+  }
+
+  @Post('signup-card/setup-intent')
+  createSignupCardSetupIntent(@Body() dto: CreateSignupSetupIntentDto) {
+    return this.authService.createSignupSetupIntent(dto.email)
   }
 
   @HttpCode(HttpStatus.OK)

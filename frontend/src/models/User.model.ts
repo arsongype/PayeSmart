@@ -121,6 +121,8 @@ export interface RegisterData extends LoginCredentials {
   phone?: string;
   dateOfBirth?: string;
   role?: 'USER' | 'MERCHANT';
+  hasVisa?: boolean;
+  stripeSetupIntentId?: string;
 }
 
 export interface RefreshTokenPayload {

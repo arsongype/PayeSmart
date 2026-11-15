@@ -1,46 +1,50 @@
 # Runtime Validation Report
 
-**Generated**: 2026-11-13T09:57:30+03:00  
+**Generated**: 2026-11-14T12:36:00+03:00
 **Target**: `D:\PayeSmart`
 
 ## Summary
 
 | Step | Status | Exit Code | Details |
 |---|---|---:|---|
-| Backend unit tests | PASS | 0 | 12 files, 70 tests passed |
-| Backend HTTP end-to-end | PASS | 0 | AppModule startup and root endpoint test passed (1/1) |
+| Backend unit tests | PASS | 0 | 14 files, 75 tests passed |
+| Backend HTTP end-to-end | PASS | 0 | Nest application module test passed (1/1) |
 | Backend build and lint | PASS | 0 | Nest build and Oxlint passed |
-| AI service tests and compile | PASS | 0 | 8 tests passed; Python compileall passed |
 | Frontend build and lint | PASS | 0 | TypeScript/Vite build and ESLint passed |
-| Browser E2E | PASS | 0 | 3 Playwright tests passed |
-| Local readiness/auth checks | PASS | 0 | Backend and AI health 200; backend unauthenticated route 401; invalid AI key 403 |
+| Browser E2E | PASS | 0 | 5 Playwright tests passed across registration, password recovery, and protected routes |
+| AI service tests and compile | PASS | 0 | 12 Python tests passed; `compileall` passed |
+| Live readiness and auth checks | PASS | 0 | Backend API HTTP 200; unauthenticated `/auth/me` HTTP 401; AI `/health` HTTP 200 |
+| Stripe signup setup | BLOCKED | 0 | Endpoint returns HTTP 503 because Stripe keys are not configured |
 
-**Overall**: NEEDS_SIGNOFF — all executed checks passed, but authenticated payment and KYC/KYB journeys and real-world AI model quality were not verified.
+**Overall**: NEEDS_SIGNOFF — automated suites and local readiness checks pass, but Stripe card registration cannot be exercised without Stripe test keys. Authenticated business journeys are not covered by the available E2E tests.
 
-## Coverage
+## Test Evidence
 
-- **Payments**: payment service unit tests cover channel contracts, KYC/KYB eligibility gates, risk thresholds, fraud blocking/alert creation, and notification OTP behavior. The OTP expiry test now uses a fixed clock to avoid a 1 ms timing race.
-- **KYC/KYB**: payment eligibility is covered, but no dedicated backend KYC/KYB document upload, AI analysis, review, or persistence test suite exists. No authenticated KYC/KYB browser flow was run.
-- **Fraud alerts**: unit tests cover high-risk blocking and alert notification/persistence calls with mocked dependencies; no authenticated admin investigation/review flow was run.
-- **AI models**: 8 local tests cover synthetic approve/2FA/block scenarios, threshold alignment, and Random Forest/XGBoost predictions. The live metrics endpoint responded, but precision, recall, and F1 were unset and counters were zero. There is no labeled evaluation dataset, so model accuracy on real transactions is not established.
-- **Frontend**: Playwright covered registration navigation, payment-route protection, and password recovery validation; it did not cover signed-in payment/KYC/KYB/admin workflows.
+- Backend: `npm test` — 75 passed; `npm run test:e2e` — 1 passed; `npm run build` and `npm run lint` passed.
+- Frontend: `npm run build`, `npm run lint`, and `npm run test:e2e` passed; 5 browser tests.
+- AI service: `python -m unittest discover -v` — 12 passed; `python -m compileall -q .` passed.
+- Live probes: `GET /api/v1` → 200; `GET /api/v1/auth/me` without credentials → 401; `GET /health` → 200; signup SetupIntent with valid email → 503 while Stripe is unconfigured.
+- Database: the additive local migration completed successfully in the previous step. No test accounts or business transactions were created.
 
 ## Environment and Gaps
 
-- Node.js v24.14.0 and Playwright/Chromium were available.
-- Docker CLI was unavailable. PostgreSQL was listening locally; Redis port 6379 was closed, so no Docker- or Redis-backed integration run was performed.
-- Local service health checks did not create or alter business records. No real payment provider or production data was used.
-- Authenticated flows require an isolated test account and cleanup strategy; these were not available, so no payment, document, or fraud-review records were created in the shared local database.
+- Node.js v24.14.0, Python 3.12.10, and Playwright/Chromium are available.
+- Docker is not installed. Local PostgreSQL was available for the additive migration; Redis port 6379 is closed.
+- The running backend and AI service returned healthy responses. The backend correctly rejects unauthenticated access.
+- Stripe test keys are absent, so no actual card confirmation, Visa-brand verification, Stripe customer attachment, or persisted linked-card read-back was tested. The browser test verifies the registration paths and the required confirmation gate with Stripe unavailable.
+- No authenticated test account/cleanup fixture is available; payment, KYC/KYB upload, admin review, and account lifecycle browser flows remain unverified.
+- AI tests use demonstration scenarios and do not establish model accuracy on real transactions.
 
 ```text
 environment:
-  docker: UNAVAILABLE — Docker CLI missing
+  docker: UNAVAILABLE — Docker CLI not installed
   node: AVAILABLE — v24.14.0
-  playwright: AVAILABLE — 3 browser tests passed
-  infra-tier: FALLBACK(local PostgreSQL; Redis unverified) — Docker unavailable; Redis closed
+  python: AVAILABLE — 3.12.10
+  playwright: AVAILABLE — 5 browser tests passed
+  infra-tier: FALLBACK(local PostgreSQL; Redis unavailable) — Docker not installed; Redis port 6379 closed
   browser-tier: PRIMARY(Playwright)
-startup: PASS — backend and AI local health checks returned HTTP 200; Playwright started/reused the frontend successfully
-integration: PASS — exit_code: 0, backend unit 70/70; backend HTTP E2E 1/1; AI tests 8/8
-e2e: PARTIAL — exit_code: 0, 3 passed; public/auth navigation and validation only; authenticated business flows not exercised
-overall: NEEDS_SIGNOFF — KYC/KYB authenticated flows and empirical AI model evaluation remain unverified
+startup: PASS — live backend API HTTP 200 and AI /health HTTP 200
+integration: PASS — exit_code: 0, backend unit 75/75, backend HTTP E2E 1/1, AI 12/12; Stripe endpoint blocked by missing configuration
+e2e: PARTIAL — exit_code: 0, 5 passed; public registration/password-recovery/protected-route flows; authenticated business flows and real Stripe card setup unverified
+overall: NEEDS_SIGNOFF — Stripe keys and authenticated test data are required for full end-to-end business-flow verification
 ```

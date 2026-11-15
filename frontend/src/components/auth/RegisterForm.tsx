@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react'
+import { useCallback, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { User, Mail, Phone, Home, MapPin, Globe, CreditCard, Lock, Calendar, Shield, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '../common/Button'
 import { Input } from '../common/Input'
 import { PasswordInput } from '../common/PasswordInput'
+import { SignupCardForm } from './SignupCardForm'
 import type { RegisterFormData } from '../../utils/validators'
 import { registerSchema } from '../../utils/validators'
 import { useAuth } from '../../contexts/AuthContext'
@@ -22,11 +23,15 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
     { title: 'Coordonnées', fields: ['email', 'phone'] },
     { title: 'Localisation', fields: ['address', 'city', 'postalCode', 'country'] },
     { title: 'Sécurité du compte', fields: ['role', 'password', 'confirmPassword'] },
+    { title: 'Carte Visa', fields: [] },
   ] as const
   const [currentStep, setCurrentStep] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [hasVisa, setHasVisa] = useState<boolean | null>(null)
+  const [hasVisaError, setHasVisaError] = useState(false)
+  const [stripeSetupIntentId, setStripeSetupIntentId] = useState<string | null>(null)
   const [formData, setFormData] = useState<RegisterFormData>({
     email: '',
     password: '',
@@ -43,6 +48,9 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
     role: 'USER',
   })
   const [errors, setErrors] = useState<Partial<Record<keyof RegisterFormData, string>>>({})
+  const handleStripeSetupComplete = useCallback((setupIntentId: string | null) => {
+    setStripeSetupIntentId(setupIntentId)
+  }, [])
 
   const validate = (fields?: readonly string[]): boolean => {
     const result = registerSchema.safeParse(formData)
@@ -78,12 +86,24 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
       return
     }
 
+    if (hasVisa === null) {
+      setHasVisaError(true)
+      return
+    }
+
+    if (hasVisa && !stripeSetupIntentId) {
+      setError('Veuillez confirmer votre carte Visa avant de créer le compte.')
+      return
+    }
+
     setIsLoading(true)
 
     try {
       await register({
         ...formData,
         firstName: formData.firstName?.trim() || undefined,
+        hasVisa,
+        ...(hasVisa && stripeSetupIntentId ? { stripeSetupIntentId } : {}),
       })
       setSuccess(t('accountCreatedSuccess'))
       setTimeout(() => {
@@ -215,7 +235,10 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
                 placeholder="email@example.com"
                 leftIcon={<Mail size={16} />}
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, email: e.target.value })
+                  setStripeSetupIntentId(null)
+                }}
                 error={errors.email}
                 required
                 className="h-9"
@@ -326,6 +349,66 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
                 className="h-9"
               />
             </div>
+          </section>}
+
+          {currentStep === 4 && <section aria-labelledby="visa-heading">
+            <h2 id="visa-heading" className="mb-2 border-b border-gray-200 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-600">
+              Carte Visa
+            </h2>
+            <fieldset aria-describedby="visa-card-help" className="space-y-3">
+              <legend className="text-sm font-medium text-gray-900">
+                Avez-vous déjà une carte Visa ?
+              </legend>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[true, false].map((value) => (
+                  <label
+                    key={String(value)}
+                    className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm transition-colors ${
+                      hasVisa === value
+                        ? 'border-primary-500 bg-primary-50 text-gray-900'
+                        : 'border-gray-300 bg-gray-50 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="visaPresence"
+                      value={String(value)}
+                      checked={hasVisa === value}
+                      aria-invalid={hasVisaError || undefined}
+                      aria-describedby={hasVisaError ? 'visa-card-error' : undefined}
+                      onChange={() => {
+                        setHasVisa(value)
+                        setHasVisaError(false)
+                        setStripeSetupIntentId(null)
+                        setError(null)
+                      }}
+                      className="h-4 w-4 accent-primary-600"
+                    />
+                    {value ? 'Oui, j’en ai déjà une' : 'Non, pas pour l’instant'}
+                  </label>
+                ))}
+              </div>
+              {hasVisa === true && (
+                <SignupCardForm
+                  key={formData.email}
+                  email={formData.email}
+                  onSetupComplete={handleStripeSetupComplete}
+                />
+              )}
+              {hasVisa === false && (
+                <p className="rounded-lg bg-gray-50 p-3 text-xs text-gray-700">
+                  Votre compte sera créé sans carte bancaire, comme d’habitude.
+                </p>
+              )}
+              {hasVisaError && (
+                <p id="visa-card-error" role="alert" className="text-xs text-red-700">
+                  Veuillez sélectionner une réponse.
+                </p>
+              )}
+              <p id="visa-card-help" className="rounded-lg bg-blue-50 p-3 text-xs text-blue-900">
+                Si vous avez une carte Visa, vous la confirmerez dans le formulaire sécurisé Stripe. PayeSmart ne reçoit pas son numéro complet.
+              </p>
+            </fieldset>
           </section>}
 
           <div className="flex gap-3">
