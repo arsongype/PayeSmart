@@ -182,6 +182,14 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async createCardPaymentIntent(senderUserId: number, dto: QuotePaymentDto) {
+    const quote = await this.quote(senderUserId, dto)
+    return this.sandboxGateway.createPaymentIntent({
+      amount: quote.totalAmount,
+      currency: quote.currency,
+    })
+  }
+
   async initiate(senderUserId: number, dto: InitiatePaymentDto, securityContext?: { ipAddress: string; deviceFingerprint: string }) {
     const sender = await this.userRepository.findOne({ where: { id: senderUserId } })
     if (!sender) throw new NotFoundException('Utilisateur émetteur introuvable')
@@ -202,11 +210,10 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (!dto.recipientWalletNumber) {
       throw new BadRequestException('Le numéro du compte destinataire est requis')
     }
-    if (
-      dto.channel === PaymentChannel.CARD
-      && (typeof dto.cardToken !== 'string' || !dto.cardToken.startsWith('tok_test_'))
-    ) {
-      throw new BadRequestException('Un token de carte de test sandbox est requis')
+    if (dto.channel === PaymentChannel.CARD && !dto.cardPaymentIntentId && (
+      typeof dto.cardToken !== 'string' || !dto.cardToken.startsWith('tok_test_')
+    )) {
+      throw new BadRequestException('Un token de carte de test sandbox ou un PaymentIntent Stripe de test est requis')
     }
     const recipientWallet = await this.walletRepository.findOne({ where: { walletNumber: dto.recipientWalletNumber } })
     if (!senderWallet || !recipientWallet) throw new NotFoundException('Compte émetteur ou destinataire introuvable')
@@ -230,6 +237,9 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     const recipientCreditAmount = convertPaymentCurrency(amount, currency, recipientCurrency)
     if (senderDebitAmount <= 0 || recipientCreditAmount <= 0) {
       throw new BadRequestException('Le montant est trop faible après conversion')
+    }
+    if (dto.channel === PaymentChannel.CARD && dto.cardPaymentIntentId) {
+      await this.sandboxGateway.verifyPaymentIntent(dto.cardPaymentIntentId, totalAmount, currency)
     }
     const now = new Date()
     const dayStart = new Date(now)
@@ -278,6 +288,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       recipientCurrency,
       sandboxExchangeRate: true,
       cardToken: dto.cardToken ? this.cryptoService.encrypt(dto.cardToken) : undefined,
+      cardPaymentIntentId: dto.cardPaymentIntentId,
       deviceId: securityContext?.deviceFingerprint ? createHash('sha256').update(securityContext.deviceFingerprint).digest('hex') : undefined,
       ipAddress: securityContext?.ipAddress,
     }

@@ -35,7 +35,7 @@ Il faut Node.js 20.19 ou plus récent (ou 22.12 ou plus récent), npm, une base 
    npm run dev
    ```
 
-4. Ouvrez l’adresse indiquée par Vite, généralement `http://localhost:5173`, puis créez un compte de démonstration.
+4. Ouvrez l’une des adresses `http://localhost:5173` à `http://localhost:5178`, puis créez un compte de démonstration. Après une modification du script de démarrage, arrêtez l’ancien serveur Vite et relancez `npm run dev` pour démarrer les six ports.
 
 En mode développement, Vite transmet automatiquement les demandes `/api/v1` et les fichiers `/uploads` au backend local sur le port 3000. Pour utiliser une autre adresse d’API, définissez `VITE_API_BASE_URL` dans un fichier `.env.local` du dossier `frontend`.
 

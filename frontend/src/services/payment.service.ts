@@ -68,8 +68,13 @@ export const paymentService = {
     return data
   },
 
-  async initiate(payload: { recipientWalletNumber?: string; amount: number; channel: PaymentChannel; currency?: PaymentCurrency; phoneNumber?: string; cardToken?: string }): Promise<PaymentTransaction> {
+  async initiate(payload: { recipientWalletNumber?: string; amount: number; channel: PaymentChannel; currency?: PaymentCurrency; phoneNumber?: string; cardToken?: string; cardPaymentIntentId?: string }): Promise<PaymentTransaction> {
     const { data } = await apiClient.post('/payments/initiate', payload)
+    return data
+  },
+
+  async createCardPaymentIntent(amount: number, currency: PaymentCurrency): Promise<{ clientSecret: string; paymentIntentId: string; publishableKey: string }> {
+    const { data } = await apiClient.post('/payments/card/payment-intent', { amount, currency })
     return data
   },
 

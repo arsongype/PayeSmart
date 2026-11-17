@@ -38,6 +38,11 @@ export class PaymentsController {
     })
   }
 
+  @Post('card/payment-intent')
+  createCardPaymentIntent(@Body() dto: QuotePaymentDto, @Req() req: RequestWithUser) {
+    return this.paymentsService.createCardPaymentIntent(parseInt(req.user.sub, 10), dto)
+  }
+
   @Post('quote')
   quote(@Body() dto: QuotePaymentDto, @Req() req: RequestWithUser) {
     return this.paymentsService.quote(parseInt(req.user.sub, 10), dto)

@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
-import { AlertCircle, ArrowDownLeft, ArrowUpRight, BadgeCheck, Building2, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, CreditCard, Eye, EyeOff, Printer, QrCode, RefreshCw, Send, ShieldCheck, UserRound } from 'lucide-react'
+import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js'
+import { loadStripe } from '@stripe/stripe-js'
+import { AlertCircle, ArrowDownLeft, ArrowUpRight, BadgeCheck, Building2, CheckCircle2, Clock3, CreditCard, Printer, QrCode, RefreshCw, Send, ShieldCheck, UserRound } from 'lucide-react'
 import { Button } from '../../components/common/Button'
 import { useAuth } from '../../contexts/AuthContext'
 import { paymentService, type PaymentChannel, type PaymentCurrency, type PaymentQuote, type PaymentTransaction, type PaymentTwoFactorMethod, type RecipientAccount } from '../../services/payment.service'
@@ -8,14 +10,61 @@ import { walletService } from '../../services/wallet.service'
 import type { Wallet } from '../../models/User.model'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useTranslation } from '../../utils/i18n'
-import { isSandboxCardCvvValid, isSandboxCardExpiryValid } from '../../utils/sandbox-card'
-import { useSandboxDynamicCvv } from '../../hooks/useSandboxDynamicCvv'
 import { formatAccountNumber, getCurrencySymbol } from '../../utils/formatters'
 
 type PaymentMode = 'CARD' | 'QR' | 'BANK_TRANSFER'
 
-function generateSandboxCardToken(): string {
-  return `tok_test_${crypto.randomUUID().replaceAll('-', '').slice(0, 24)}`
+interface StripeCardPaymentFormProps {
+  clientSecret: string
+  publishableKey: string
+  paymentIntentId: string
+  onConfirmed: (paymentIntentId: string | null) => void
+}
+
+function StripeCardPaymentForm({ clientSecret, publishableKey, paymentIntentId, onConfirmed }: StripeCardPaymentFormProps) {
+  const stripePromise = useMemo(() => loadStripe(publishableKey), [publishableKey])
+  return (
+    <div className="mt-5 space-y-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
+      <p className="text-sm font-semibold text-slate-800">Paiement sécurisé par Stripe Testing</p>
+      <Elements stripe={stripePromise} options={{ clientSecret }}>
+        <ConfirmStripeCardPayment paymentIntentId={paymentIntentId} onConfirmed={onConfirmed} />
+      </Elements>
+    </div>
+  )
+}
+
+function ConfirmStripeCardPayment({ paymentIntentId, onConfirmed }: Pick<StripeCardPaymentFormProps, 'paymentIntentId' | 'onConfirmed'>) {
+  const stripe = useStripe()
+  const elements = useElements()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const confirmCard = async () => {
+    if (!stripe || !elements) return
+    setLoading(true)
+    setError(null)
+    const result = await stripe.confirmPayment({ elements, redirect: 'if_required' })
+    if (result.error) {
+      setError(result.error.message ?? 'La confirmation Stripe a échoué.')
+      onConfirmed(null)
+    } else if (result.paymentIntent?.status === 'requires_capture') {
+      onConfirmed(paymentIntentId)
+    } else {
+      setError('Stripe n’a pas confirmé le paiement.')
+      onConfirmed(null)
+    }
+    setLoading(false)
+  }
+
+  return (
+    <>
+      <PaymentElement options={{ layout: 'tabs' }} />
+      {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
+      <Button type="button" size="md" isLoading={loading} disabled={!stripe || !elements} onClick={() => void confirmCard()}>
+        Confirmer la carte de test
+      </Button>
+    </>
+  )
 }
 
 function getPaymentErrorMessage(error: unknown, fallback: string): string {
@@ -31,22 +80,12 @@ export default function PaymentsPage() {
   const { user } = useAuth()
   const { settings } = useSettings()
   const { t, formatMoney } = useTranslation()
-  const dynamicCvv = useSandboxDynamicCvv(user?.id ?? 0)
   const locale = settings.language === 'en' ? 'en-US' : 'fr-FR'
-  const currentDate = new Date()
-  const currentYear = currentDate.getFullYear()
-  const currentMonth = currentDate.getMonth() + 1
   const [recipientWalletNumber, setRecipientWalletNumber] = useState('')
   const [recipient, setRecipient] = useState<RecipientAccount | null>(null)
   const [amount, setAmount] = useState('')
-  const [cardExpiryMonth, setCardExpiryMonth] = useState('')
-  const [cardExpiryYear, setCardExpiryYear] = useState('')
-  const [expiryCalendarYear, setExpiryCalendarYear] = useState(currentYear)
-  const [expiryCalendarOpen, setExpiryCalendarOpen] = useState(false)
-  const expiryCalendarRef = useRef<HTMLDivElement>(null)
-  const [cardCvv, setCardCvv] = useState('')
-  const [showCardCvv, setShowCardCvv] = useState(false)
-  const [showDynamicCvv, setShowDynamicCvv] = useState(false)
+  const [cardPaymentIntent, setCardPaymentIntent] = useState<{ clientSecret: string; paymentIntentId: string; publishableKey: string } | null>(null)
+  const [confirmedCardPaymentIntentId, setConfirmedCardPaymentIntentId] = useState<string | null>(null)
   const [paymentCurrency, setPaymentCurrency] = useState<PaymentCurrency>('MGA')
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('CARD')
   const [paymentQuote, setPaymentQuote] = useState<PaymentQuote | null>(null)
@@ -124,23 +163,26 @@ export default function PaymentsPage() {
   }, [refreshWallet])
 
   useEffect(() => {
-    if (!expiryCalendarOpen) return
-
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (event.target instanceof Node && !expiryCalendarRef.current?.contains(event.target)) {
-        setExpiryCalendarOpen(false)
-      }
+    const resetId = window.setTimeout(() => {
+      setCardPaymentIntent(null)
+      setConfirmedCardPaymentIntentId(null)
+    }, 0)
+    if (paymentMode !== 'CARD' || !currentQuote) {
+      return () => window.clearTimeout(resetId)
     }
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setExpiryCalendarOpen(false)
-    }
-    document.addEventListener('pointerdown', closeOnOutsideClick)
-    document.addEventListener('keydown', closeOnEscape)
+    let cancelled = false
+    void paymentService.createCardPaymentIntent(currentQuote.amount, paymentCurrency)
+      .then((intent) => {
+        if (!cancelled) setCardPaymentIntent(intent)
+      })
+      .catch((requestError: unknown) => {
+        if (!cancelled) setError(getPaymentErrorMessage(requestError, 'Impossible de préparer le paiement Stripe.'))
+      })
     return () => {
-      document.removeEventListener('pointerdown', closeOnOutsideClick)
-      document.removeEventListener('keydown', closeOnEscape)
+      cancelled = true
+      window.clearTimeout(resetId)
     }
-  }, [expiryCalendarOpen])
+  }, [currentQuote, paymentMode, paymentCurrency])
 
   useEffect(() => {
     if (!success) return
@@ -303,19 +345,9 @@ export default function PaymentsPage() {
   const submitPayment = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!recipient || !amount) return
-    if (paymentMode === 'CARD') {
-      if (!isSandboxCardExpiryValid(cardExpiryYear && cardExpiryMonth ? `${cardExpiryYear}-${cardExpiryMonth}` : '')) {
-        setError(t('invalidExpiry'))
-        return
-      }
-      if (!isSandboxCardCvvValid(cardCvv)) {
-        setError(t('invalidCvv'))
-        return
-      }
-      if (cardCvv !== dynamicCvv) {
-        setError(t('invalidCvv'))
-        return
-      }
+    if (paymentMode === 'CARD' && !confirmedCardPaymentIntentId) {
+      setError('Confirmez votre carte dans le formulaire Stripe.')
+      return
     }
     try {
       setSubmitting(true)
@@ -326,7 +358,7 @@ export default function PaymentsPage() {
         amount: Number(amount),
         channel,
         currency: paymentCurrency,
-        cardToken: paymentMode === 'CARD' ? generateSandboxCardToken() : undefined,
+        cardPaymentIntentId: paymentMode === 'CARD' ? confirmedCardPaymentIntentId ?? undefined : undefined,
       })
       setLastTransaction(transaction)
       setHiddenReceiptId(null)
@@ -338,9 +370,8 @@ export default function PaymentsPage() {
       setLoadingQuote(false)
       setRecipient(null)
       setRecipientWalletNumber('')
-      setCardExpiryMonth('')
-      setCardExpiryYear('')
-      setCardCvv('')
+      setCardPaymentIntent(null)
+      setConfirmedCardPaymentIntentId(null)
       await load(false)
       await refreshWallet()
     } catch (err) {
@@ -614,10 +645,7 @@ export default function PaymentsPage() {
                     aria-selected={paymentMode === mode}
                     onClick={() => {
                       setPaymentMode(mode)
-                      setCardExpiryMonth('')
-                      setCardExpiryYear('')
-                      setCardCvv('')
-                      setShowCardCvv(false)
+                      setConfirmedCardPaymentIntentId(null)
                       setError(null)
                     }}
                     className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition focus:outline-none focus:ring-4 focus:ring-blue-500/15 ${paymentMode === mode ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}
@@ -663,118 +691,13 @@ export default function PaymentsPage() {
                 }} placeholder={`0.00 ${paymentCurrency}`} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10" />
               </div>
             </div>
-            {paymentMode === 'CARD' && (
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                <div ref={expiryCalendarRef} className="relative min-w-0">
-                  <label className="text-sm font-semibold text-slate-700" htmlFor="card-expiry-trigger">{t('cardExpiry')}</label>
-                  <button
-                    id="card-expiry-trigger"
-                    type="button"
-                    aria-haspopup="dialog"
-                    aria-expanded={expiryCalendarOpen}
-                    aria-controls="card-expiry-calendar"
-                    onClick={() => {
-                      if (!expiryCalendarOpen) {
-                        setExpiryCalendarYear(cardExpiryYear ? Number(cardExpiryYear) : currentYear)
-                      }
-                      setExpiryCalendarOpen((open) => !open)
-                    }}
-                    className="mt-1 flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-slate-900 outline-none transition hover:bg-white focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                  >
-                    <CalendarDays className="h-5 w-5 shrink-0 text-slate-500" />
-                    <span>
-                      {cardExpiryMonth && cardExpiryYear
-                        ? `${new Intl.DateTimeFormat(locale, { month: 'long' }).format(new Date(Number(cardExpiryYear), Number(cardExpiryMonth) - 1, 1))} ${cardExpiryYear}`
-                        : `${t('expiryMonth')} / ${t('expiryYear')}`}
-                    </span>
-                  </button>
-                  {expiryCalendarOpen && (
-                    <div
-                      id="card-expiry-calendar"
-                      role="dialog"
-                      aria-label={t('cardExpiry')}
-                      className="absolute left-0 top-full z-30 mt-2 w-full min-w-64 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
-                    >
-                      <div className="mb-4 flex items-center justify-between">
-                        <button
-                          type="button"
-                          aria-label={t('previousYear')}
-                          disabled={expiryCalendarYear <= currentYear}
-                          onClick={() => setExpiryCalendarYear((year) => year - 1)}
-                          className="rounded-lg p-2 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <ChevronLeft className="h-5 w-5" />
-                        </button>
-                        <span aria-live="polite" className="font-semibold text-slate-900">{expiryCalendarYear}</span>
-                        <button
-                          type="button"
-                          aria-label={t('nextYear')}
-                          disabled={expiryCalendarYear >= currentYear + 20}
-                          onClick={() => setExpiryCalendarYear((year) => year + 1)}
-                          className="rounded-lg p-2 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <ChevronRight className="h-5 w-5" />
-                        </button>
-                      </div>
-                      <div aria-label={`${t('expiryMonth')} ${expiryCalendarYear}`} className="grid grid-cols-3 gap-2">
-                        {Array.from({ length: 12 }, (_, index) => {
-                          const month = String(index + 1).padStart(2, '0')
-                          const monthName = new Intl.DateTimeFormat(locale, { month: 'long' }).format(new Date(2020, index, 1))
-                          const isPast = expiryCalendarYear === currentYear && index + 1 < currentMonth
-                          const isSelected = cardExpiryMonth === month && cardExpiryYear === String(expiryCalendarYear)
-                          return (
-                            <button
-                              key={month}
-                              type="button"
-                              disabled={isPast}
-                              aria-pressed={isSelected}
-                              onClick={() => {
-                                setCardExpiryMonth(month)
-                                setCardExpiryYear(String(expiryCalendarYear))
-                                setExpiryCalendarOpen(false)
-                              }}
-                              className={`rounded-lg px-2 py-2 text-sm capitalize transition disabled:cursor-not-allowed disabled:opacity-35 ${
-                                isSelected
-                                  ? 'bg-blue-600 text-white'
-                                  : 'text-slate-700 hover:bg-blue-50 hover:text-blue-800'
-                              }`}
-                            >
-                              {monthName}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700" htmlFor="card-cvv">{t('cvv')}</label>
-                  <div className="relative mt-1">
-                  <input
-                    id="card-cvv"
-                    type={showCardCvv ? 'text' : 'password'}
-                    inputMode="numeric"
-                    required
-                    value={cardCvv}
-                    onChange={(event) => setCardCvv(event.target.value.replace(/\D/g, '').slice(0, 4))}
-                    placeholder="•••"
-                    maxLength={4}
-                    autoComplete="off"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 font-mono text-slate-900 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                  />
-                    <button type="button" onClick={() => setShowCardCvv((visible) => !visible)} aria-label={t(showCardCvv ? 'hideSensitiveData' : 'showSensitiveData')} title={t(showCardCvv ? 'hideSensitiveData' : 'showSensitiveData')} className="absolute inset-y-0 right-2 inline-flex items-center rounded-lg px-2 text-slate-600 hover:bg-white">
-                      {showCardCvv ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-600">
-                    <span>{t('dynamicCvv', { code: showDynamicCvv ? dynamicCvv : '•••' })}</span>
-                    <button type="button" onClick={() => setShowDynamicCvv((visible) => !visible)} aria-label={t(showDynamicCvv ? 'hideSensitiveData' : 'showSensitiveData')} title={t(showDynamicCvv ? 'hideSensitiveData' : 'showSensitiveData')} className="inline-flex shrink-0 items-center gap-1 rounded-lg p-1 text-slate-700 hover:bg-slate-100">
-                      {showDynamicCvv ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      {t('dynamicCvvNotice')}
-                    </button>
-                  </div>
-                </div>
-              </div>
+            {paymentMode === 'CARD' && cardPaymentIntent && (
+              <StripeCardPaymentForm
+                clientSecret={cardPaymentIntent.clientSecret}
+                publishableKey={cardPaymentIntent.publishableKey}
+                paymentIntentId={cardPaymentIntent.paymentIntentId}
+                onConfirmed={setConfirmedCardPaymentIntentId}
+              />
             )}
             {currentQuote && paymentMode !== 'BANK_TRANSFER' && (
               <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50/70 p-5 text-slate-800" aria-live="polite">
@@ -833,7 +756,7 @@ export default function PaymentsPage() {
                 <p className="text-xs text-slate-600">{t('recipientReceivesAmount')}</p>
               </div>
             )}
-            <Button type="submit" className="mt-6 w-full rounded-2xl py-3 text-base" disabled={!recipient || submitting || loadingQuote || !Number.isFinite(Number(amount)) || Number(amount) < 0.01} isLoading={submitting}>{t('payNow')}</Button>
+            <Button type="submit" className="mt-6 w-full rounded-2xl py-3 text-base" disabled={!recipient || submitting || loadingQuote || !Number.isFinite(Number(amount)) || Number(amount) < 0.01 || (paymentMode === 'CARD' && !confirmedCardPaymentIntentId)} isLoading={submitting}>{t('payNow')}</Button>
             </div>
           </form>
         </div>

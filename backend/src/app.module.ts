@@ -64,10 +64,8 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js
         },
         cors: {
           origin: process.env.CORS_ORIGIN?.split(',').map((origin) => origin.trim()) ?? [
-            'http://localhost:5173',
-            'http://localhost:5174',
-            'http://127.0.0.1:5173',
-            'http://127.0.0.1:5174',
+            ...Array.from({ length: 6 }, (_, index) => `http://localhost:${5173 + index}`),
+            ...Array.from({ length: 6 }, (_, index) => `http://127.0.0.1:${5173 + index}`),
           ],
           credentials: true,
         },

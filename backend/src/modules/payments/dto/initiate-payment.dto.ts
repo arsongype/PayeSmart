@@ -26,6 +26,10 @@ export class InitiatePaymentDto {
 
   @IsString()
   @IsOptional()
+  cardPaymentIntentId?: string
+
+  @IsString()
+  @IsOptional()
   phoneNumber?: string
 
   @IsString()
