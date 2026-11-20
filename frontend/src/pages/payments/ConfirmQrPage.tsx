@@ -14,6 +14,7 @@ export default function ConfirmQrPage() {
   const [submitting, setSubmitting] = useState(false)
   const [authenticatorCode, setAuthenticatorCode] = useState('')
   const [error, setError] = useState('')
+  const [recipientAccessDenied, setRecipientAccessDenied] = useState(false)
   const [success, setSuccess] = useState('')
 
   const transactionId = Number(id)
@@ -32,6 +33,7 @@ export default function ConfirmQrPage() {
           setError(axios.isAxiosError(err) && err.response?.status === 404
             ? t('onlyRecipientCanConfirm')
             : err instanceof Error ? err.message : t('transactionNotFound'))
+          setRecipientAccessDenied(axios.isAxiosError(err) && err.response?.status === 404)
         }
       })
       .finally(() => {
@@ -75,6 +77,11 @@ export default function ConfirmQrPage() {
         </div>
 
         {error && <div role="alert" className="rounded-2xl border border-red-300 bg-red-50 p-4 text-base text-red-800">{error}</div>}
+        {recipientAccessDenied && (
+          <Link to="/login" className="block rounded-2xl border border-blue-300 bg-blue-50 p-4 text-center text-sm font-semibold text-blue-900 underline underline-offset-2">
+            {t('login')}
+          </Link>
+        )}
         {success && <div role="status" className="rounded-2xl border border-green-300 bg-green-50 p-4 text-base text-green-800">{success}</div>}
         {loading && <p className="text-center text-base">{t('loading')}</p>}
         {!loading && transaction && (

@@ -54,7 +54,7 @@ export class Transaction {
   @Column({ type: 'text', nullable: true, name: 'failure_reason' })
   failureReason: string | null
 
-  @Column({ type: 'json', nullable: true })
+  @Column({ type: 'jsonb', nullable: true })
   metadata: Record<string, unknown> | null
 
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true, name: 'risk_score' })

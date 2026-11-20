@@ -38,7 +38,7 @@ export class DeviceFingerprint {
   @Column({ type: 'varchar', length: 64, nullable: true, name: 'ip_address' })
   ipAddress: string | null
 
-  @Column({ type: 'json', nullable: true, name: 'metadata' })
+  @Column({ type: 'jsonb', nullable: true, name: 'metadata' })
   metadata: Record<string, unknown> | null
 
   @Column({ default: true, name: 'is_trusted' })

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleDes
 import { ConfigService } from '@nestjs/config'
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm'
 import axios from 'axios'
+import Stripe from 'stripe'
 import { DataSource, In, MoreThanOrEqual, Repository } from 'typeorm'
 import { User } from '../auth/entities/user.entity.js'
 import { Wallet } from '../auth/entities/wallet.entity.js'
@@ -184,10 +185,39 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
 
   async createCardPaymentIntent(senderUserId: number, dto: QuotePaymentDto) {
     const quote = await this.quote(senderUserId, dto)
-    return this.sandboxGateway.createPaymentIntent({
-      amount: quote.totalAmount,
-      currency: quote.currency,
-    })
+    const secretKey = this.configService.get<string>('stripe.secretKey')
+    const publishableKey = this.configService.get<string>('stripe.publishableKey')
+
+    if (
+      typeof secretKey === 'string'
+      && secretKey.startsWith('sk_test_')
+      && secretKey !== 'sk_test_...'
+      && typeof publishableKey === 'string'
+      && publishableKey.startsWith('pk_test_')
+    ) {
+      const stripe = new Stripe(secretKey)
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(quote.totalAmount * 100),
+        currency: quote.currency.toLowerCase(),
+        automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+        metadata: { user_id: String(senderUserId), flow: 'payment' },
+      })
+      if (!paymentIntent.client_secret) throw new BadRequestException('Stripe n’a pas fourni de clé de confirmation')
+      return {
+        ...quote,
+        paymentIntentId: paymentIntent.id,
+        clientSecret: paymentIntent.client_secret,
+        publishableKey,
+      }
+    }
+
+    const paymentIntentId = `pi_test_${randomInt(100000000, 999999999)}`
+    return {
+      ...quote,
+      paymentIntentId,
+      clientSecret: `${paymentIntentId}_secret_sandbox`,
+      publishableKey: 'pk_test_sandbox',
+    }
   }
 
   async initiate(senderUserId: number, dto: InitiatePaymentDto, securityContext?: { ipAddress: string; deviceFingerprint: string }) {
@@ -210,10 +240,11 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (!dto.recipientWalletNumber) {
       throw new BadRequestException('Le numéro du compte destinataire est requis')
     }
-    if (dto.channel === PaymentChannel.CARD && !dto.cardPaymentIntentId && (
-      typeof dto.cardToken !== 'string' || !dto.cardToken.startsWith('tok_test_')
-    )) {
-      throw new BadRequestException('Un token de carte de test sandbox ou un PaymentIntent Stripe de test est requis')
+    if (
+      dto.channel === PaymentChannel.CARD
+      && (typeof dto.cardToken !== 'string' || !dto.cardToken.startsWith('tok_test_'))
+    ) {
+      throw new BadRequestException('Un token de carte de test sandbox est requis')
     }
     const recipientWallet = await this.walletRepository.findOne({ where: { walletNumber: dto.recipientWalletNumber } })
     if (!senderWallet || !recipientWallet) throw new NotFoundException('Compte émetteur ou destinataire introuvable')
@@ -237,9 +268,6 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     const recipientCreditAmount = convertPaymentCurrency(amount, currency, recipientCurrency)
     if (senderDebitAmount <= 0 || recipientCreditAmount <= 0) {
       throw new BadRequestException('Le montant est trop faible après conversion')
-    }
-    if (dto.channel === PaymentChannel.CARD && dto.cardPaymentIntentId) {
-      await this.sandboxGateway.verifyPaymentIntent(dto.cardPaymentIntentId, totalAmount, currency)
     }
     const now = new Date()
     const dayStart = new Date(now)
@@ -288,7 +316,6 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       recipientCurrency,
       sandboxExchangeRate: true,
       cardToken: dto.cardToken ? this.cryptoService.encrypt(dto.cardToken) : undefined,
-      cardPaymentIntentId: dto.cardPaymentIntentId,
       deviceId: securityContext?.deviceFingerprint ? createHash('sha256').update(securityContext.deviceFingerprint).digest('hex') : undefined,
       ipAddress: securityContext?.ipAddress,
     }

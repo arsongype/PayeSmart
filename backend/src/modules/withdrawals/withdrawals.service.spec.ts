@@ -24,8 +24,8 @@ function createServiceFixture() {
     amount: 10.1,
     currency: 'EUR',
     countryCode: 'MG',
-    method: WithdrawalMethod.ORANGE_MONEY,
-    destinationCiphertext: 'cipher:{"recipientName":"User","account":"+261341234567"}',
+    method: WithdrawalMethod.BANK_TRANSFER,
+    destinationCiphertext: 'cipher:{"recipientName":"User","account":"FR7612345678901234567890123","bankName":"Demo Bank"}',
     status: WithdrawalStatus.PENDING,
     adminNote: null,
     reviewedBy: null,
@@ -78,25 +78,26 @@ describe('WithdrawalsService', () => {
 
     await fixture.service.create(4, {
       amount: 10.1,
-      method: WithdrawalMethod.ORANGE_MONEY,
+      method: WithdrawalMethod.BANK_TRANSFER,
       recipientName: ' User ',
-      destinationAccount: '+261341234567',
+      destinationAccount: 'FR7612345678901234567890123',
+      bankName: ' Demo Bank ',
     })
 
     expect(fixture.wallet.balance).toBe(10.15)
     expect(fixture.walletRepository.save).toHaveBeenCalledOnce()
     expect(fixture.cryptoService.encrypt).toHaveBeenCalledWith(
-      JSON.stringify({ recipientName: 'User', account: '+261341234567' }),
+      JSON.stringify({ recipientName: 'User', account: 'FR7612345678901234567890123', bankName: 'Demo Bank' }),
     )
     expect(fixture.requestRepository.save).toHaveBeenCalledOnce()
   })
 
-  it('only offers Orange Money as a withdrawal method', async () => {
+  it('only offers bank transfer as a withdrawal method', async () => {
     const fixture = createServiceFixture()
 
     await expect(fixture.service.getOptions(4)).resolves.toEqual({
       countryCode: 'MG',
-      methods: [WithdrawalMethod.ORANGE_MONEY],
+      methods: [WithdrawalMethod.BANK_TRANSFER],
     })
   })
 

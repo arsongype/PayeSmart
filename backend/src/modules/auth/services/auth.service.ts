@@ -178,7 +178,7 @@ export class AuthService {
     return this.stripeSetupService.createSignupSetupIntent(email)
   }
 
-  async login(dto: LoginDto, context?: { ipAddress: string; userAgent: string; deviceFingerprint: string | null }) {
+  async login(dto: LoginDto, context?: { ipAddress: string; userAgent: string; deviceFingerprint: string | null; frontendOrigin: string | null }) {
     const blocked = await this.isLoginBlocked(dto.email, context?.ipAddress)
     if (blocked) {
       throw new ForbiddenException('Compte temporairement bloqué suite à trop de tentatives de connexion')
@@ -228,13 +228,21 @@ export class AuthService {
     if (context) {
       const fingerprint = createHash('sha256').update(context.deviceFingerprint || context.userAgent).digest('hex')
       const previous = user.securityMetadata
-      const anomaly = Boolean(previous && (previous.deviceFingerprint !== fingerprint || previous.ipAddress !== context.ipAddress))
-      user.securityMetadata = { deviceFingerprint: fingerprint, ipAddress: context.ipAddress, lastLoginAt: Date.now() }
+      const frontendOrigin = context.frontendOrigin ?? null
+      const anomaly = Boolean(previous && (
+        previous.deviceFingerprint !== fingerprint
+        || previous.ipAddress !== context.ipAddress
+        || previous.frontendOrigin !== frontendOrigin
+      ))
+      user.securityMetadata = { deviceFingerprint: fingerprint, ipAddress: context.ipAddress, frontendOrigin, lastLoginAt: Date.now() }
       await this.userRepository.save(user)
 
       if (anomaly) {
         await this.auditService.record({ userId: user.id, method: 'LOGIN', path: '/auth/login', action: 'ANOMALOUS_LOGIN', ipAddress: context.ipAddress, userAgent: context.userAgent, statusCode: 200 })
-        await this.notificationService.create(user.id, 'Nouvelle connexion détectée', `Une connexion depuis un nouvel appareil ou une nouvelle adresse IP a été détectée (${context.ipAddress}).`)
+        const connectionLocation = frontendOrigin
+          ? `${context.ipAddress} depuis ${frontendOrigin}`
+          : context.ipAddress
+        await this.notificationService.create(user.id, 'Nouvelle connexion détectée', `Une connexion depuis un nouvel appareil ou une nouvelle adresse IP a été détectée (${connectionLocation}).`)
       }
 
       await this.registerDeviceFingerprint(user.id, fingerprint, context)
@@ -860,11 +868,15 @@ export class AuthService {
     )
   }
 
-  async registerDeviceFingerprint(userId: number, fingerprintHash: string, context: { deviceName?: string; browser?: string; os?: string; ipAddress?: string }) {
+  async registerDeviceFingerprint(userId: number, fingerprintHash: string, context: { deviceName?: string; browser?: string; os?: string; ipAddress?: string; frontendOrigin?: string | null }) {
     const existing = await this.deviceFingerprintRepository.findOne({ where: { userId, fingerprintHash } })
     if (existing) {
       existing.lastSeenAt = new Date()
       if (context.ipAddress) existing.ipAddress = context.ipAddress
+      existing.metadata = {
+        ...existing.metadata,
+        ...(context.frontendOrigin ? { frontendOrigin: context.frontendOrigin } : {}),
+      }
       await this.deviceFingerprintRepository.save(existing)
       return existing
     }
@@ -877,7 +889,7 @@ export class AuthService {
         browser: context.browser ?? null,
         os: context.os ?? null,
         ipAddress: context.ipAddress ?? null,
-        metadata: null,
+        metadata: context.frontendOrigin ? { frontendOrigin: context.frontendOrigin } : null,
         isTrusted: true,
         lastSeenAt: new Date(),
       }),

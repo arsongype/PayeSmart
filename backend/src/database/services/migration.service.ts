@@ -24,17 +24,8 @@ export class MigrationService implements OnModuleInit {
     await queryRunner.startTransaction()
 
     try {
-      // Split SQL by semicolons and execute each statement
-      const statements = sql
-        .split(';')
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0)
-
-      for (const statement of statements) {
-        if (statement && !statement.startsWith('--')) {
-          await queryRunner.query(statement)
-        }
-      }
+      // Execute the script as a whole so PostgreSQL dollar-quoted blocks stay intact.
+      await queryRunner.query(sql)
 
       await queryRunner.commitTransaction()
       return { success: true, message: 'Migration appliquée avec succès' }

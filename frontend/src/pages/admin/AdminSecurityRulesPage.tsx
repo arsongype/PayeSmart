@@ -326,9 +326,9 @@ export default function AdminSecurityRulesPage() {
               </div>
             </div>
             <div className="space-y-5 p-5 sm:p-6">
-              {field('Plafond par transaction', 'transactionLimit', 'MGA')}
-              {field('Limite journalière', 'dailyLimit', 'MGA')}
-              {field('Limite mensuelle', 'monthlyLimit', 'MGA')}
+              {field('Plafond par transaction', 'transactionLimit', '')}
+              {field('Limite journalière', 'dailyLimit', '')}
+              {field('Limite mensuelle', 'monthlyLimit', '')}
               {field('Max tentatives de paiement', 'paymentAttempts', '/ heure')}
               {field('Max tentatives de connexion', 'loginAttempts', '')}
               {field('Durée de session', 'sessionMinutes', 'minutes')}

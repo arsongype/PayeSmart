@@ -40,9 +40,32 @@ const statements = [
   `ALTER TABLE wallets ALTER COLUMN card_holder_name SET NOT NULL`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_wallets_card_number ON wallets(card_number)`,
   `UPDATE wallets SET wallet_number = LPAD(user_id::text, 8, '0') || LPAD(user_id::text, 4, '0') WHERE wallet_number !~ '^[0-9]+$'`,
-  `DO $$ BEGIN CREATE TYPE payment_channel_enum AS ENUM ('MVOLA', 'ORANGE_MONEY', 'AIRTEL_MONEY', 'CARD', 'QR', 'BANK_TRANSFER'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+  `DO $$ BEGIN CREATE TYPE payment_channel_enum AS ENUM ('CARD', 'QR', 'BANK_TRANSFER'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
   `DO $$ BEGIN CREATE TYPE transaction_status_enum AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
   `CREATE TABLE IF NOT EXISTS transactions (id SERIAL PRIMARY KEY, sender_wallet_id INTEGER NOT NULL REFERENCES wallets(id), recipient_wallet_id INTEGER NOT NULL REFERENCES wallets(id), amount DECIMAL(15,2) NOT NULL, currency VARCHAR(3) NOT NULL DEFAULT 'EUR', channel payment_channel_enum NOT NULL, status transaction_status_enum NOT NULL DEFAULT 'PENDING', external_reference VARCHAR(120), failure_reason TEXT, metadata JSONB, created_at TIMESTAMP NOT NULL DEFAULT NOW(), updated_at TIMESTAMP NOT NULL DEFAULT NOW())`,
+  `DO $$
+  BEGIN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_enum e
+      JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'payment_channel_enum'
+        AND e.enumlabel IN ('MVOLA', 'ORANGE_MONEY', 'AIRTEL_MONEY')
+    ) THEN
+      IF EXISTS (
+        SELECT 1 FROM transactions
+        WHERE channel::text IN ('MVOLA', 'ORANGE_MONEY', 'AIRTEL_MONEY')
+      ) THEN
+        RAISE EXCEPTION 'Cannot remove mobile-money payment channels while transactions still use them';
+      END IF;
+      ALTER TABLE transactions ALTER COLUMN channel DROP DEFAULT;
+      ALTER TABLE transactions ALTER COLUMN channel TYPE text USING channel::text;
+      DROP TYPE payment_channel_enum;
+      CREATE TYPE payment_channel_enum AS ENUM ('CARD', 'QR', 'BANK_TRANSFER');
+      ALTER TABLE transactions ALTER COLUMN channel TYPE payment_channel_enum USING channel::payment_channel_enum;
+      ALTER TABLE transactions ALTER COLUMN channel SET DEFAULT 'CARD';
+    END IF;
+  END $$`,
   `CREATE TABLE IF NOT EXISTS ledgers (id SERIAL PRIMARY KEY, transaction_id INTEGER NOT NULL REFERENCES transactions(id), wallet_id INTEGER NOT NULL REFERENCES wallets(id), amount DECIMAL(15,2) NOT NULL, currency VARCHAR(3) NOT NULL DEFAULT 'EUR', direction VARCHAR(10) NOT NULL, entry_reference VARCHAR(120) NOT NULL UNIQUE, created_at TIMESTAMP NOT NULL DEFAULT NOW())`,
   `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS sender_wallet_id INTEGER`,
   `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS recipient_wallet_id INTEGER`,
@@ -85,6 +108,28 @@ const statements = [
   `ALTER TABLE otp_codes ADD COLUMN IF NOT EXISTS failed_attempts INTEGER NOT NULL DEFAULT 0`,
   `CREATE TABLE IF NOT EXISTS security_rules (id SERIAL PRIMARY KEY, rule_name VARCHAR(120) NOT NULL, rule_type VARCHAR(50) NOT NULL, conditions JSONB NOT NULL, actions JSONB NOT NULL, is_active BOOLEAN NOT NULL DEFAULT TRUE, priority INTEGER NOT NULL DEFAULT 0, description TEXT, created_at TIMESTAMP NOT NULL DEFAULT NOW(), updated_at TIMESTAMP NOT NULL DEFAULT NOW())`,
   `CREATE TABLE IF NOT EXISTS withdrawal_requests (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), wallet_id INTEGER NOT NULL REFERENCES wallets(id), amount DECIMAL(15,2) NOT NULL CHECK (amount > 0), currency VARCHAR(3) NOT NULL, country_code VARCHAR(2) NOT NULL, method withdrawal_method_enum NOT NULL, destination_ciphertext TEXT NOT NULL, status withdrawal_status_enum NOT NULL DEFAULT 'PENDING', admin_note TEXT, reviewed_by INTEGER REFERENCES users(id), reviewed_at TIMESTAMP, paid_by INTEGER REFERENCES users(id), paid_at TIMESTAMP, created_at TIMESTAMP NOT NULL DEFAULT NOW(), updated_at TIMESTAMP NOT NULL DEFAULT NOW())`,
+  `DO $$
+  BEGIN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_enum e
+      JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'withdrawal_method_enum'
+        AND e.enumlabel IN ('MVOLA', 'ORANGE_MONEY', 'AIRTEL_MONEY')
+    ) THEN
+      IF EXISTS (
+        SELECT 1 FROM withdrawal_requests
+        WHERE method::text IN ('MVOLA', 'ORANGE_MONEY', 'AIRTEL_MONEY')
+      ) THEN
+        RAISE EXCEPTION 'Cannot remove mobile-money withdrawal methods while requests still use them';
+      END IF;
+      ALTER TABLE withdrawal_requests ALTER COLUMN method DROP DEFAULT;
+      ALTER TABLE withdrawal_requests ALTER COLUMN method TYPE text USING method::text;
+      DROP TYPE withdrawal_method_enum;
+      CREATE TYPE withdrawal_method_enum AS ENUM ('BANK_TRANSFER');
+      ALTER TABLE withdrawal_requests ALTER COLUMN method TYPE withdrawal_method_enum USING method::withdrawal_method_enum;
+    END IF;
+  END $$`,
   `CREATE INDEX IF NOT EXISTS idx_withdrawal_requests_user_created ON withdrawal_requests(user_id, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_withdrawal_requests_status_created ON withdrawal_requests(status, created_at DESC)`,
 ]
@@ -92,7 +137,7 @@ const statements = [
 async function runMigration() {
   await client.connect()
   try {
-    await client.query(`DO $$ BEGIN CREATE TYPE withdrawal_method_enum AS ENUM ('MVOLA', 'ORANGE_MONEY', 'AIRTEL_MONEY', 'BANK_TRANSFER'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`)
+    await client.query(`DO $$ BEGIN CREATE TYPE withdrawal_method_enum AS ENUM ('BANK_TRANSFER'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`)
     await client.query(`DO $$ BEGIN CREATE TYPE withdrawal_status_enum AS ENUM ('PENDING', 'APPROVED', 'PAID', 'REJECTED', 'CANCELLED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`)
     await client.query(`ALTER TYPE withdrawal_status_enum ADD VALUE IF NOT EXISTS 'CANCELLED'`)
     await client.query('BEGIN')

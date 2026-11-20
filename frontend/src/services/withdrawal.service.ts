@@ -1,6 +1,6 @@
 import { apiClient } from '../config/axios.config'
 
-export type WithdrawalMethod = 'MVOLA' | 'ORANGE_MONEY' | 'AIRTEL_MONEY' | 'BANK_TRANSFER'
+export type WithdrawalMethod = 'BANK_TRANSFER'
 export type WithdrawalStatus = 'PENDING' | 'APPROVED' | 'PAID' | 'REJECTED' | 'CANCELLED'
 
 export interface WithdrawalOptions {

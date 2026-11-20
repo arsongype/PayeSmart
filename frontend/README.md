@@ -17,25 +17,30 @@ Ce dossier contient les pages visibles dans le navigateur : connexion, tableau d
 
 Il faut Node.js 20.19 ou plus récent (ou 22.12 ou plus récent), npm, une base PostgreSQL préparée et le backend PayeSmart démarré. La configuration de la base est expliquée dans le [guide du backend](../backend/README.md). Le service IA est nécessaire pour les fonctions de vérification de documents.
 
-1. Démarrez PostgreSQL et configurez le backend. Depuis la racine du dépôt, dans un premier terminal :
+1. Démarrez PostgreSQL et configurez le backend. Depuis la racine du dépôt, installez aussi les dépendances :
 
    ```powershell
    Set-Location .\backend
    npm ci
-   npm run start:dev
+   Set-Location ..\frontend
+   npm ci
    ```
 
-2. Si vous voulez utiliser l’analyse de documents, démarrez aussi le [service IA](../ai-service/README.md).
-
-3. Dans un autre terminal, repartez de la racine du dépôt, puis installez et démarrez cette interface :
+2. Pour lancer simultanément le backend, le service IA et les ports frontend 5173 à 5178, depuis `frontend` :
 
    ```powershell
-   Set-Location .\frontend
-   npm ci
-   npm run dev
+   npm run dev:ports
    ```
 
-4. Ouvrez l’une des adresses `http://localhost:5173` à `http://localhost:5178`, puis créez un compte de démonstration. Après une modification du script de démarrage, arrêtez l’ancien serveur Vite et relancez `npm run dev` pour démarrer les six ports.
+   Le service IA doit avoir été préparé une fois selon le [guide du service IA](../ai-service/README.md), avec son environnement `.venv`.
+
+3. Si le backend et le service IA sont déjà lancés, utilisez uniquement les ports frontend :
+
+   ```powershell
+   npm run dev:frontend:ports
+   ```
+
+4. Ouvrez `http://localhost:5173` (ou l’un des ports 5174 à 5178), puis créez un compte de démonstration.
 
 En mode développement, Vite transmet automatiquement les demandes `/api/v1` et les fichiers `/uploads` au backend local sur le port 3000. Pour utiliser une autre adresse d’API, définissez `VITE_API_BASE_URL` dans un fichier `.env.local` du dossier `frontend`.
 

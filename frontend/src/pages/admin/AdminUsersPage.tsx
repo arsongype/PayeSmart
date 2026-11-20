@@ -9,6 +9,7 @@ import { Button } from '../../components/common/Button'
 import { useTranslation } from '../../utils/i18n'
 
 type Role = 'USER' | 'MERCHANT' | 'ADMIN'
+type RoleFilter = 'ALL' | Role
 
 export default function AdminUsersPage() {
   const { user: currentUser } = useAuth()
@@ -18,10 +19,12 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<number | null>(null)
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('ALL')
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 5
-  const totalPages = Math.max(1, Math.ceil(users.length / pageSize))
-  const visibleUsers = users.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const filteredUsers = users.filter((user) => roleFilter === 'ALL' || user.role === roleFilter)
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize))
+  const visibleUsers = filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const fetchUsers = useCallback(() => adminService.getUsers(), [])
 
   useEffect(() => {
@@ -117,7 +120,26 @@ export default function AdminUsersPage() {
             </div>
           )}
 
-        <div className="rounded-3xl border border-gray-300 bg-gray-50 shadow-lg shadow-black/20 overflow-hidden">
+        <div className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-lg shadow-blue-900/5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 bg-white p-4">
+            <label className="flex items-center gap-3 text-sm font-medium text-black" htmlFor="user-role-filter">
+              <span>{t('role')}</span>
+              <select
+                id="user-role-filter"
+                value={roleFilter}
+                onChange={(event) => {
+                  setRoleFilter(event.target.value as RoleFilter)
+                  setCurrentPage(1)
+                }}
+                className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-black focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
+                <option value="ALL">{t('allRoles')}</option>
+                <option value="ADMIN">{t('adminRole')}</option>
+                <option value="USER">{t('clientRole')}</option>
+                <option value="MERCHANT">{t('merchantRole')}</option>
+              </select>
+            </label>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -132,7 +154,7 @@ export default function AdminUsersPage() {
               </thead>
               <tbody className="divide-y divide-white/10">
                 {visibleUsers.map((u) => (
-                  <tr key={u.id} className="transition-colors hover:bg-gray-100">
+                  <tr key={u.id} className="transition-colors hover:bg-blue-50/50">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         {u.avatarUrl ? <img src={adminService.assetUrl(u.avatarUrl)} alt={`${u.firstName} ${u.lastName}`} className="h-10 w-10 rounded-full object-cover" /> : <div className="h-10 w-10 rounded-full bg-primary-600 flex items-center justify-center text-black font-medium text-sm">{u.firstName?.[0]}{u.lastName?.[0]}</div>}
@@ -227,11 +249,11 @@ export default function AdminUsersPage() {
                     </td>
                   </tr>
                 ))}
-                {users.length === 0 && (
+                {filteredUsers.length === 0 && (
                   <tr>
                      <td colSpan={6} className="px-6 py-12 text-center text-black">
                       <UsersIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p className="text-base">{t('userNotFound')}</p>
+                       <p className="text-base">{users.length === 0 ? t('userNotFound') : t('noUsersForRole')}</p>
                     </td>
                   </tr>
                 )}

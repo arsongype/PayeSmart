@@ -40,6 +40,11 @@ DROP TABLE IF EXISTS wallets CASCADE;
 DROP TABLE IF EXISTS profiles CASCADE;
 DROP TABLE IF EXISTS refresh_tokens CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS withdrawal_requests CASCADE;
+DROP TABLE IF EXISTS audit_logs CASCADE;
+
+DROP TYPE IF EXISTS withdrawal_method_enum CASCADE;
+DROP TYPE IF EXISTS withdrawal_status_enum CASCADE;
 
 -- Create users table with new schema
 CREATE TABLE users (
@@ -154,7 +159,7 @@ CREATE TABLE refresh_tokens (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE TYPE payment_channel_enum AS ENUM ('MVOLA', 'ORANGE_MONEY', 'AIRTEL_MONEY', 'CARD', 'QR', 'BANK_TRANSFER');
+CREATE TYPE payment_channel_enum AS ENUM ('CARD', 'QR', 'BANK_TRANSFER');
 CREATE TYPE transaction_status_enum AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED');
 
 CREATE TABLE transactions (
@@ -293,6 +298,41 @@ CREATE TABLE security_rules (
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TYPE withdrawal_method_enum AS ENUM ('BANK_TRANSFER');
+CREATE TYPE withdrawal_status_enum AS ENUM ('PENDING', 'APPROVED', 'PAID', 'REJECTED', 'CANCELLED');
+
+CREATE TABLE withdrawal_requests (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  wallet_id INTEGER NOT NULL REFERENCES wallets(id),
+  amount DECIMAL(15,2) NOT NULL CHECK (amount > 0),
+  currency VARCHAR(3) NOT NULL,
+  country_code VARCHAR(2) NOT NULL,
+  method withdrawal_method_enum NOT NULL,
+  destination_ciphertext TEXT NOT NULL,
+  status withdrawal_status_enum NOT NULL DEFAULT 'PENDING',
+  admin_note TEXT,
+  reviewed_by INTEGER REFERENCES users(id),
+  reviewed_at TIMESTAMP,
+  paid_by INTEGER REFERENCES users(id),
+  paid_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE audit_logs (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  method VARCHAR(16) NOT NULL,
+  path VARCHAR(255) NOT NULL,
+  action VARCHAR(120),
+  ip_address VARCHAR(64),
+  user_agent TEXT,
+  status_code INTEGER NOT NULL DEFAULT 200,
+  response_time_ms INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- Create indexes
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
@@ -312,3 +352,6 @@ CREATE INDEX idx_otp_codes_user_id ON otp_codes(user_id);
 CREATE INDEX idx_security_rules_rule_type ON security_rules(rule_type);
 CREATE INDEX idx_transactions_risk_score ON transactions(risk_score);
 CREATE INDEX idx_transactions_idempotency_key ON transactions(idempotency_key);
+CREATE INDEX idx_withdrawal_requests_user_created ON withdrawal_requests(user_id, created_at DESC);
+CREATE INDEX idx_withdrawal_requests_status_created ON withdrawal_requests(status, created_at DESC);
+CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at);

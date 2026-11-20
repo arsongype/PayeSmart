@@ -110,7 +110,7 @@ export class User {
   @Column({ type: 'varchar', nullable: true, name: 'two_factor_secret' })
   twoFactorSecret: string | null;
 
-  @Column({ type: 'json', nullable: true, name: 'security_metadata' })
+  @Column({ type: 'jsonb', nullable: true, name: 'security_metadata' })
   securityMetadata: Record<string, string | number | null> | null;
 
   @OneToMany('RefreshToken', (token: RefreshToken) => token.user)

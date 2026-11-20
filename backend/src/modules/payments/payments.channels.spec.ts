@@ -134,15 +134,6 @@ describe('payment channel contracts', () => {
     }
   })
 
-  it.each([
-    [PaymentChannel.ORANGE_MONEY, {}],
-  ])('rejects %s without a phone number', async (channel, fields) => {
-    const { service } = buildService()
-
-    await expect(service.initiate(1, { amount: 25, channel, ...fields } as never))
-      .rejects.toBeInstanceOf(BadRequestException)
-  })
-
   it('rejects card payments without a sandbox test token', async () => {
     const { service } = buildService()
 

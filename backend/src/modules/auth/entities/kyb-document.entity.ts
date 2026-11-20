@@ -58,7 +58,7 @@ export class KybDocument {
   @Column({ type: 'timestamp', nullable: true, name: 'reviewed_at' })
   reviewedAt: Date
 
-  @Column({ type: 'json', nullable: true, name: 'metadata' })
+  @Column({ type: 'jsonb', nullable: true, name: 'metadata' })
   metadata: Record<string, any>
 
   @CreateDateColumn({ name: 'created_at' })

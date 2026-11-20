@@ -55,7 +55,7 @@ export class Profile {
   @Column({ type: 'varchar', nullable: true, name: 'company_rib' })
   companyRib: string | null
 
-  @Column({ type: 'json', nullable: true, name: 'metadata' })
+  @Column({ type: 'jsonb', nullable: true, name: 'metadata' })
   metadata: Record<string, any> | null
 
   @Column({ type: 'timestamp', name: 'created_at' })

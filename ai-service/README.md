@@ -31,7 +31,8 @@ Les routes, sauf `/health`, nécessitent l’en-tête `X-API-Key` :
 | `GET /api/v1/trust-score/{user_id}` | Renvoie un score de confiance de démonstration. |
 | `POST /api/v1/trust-score/recalculate/{user_id}` | Recalcule ce score de démonstration. |
 | `POST /api/v1/fraud-detection/predict` | Renvoie un score de risque, une décision et les raisons associées. |
-| `GET /api/v1/metrics` | Renvoie les compteurs et les métriques calculées sur un jeu d’évaluation labellisé. |
+| `GET /api/v1/metrics` | Renvoie les compteurs, les métriques et l’état de l’entraînement réel. |
+| `POST /api/v1/model/retrain` | Réentraîne le modèle sur les verdicts fraude validés par un administrateur. |
 
 Le backend contacte ces routes automatiquement lorsque l’utilisateur demande une vérification depuis l’application.
 
@@ -52,6 +53,14 @@ Le modèle local de régression logistique est initialisé à partir de quelques
 - score de 70 ou plus : `BLOCK`.
 
 Les données de démonstration ne constituent pas une évaluation sur des opérations réelles. Les métriques d’un jeu de démonstration sont uniquement illustratives; les performances réelles exigent un jeu indépendant, représentatif et labellisé. Le service ne doit donc pas servir seul à autoriser ou refuser de vrais paiements. Le score de confiance renvoyé est également une démonstration, pas une décision financière certifiée.
+
+## Entraînement supervisé sur les transactions réelles
+
+Le service peut maintenant entraîner automatiquement la régression logistique à partir de PostgreSQL. Il utilise uniquement les alertes ayant un verdict administrateur explicite (`CONFIRMED_FRAUD` ou `LEGITIMATE`) et une date de revue. Les alertes sans verdict ne sont jamais transformées en labels par défaut.
+
+Configurez la connexion avec `AI_DATABASE_URL` (ou `DATABASE_URL`, sinon `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME` et `DB_PASSWORD`). `AI_AUTO_TRAINING=true` active l’entraînement au démarrage, avec conservation du modèle précédent si la base est indisponible ou si un seul type de label existe. Un réentraînement contrôlé peut être lancé avec `POST /api/v1/model/retrain`.
+
+Les caractéristiques sont reconstruites à partir du montant, du canal, de l’heure de création, du nombre de transactions des dernières 24 heures et des métadonnées appareil/IP si elles existent. Le modèle sauvegardé contient la date, la source et le nombre de labels utilisés. Les données ne sont pas copiées dans le fichier du modèle.
 
 ## Reconnaissance de documents
 

@@ -15,6 +15,10 @@ import { validateProductionEnvironment } from './config/environment.js'
 
 const isPortInUse = (port: number): Promise<boolean> => new Promise((resolve) => {
   const probe = net.createConnection({ host: '127.0.0.1', port })
+  probe.setTimeout(500, () => {
+    probe.destroy()
+    resolve(false)
+  })
   probe.once('connect', () => {
     probe.destroy()
     resolve(true)
@@ -86,7 +90,16 @@ async function bootstrap() {
   app.useGlobalInterceptors(new LoggingInterceptor())
 
   const configuredPort = configService.get<number>('port', port)
-  await app.listen(configuredPort)
-  console.log(`🚀 Server running on http://localhost:${configuredPort}`)
+  try {
+    await app.listen(configuredPort, '127.0.0.1')
+    console.log(`🚀 Server running on http://localhost:${configuredPort}`)
+  } catch (error) {
+    await app.close()
+    if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+      console.log(`Le backend est déjà démarré sur http://localhost:${configuredPort}`)
+      return
+    }
+    throw error
+  }
 }
 bootstrap()

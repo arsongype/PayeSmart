@@ -17,10 +17,10 @@ export class SecurityRule {
   @Column({ type: 'varchar', length: 50, name: 'rule_type' })
   ruleType: string
 
-  @Column({ type: 'json', name: 'conditions' })
+  @Column({ type: 'jsonb', name: 'conditions' })
   conditions: Record<string, unknown>
 
-  @Column({ type: 'json', name: 'actions' })
+  @Column({ type: 'jsonb', name: 'actions' })
   actions: Record<string, unknown>
 
   @Column({ default: true, name: 'is_active' })

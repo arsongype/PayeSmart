@@ -13,6 +13,7 @@ from services.ocr_service import OCRService
 from services.trust_score_service import TrustScoreService
 from services.fraud_detection_service import FraudDetectionService
 from services.model_evaluation_service import evaluate_labeled_samples, resolve_evaluation_dataset
+from services.training_service import automatic_training, train_from_database
 
 load_dotenv()
 
@@ -37,6 +38,9 @@ if (os.getenv("ENVIRONMENT") == "production" or os.getenv("NODE_ENV") == "produc
 ocr_service = OCRService()
 trust_score_service = TrustScoreService()
 fraud_detection_service = FraudDetectionService()
+training_status = automatic_training(fraud_detection_service.model) if fraud_detection_service.model_type == "logistic_regression" else {
+    "status": "unsupported_model",
+}
 fraud_metrics = {
     "analyzed_transactions": 0,
     "predicted_fraud": 0,
@@ -129,7 +133,24 @@ async def get_metrics():
         "fraudThreshold": 40,
         "analyzedTransactions": fraud_metrics["analyzed_transactions"],
         "predictedFraud": fraud_metrics["predicted_fraud"],
+        "training": training_status,
     }
+
+@app.post("/api/v1/model/retrain", dependencies=[Depends(verify_api_key)])
+async def retrain_fraud_model():
+    """Retrain from reviewed administrator outcomes without replacing the model on failure."""
+    global training_status
+    if fraud_detection_service.model_type != "logistic_regression":
+        raise HTTPException(status_code=409, detail="Retraining is supported for the logistic regression model only")
+    try:
+        training_status = train_from_database(fraud_detection_service.model)
+        if training_status["status"] == "insufficient_labels":
+            raise HTTPException(status_code=422, detail=training_status["message"])
+        return training_status
+    except HTTPException:
+        raise
+    except (OSError, RuntimeError, ValueError) as error:
+        raise HTTPException(status_code=503, detail=f"Model retraining unavailable: {error}") from error
 
 @app.post("/api/v1/kyc/analyze", response_model=DocumentAnalysisResponse, dependencies=[Depends(verify_api_key)])
 async def analyze_kyc_document(request: KYCAnalysisRequest):

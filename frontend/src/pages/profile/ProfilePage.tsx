@@ -13,6 +13,22 @@ import { useTranslation } from '../../utils/i18n'
 import { formatAccountNumber } from '../../utils/formatters'
 import { CopyableValue } from '../../components/common/CopyableValue'
 
+type VerificationDocument = KycDocument | KybDocument
+
+const getApprovedExtractedData = (documents: VerificationDocument[]) => documents
+  .filter((document) => document.status === 'APPROVED' || document.status === 'VERIFIE')
+  .map((document) => {
+    const analysis = (document.metadata as {
+      analysis?: {
+        extractedData?: Record<string, unknown>
+        extracted_data?: Record<string, unknown>
+      }
+    } | undefined)?.analysis
+    return analysis?.extractedData ?? analysis?.extracted_data
+  })
+  .filter((data): data is Record<string, unknown> => Boolean(data))
+  .reduce<Record<string, unknown>>((merged, data) => ({ ...merged, ...data }), {})
+
 export default function ProfilePage() {
   const { user, updateUser } = useAuth()
   const { t, locale, formatMoney } = useTranslation()
@@ -40,16 +56,17 @@ export default function ProfilePage() {
   const [addressForm, setAddressForm] = useState({ address: '', city: '', country: '', postalCode: '' })
   const [addressError, setAddressError] = useState('')
   const mountedRef = useRef(false)
-  const approvedKybData = kybDocs
-    .filter((document) => document.status === 'APPROVED' || document.status === 'VERIFIE')
-    .map((document) => (document.metadata as { analysis?: { extracted_data?: Record<string, unknown> } } | undefined)?.analysis?.extracted_data)
-    .filter((data): data is Record<string, unknown> => Boolean(data))
-    .reduce<Record<string, unknown>>((merged, data) => ({ ...merged, ...data }), {})
-  const companyName = profile?.companyName || (typeof approvedKybData.company_name === 'string' ? approvedKybData.company_name : '')
-  const sirenNif = profile?.sirenNif || (typeof approvedKybData.siren_nif === 'string' ? approvedKybData.siren_nif : '')
-  const tradeRegister = profile?.tradeRegister || (typeof approvedKybData.trade_register === 'string' ? approvedKybData.trade_register : '')
-  const companyRib = profile?.companyRib || (typeof approvedKybData.iban === 'string' ? approvedKybData.iban : '')
-  const companyAddress = profile?.companyAddress || (typeof approvedKybData.address === 'string' ? approvedKybData.address : '')
+  const approvedKycData = getApprovedExtractedData(kycDocs)
+  const approvedKybData = getApprovedExtractedData(kybDocs)
+  const approvedCompanyData = { ...approvedKycData, ...approvedKybData }
+  const readCompanyValue = (...keys: string[]) => keys
+    .map((key) => approvedCompanyData[key])
+    .find((value): value is string => typeof value === 'string' && value.trim().length > 0)
+  const companyName = profile?.companyName || readCompanyValue('company_name', 'companyName') || ''
+  const sirenNif = profile?.sirenNif || readCompanyValue('siren_nif', 'sirenNif') || ''
+  const tradeRegister = profile?.tradeRegister || readCompanyValue('trade_register', 'tradeRegister') || ''
+  const companyRib = profile?.companyRib || readCompanyValue('iban', 'rib', 'company_rib', 'companyRib') || ''
+  const companyAddress = profile?.companyAddress || readCompanyValue('company_address', 'companyAddress', 'address') || ''
 
   const loadData = useCallback(async () => {
     if (!user || !mountedRef.current) return

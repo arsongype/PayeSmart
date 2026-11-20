@@ -39,7 +39,7 @@ export class PaymentMethod {
   @Column({ type: 'varchar', length: 255, nullable: true, unique: true, name: 'stripe_payment_method_id' })
   stripePaymentMethodId: string | null
 
-  @Column({ type: 'json', nullable: true, name: 'metadata' })
+  @Column({ type: 'jsonb', nullable: true, name: 'metadata' })
   metadata: Record<string, unknown> | null
 
   @Column({ default: true, name: 'is_active' })

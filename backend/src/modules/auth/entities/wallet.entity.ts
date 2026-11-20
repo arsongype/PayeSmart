@@ -50,7 +50,7 @@ export class Wallet {
   @Column({ nullable: true, name: 'currency' })
   currency: string
 
-  @Column({ type: 'json', nullable: true, name: 'metadata' })
+  @Column({ type: 'jsonb', nullable: true, name: 'metadata' })
   metadata: Record<string, any> | null
 
   @CreateDateColumn({ name: 'created_at' })

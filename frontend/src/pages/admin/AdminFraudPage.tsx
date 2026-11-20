@@ -7,6 +7,15 @@ import { Button } from '../../components/common/Button'
 import { useLocale } from '../../hooks/useLocale'
 import { useTranslation } from '../../utils/i18n'
 
+type FraudRiskFilter = 'ALL' | 'LOW' | 'MEDIUM' | 'HIGH' | 'BLOCKED'
+
+const getRiskFilterValue = (alert: FraudAlert): Exclude<FraudRiskFilter, 'ALL'> => {
+  if (alert.riskLevel === 'critical') return 'BLOCKED'
+  if (alert.riskLevel === 'high' || alert.riskScore >= 70) return 'HIGH'
+  if (alert.riskScore >= 30 || alert.riskLevel === 'medium') return 'MEDIUM'
+  return 'LOW'
+}
+
 const riskStyles: Record<FraudAlert['riskLevel'], string> = {
   low: 'bg-blue-500/10 text-black border border-blue-500/30',
   medium: 'bg-blue-500/10 text-black border border-blue-500/30',
@@ -27,12 +36,13 @@ export default function AdminFraudPage() {
   const [adminNotes, setAdminNotes] = useState('')
   const [fraudOutcome, setFraudOutcome] = useState<FraudOutcome | ''>('')
   const [suspensionReason, setSuspensionReason] = useState('')
-  const [includeAllTransactions, setIncludeAllTransactions] = useState(false)
+  const [riskFilter, setRiskFilter] = useState<FraudRiskFilter>('ALL')
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const alertsPerPage = 5
-  const totalPages = Math.max(1, Math.ceil(alerts.length / alertsPerPage))
-  const visibleAlerts = alerts.slice((currentPage - 1) * alertsPerPage, currentPage * alertsPerPage)
+  const filteredAlerts = alerts.filter((alert) => riskFilter === 'ALL' || getRiskFilterValue(alert) === riskFilter)
+  const totalPages = Math.max(1, Math.ceil(filteredAlerts.length / alertsPerPage))
+  const visibleAlerts = filteredAlerts.slice((currentPage - 1) * alertsPerPage, currentPage * alertsPerPage)
   const pageItems: Array<number | 'ellipsis-start' | 'ellipsis-end'> = totalPages <= 5
     ? Array.from({ length: totalPages }, (_, index) => index + 1)
     : currentPage <= 3
@@ -44,7 +54,7 @@ export default function AdminFraudPage() {
   useEffect(() => {
     const loadAlerts = async () => {
       try {
-        const data = await adminService.getFraudAlerts(includeAllTransactions)
+        const data = await adminService.getFraudAlerts()
         setAlerts(data)
       } catch (err) {
         setError(err instanceof Error ? err.message : t('cannotLoadFraudAlerts'))
@@ -54,7 +64,7 @@ export default function AdminFraudPage() {
     }
 
     void loadAlerts()
-  }, [includeAllTransactions, t])
+  }, [t])
 
   const toggleInvestigation = async (alert: FraudAlert) => {
     if (expandedTransactionId === alert.transactionId) {
@@ -138,17 +148,24 @@ export default function AdminFraudPage() {
           </div>
         </div>
 
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            setCurrentPage(1)
-            setIncludeAllTransactions((current) => !current)
-          }}
-        >
-          {includeAllTransactions ? t('showFraudAlertsOnly') : t('includeAllTransactions')}
-        </Button>
+        <label className="flex items-center gap-3 text-sm font-medium text-black" htmlFor="fraud-risk-filter">
+          <span>{t('fraudRiskFilter')}</span>
+          <select
+            id="fraud-risk-filter"
+            value={riskFilter}
+            onChange={(event) => {
+              setRiskFilter(event.target.value as FraudRiskFilter)
+              setCurrentPage(1)
+            }}
+            className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-black"
+          >
+            <option value="ALL">{t('allRiskLevels')}</option>
+            <option value="LOW">{t('lowRisk')}</option>
+            <option value="MEDIUM">{t('mediumRisk')}</option>
+            <option value="HIGH">{t('highRisk')}</option>
+            <option value="BLOCKED">{t('blockedRisk')}</option>
+          </select>
+        </label>
 
           {error && (
             <div role="alert" className="rounded-2xl border border-red-300 bg-red-50 p-4 text-base text-red-800">
@@ -161,10 +178,12 @@ export default function AdminFraudPage() {
             </div>
           )}
 
-        {alerts.length === 0 ? (
+        {filteredAlerts.length === 0 ? (
           <div className="rounded-3xl border border-gray-300 bg-gray-50 p-10 text-center shadow-lg shadow-black/20">
              <AlertTriangle className="mx-auto mb-4 h-12 w-12 text-black" />
-            <p className="text-lg font-medium text-black">{t('noFraudAlerts')}</p>
+            <p className="text-lg font-medium text-black">
+              {alerts.length === 0 ? t('noFraudAlerts') : t('noFraudAlertsForRisk')}
+            </p>
             <p className="mt-2 text-sm text-black">{t('nonCompliantTransactionsAppear')}</p>
           </div>
         ) : (
@@ -178,7 +197,7 @@ export default function AdminFraudPage() {
                         {t('transactionReference')} {alert.transactionId}
                       </span>
                       <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-sm font-medium ${riskStyles[alert.riskLevel]}`}>
-                        {alert.riskLevel.toUpperCase()}
+                        {alert.riskLevel === 'high' || alert.riskLevel === 'critical' ? 'BLOCKED' : alert.riskLevel.toUpperCase()}
                       </span>
                       <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-sm text-black">
                         <ArrowUpRight className="h-3 w-3" />
@@ -268,7 +287,7 @@ export default function AdminFraudPage() {
                         <section className="rounded-2xl border border-gray-200 bg-white p-4">
                           <h3 className="mb-2 font-semibold text-black">{t('aiDecision')}</h3>
                           <p className="text-sm text-black">
-                            {investigation.risk.decision} · {investigation.risk.level} · {investigation.risk.score.toFixed(1)}/100
+                            {investigation.risk.decision} · {investigation.risk.level.toUpperCase() === 'HIGH' || investigation.risk.level.toUpperCase() === 'CRITICAL' ? 'BLOCKED' : investigation.risk.level} · {investigation.risk.score.toFixed(1)}/100
                           </p>
                           {investigation.risk.reasons.length > 0 ? (
                             <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-black">

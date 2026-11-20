@@ -34,6 +34,7 @@ export class AuthController {
       ipAddress: req.ip ?? req.socket.remoteAddress ?? 'unknown',
       userAgent: req.get('user-agent') ?? 'unknown',
       deviceFingerprint: req.get('x-device-fingerprint') ?? null,
+      frontendOrigin: req.get('origin') ?? null,
     })
   }
 

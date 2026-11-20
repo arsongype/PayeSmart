@@ -56,7 +56,7 @@ export class WithdrawalsService {
 
     return {
       countryCode,
-      methods: [WithdrawalMethod.ORANGE_MONEY],
+      methods: [WithdrawalMethod.BANK_TRANSFER],
     }
   }
 
@@ -73,14 +73,10 @@ export class WithdrawalsService {
     if (!options.methods.includes(dto.method)) {
       throw new BadRequestException('Ce moyen de retrait n’est pas disponible dans votre pays')
     }
-    if (dto.method !== WithdrawalMethod.BANK_TRANSFER && !/^\+?[0-9\s().-]{7,24}$/.test(dto.destinationAccount)) {
-      throw new BadRequestException('Saisissez un numéro de téléphone valide pour le portefeuille mobile')
-    }
-
     const destination: WithdrawalDestination = {
       recipientName: dto.recipientName.trim(),
       account: dto.destinationAccount.trim(),
-      ...(dto.method === WithdrawalMethod.BANK_TRANSFER ? { bankName: dto.bankName?.trim() } : {}),
+      bankName: dto.bankName?.trim(),
       ...(dto.note?.trim() ? { note: dto.note.trim() } : {}),
     }
 

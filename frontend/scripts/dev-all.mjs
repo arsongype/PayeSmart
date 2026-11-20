@@ -1,40 +1,79 @@
 import { createServer } from 'vite'
+import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
 
-const ports = [5173, 5174, 5175, 5176, 5177, 5178]
-const servers = await Promise.all(ports.map((port, index) => createServer({
-  cacheDir: `node_modules/.vite/port-${port}`,
-  server: {
-    port,
-    strictPort: true,
-    hmr: {
-      port: 24678 + index,
-    },
-  },
-})))
+const servers = []
+const processes = []
+const frontendOnly = process.argv.includes('--frontend-only')
 
-const activeServers = []
-await Promise.all(servers.map(async (server, index) => {
-  try {
-    await server.listen()
-    activeServers.push(server)
-  } catch (error) {
-    await server.close()
-    console.warn(`Port ${ports[index]} is already in use; keeping the existing server.`)
-  }
-}))
+const rootDir = resolve(import.meta.dirname, '..', '..')
+const backendDir = resolve(rootDir, 'backend')
+const aiServiceDir = resolve(rootDir, 'ai-service')
 
-if (activeServers.length === 0) {
-  throw new Error('No frontend development port could be started.')
+const startProcess = (name, command, args, cwd, env = {}) => {
+  const child = spawn(command, args, {
+    cwd,
+    env: { ...process.env, ...env },
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  })
+
+  child.on('error', (error) => {
+    console.error(`[${name}] impossible de démarrer: ${error.message}`)
+  })
+  child.on('exit', (code, signal) => {
+    if (code !== 0 && signal !== 'SIGTERM') {
+      console.error(`[${name}] arrêté avec le code ${code ?? signal}`)
+    }
+  })
+  processes.push(child)
 }
 
-for (const server of activeServers) {
+if (!frontendOnly) {
+  const python = process.platform === 'win32'
+    ? resolve(aiServiceDir, '.venv', 'Scripts', 'python.exe')
+    : resolve(aiServiceDir, '.venv', 'bin', 'python')
+
+  if (!existsSync(python)) {
+    throw new Error(`Python IA introuvable: ${python}. Installez d'abord ai-service/.venv.`)
+  }
+
+  startProcess('backend', process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'start:dev'], backendDir)
+  startProcess('ai-service', python, ['main.py'], aiServiceDir)
+}
+
+for (let port = 5173; port <= 5178; port += 1) {
+  try {
+    const server = await createServer({
+      server: {
+        host: '0.0.0.0',
+        port,
+        strictPort: true,
+      },
+    })
+
+    await server.listen()
+    servers.push(server)
+  } catch (error) {
+    if (error?.code === 'EADDRINUSE' || error?.message?.includes('already in use')) {
+      console.error(`Port ${port} deja utilise`)
+    } else {
+      throw error
+    }
+  }
+}
+
+for (const server of servers) {
   server.printUrls()
 }
 
 const shutdown = async () => {
-  await Promise.all(activeServers.map((server) => server.close()))
-  process.exit(0)
+  await Promise.allSettled(servers.map((server) => server.close()))
+  for (const child of processes) {
+    child.kill()
+  }
 }
 
-process.on('SIGINT', shutdown)
-process.on('SIGTERM', shutdown)
+process.once('SIGINT', shutdown)
+process.once('SIGTERM', shutdown)

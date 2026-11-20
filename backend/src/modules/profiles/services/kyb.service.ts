@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
-import { Repository } from 'typeorm'
+import { In, Repository } from 'typeorm'
 import { KybDocument } from '../../auth/entities/kyb-document.entity.js'
 import { CreateKybDocumentDto, ReviewKybDocumentDto } from '../../auth/dto/kyb.dto.js'
 import { AiService } from './ai.service.js'
@@ -132,19 +132,33 @@ export class KybService {
   }
 
   private async syncApprovedCompanyInformation(userId: number) {
-    const documents = await this.kybRepository.find({ where: { userId, status: KybStatus.APPROVED } })
+    const documents = await this.kybRepository.find({
+      where: { userId, status: In([KybStatus.APPROVED, KybStatus.VERIFIE]) },
+    })
     const profile = await this.profileRepository.findOne({ where: { userId } })
       ?? this.profileRepository.create({ userId })
     const company = documents
-      .map((document) => (document.metadata as { analysis?: { extracted_data?: Record<string, unknown> } } | null)?.analysis?.extracted_data)
+      .map((document) => {
+        const analysis = (document.metadata as {
+          analysis?: {
+            extractedData?: Record<string, unknown>
+            extracted_data?: Record<string, unknown>
+          }
+        } | null)?.analysis
+        return analysis?.extractedData ?? analysis?.extracted_data
+      })
       .filter((data): data is Record<string, unknown> => Boolean(data))
       .reduce<Record<string, unknown>>((merged, data) => ({ ...merged, ...data }), {})
 
-    if (typeof company.company_name === 'string') profile.companyName = company.company_name
-    if (typeof company.siren_nif === 'string') profile.sirenNif = company.siren_nif
-    if (typeof company.address === 'string') profile.companyAddress = company.address
-    if (typeof company.trade_register === 'string') profile.tradeRegister = company.trade_register
-    if (typeof company.iban === 'string') profile.companyRib = company.iban
+    const readCompanyValue = (...keys: string[]) => keys
+      .map((key) => company[key])
+      .find((value): value is string => typeof value === 'string' && value.trim().length > 0)
+
+    profile.companyName = readCompanyValue('company_name', 'companyName') ?? profile.companyName
+    profile.sirenNif = readCompanyValue('siren_nif', 'sirenNif') ?? profile.sirenNif
+    profile.companyAddress = readCompanyValue('company_address', 'companyAddress', 'address') ?? profile.companyAddress
+    profile.tradeRegister = readCompanyValue('trade_register', 'tradeRegister') ?? profile.tradeRegister
+    profile.companyRib = readCompanyValue('iban', 'rib', 'company_rib', 'companyRib') ?? profile.companyRib
     await this.profileRepository.save(profile)
   }
 

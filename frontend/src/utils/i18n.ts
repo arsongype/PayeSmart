@@ -145,6 +145,11 @@ export interface Translations {
     country: string
     postalCode: string
     role: string
+    allRoles: string
+    adminRole: string
+    clientRole: string
+    merchantRole: string
+    noUsersForRole: string
     company: string
     personalInfo: string
     addressInfo: string
@@ -223,6 +228,13 @@ export interface Translations {
     kybStatus: string
     documentsCount: string
     fraudMonitoring: string
+    fraudRiskFilter: string
+    allRiskLevels: string
+    lowRisk: string
+    mediumRisk: string
+    highRisk: string
+    blockedRisk: string
+    noFraudAlertsForRisk: string
     pagination: string
     previous: string
     next: string
@@ -820,12 +832,24 @@ export const translations: Record<Language, Translations> = {
       close: 'Fermer',
       documentPreviewUnavailable: 'Aperçu indisponible pour ce format de fichier.',
       manageRoles: 'Gérez les rôles et les accès des utilisateurs de la plateforme',
+      allRoles: 'Tous les rôles',
+      adminRole: 'Admin',
+      clientRole: 'Client',
+      merchantRole: 'Marchand',
+      noUsersForRole: 'Aucun utilisateur pour ce rôle',
       roleUpdated: 'Rôle mis à jour',
       userId: 'ID: {{id}}',
       kycStatus: 'KYC',
       kybStatus: 'KYB',
       documentsCount: 'Documents',
       fraudMonitoring: 'Suivi des transactions signalées par l\'analyse IA',
+      fraudRiskFilter: 'Filtrer par niveau',
+      allRiskLevels: 'Tous les niveaux',
+      lowRisk: 'LOW',
+      mediumRisk: 'MEDIUM',
+      highRisk: 'HIGH',
+      blockedRisk: 'BLOCKED',
+      noFraudAlertsForRisk: 'Aucune alerte pour ce niveau de risque',
       pagination: 'Pagination des alertes fraude',
       previous: 'Précédent',
       next: 'Suivant',
@@ -1419,12 +1443,24 @@ export const translations: Record<Language, Translations> = {
       close: 'Close',
       documentPreviewUnavailable: 'Preview is unavailable for this file type.',
       manageRoles: 'Manage roles and access of platform users',
+      allRoles: 'All roles',
+      adminRole: 'Admin',
+      clientRole: 'Client',
+      merchantRole: 'Merchant',
+      noUsersForRole: 'No users for this role',
       roleUpdated: 'Role updated',
       userId: 'ID: {{id}}',
       kycStatus: 'KYC',
       kybStatus: 'KYB',
       documentsCount: 'Documents',
       fraudMonitoring: 'Monitoring of transactions flagged by AI analysis',
+      fraudRiskFilter: 'Filter by risk level',
+      allRiskLevels: 'All levels',
+      lowRisk: 'LOW',
+      mediumRisk: 'MEDIUM',
+      highRisk: 'HIGH',
+      blockedRisk: 'BLOCKED',
+      noFraudAlertsForRisk: 'No alerts for this risk level',
       pagination: 'Fraud alerts pagination',
       previous: 'Previous',
       next: 'Next',
